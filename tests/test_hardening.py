@@ -4,7 +4,10 @@ Cubre los tres huecos que se cerraron primero: fuerza bruta sobre X-Admin-Key,
 poder apagar la clave de bootstrap y las cabeceras de seguridad.
 """
 
-from app.core.config import get_settings
+import pytest
+from pydantic import ValidationError
+
+from app.core.config import Settings, get_settings
 from app.security.auth import _admin_failures
 from tests.conftest import auth_header, make_user
 
@@ -104,3 +107,26 @@ def test_hsts_when_there_is_tls(monkeypatch):
     monkeypatch.setattr(get_settings(), "cookie_secure", True)
     hsts = TestClient(create_app()).get("/health").headers["Strict-Transport-Security"]
     assert "max-age=31536000" in hsts and "includeSubDomains" in hsts
+
+
+# --- 4. CORS: el comodín con credenciales no debe poder configurarse ----------
+
+
+@pytest.mark.parametrize("origins", ["*", "https://a.cl,*"])
+def test_cors_rechaza_el_comodin(origins):
+    """El API va con allow_credentials=True: '*' es la combinación que el
+    navegador rechaza, y arreglarla a mano suele terminar quitando credenciales."""
+    with pytest.raises(ValidationError, match="no acepta"):
+        Settings(cors_origins=origins)
+
+
+def test_cors_exige_esquema():
+    """El header Origin siempre trae esquema; sin él no casa nunca y el fallo es
+    silencioso."""
+    with pytest.raises(ValidationError, match="esquema"):
+        Settings(cors_origins="dte.dimabe.cl")
+
+
+@pytest.mark.parametrize("origins", ["", "https://dte.dimabe.cl", "https://a.cl,https://b.cl"])
+def test_cors_acepta_origenes_explicitos(origins):
+    assert Settings(cors_origins=origins).cors_origins == origins

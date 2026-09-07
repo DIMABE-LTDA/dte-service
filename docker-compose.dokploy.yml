@@ -11,9 +11,11 @@
 # con el portal, y el API de máquinas no debe compartirlo con el navegador.
 # La base nunca sale de la red interna.
 #
-# El API queda expuesto sólo si creas el registro DNS de api.dimabe.cl. Si Odoo
-# corre en este mismo servidor, es más seguro no crearlo y conectar Odoo a la
-# red interna: ahí le habla a http://api:8000 sin pasar por internet.
+# El API no se publica salvo que pongas API_PUBLIC=true, y aun entonces sale
+# sólo su superficie de máquina: la administración vive únicamente en el dominio
+# del portal. Si Odoo corre en este mismo servidor, lo más seguro es no
+# publicarlo y conectarlo a la red interna: ahí le habla a http://api:8000 sin
+# pasar por internet.
 #
 # Variables que hay que definir en Dokploy (Environment):
 #   DTE_FERNET_KEYS      clave(s) Fernet con que se cifran certificados y CAF
@@ -28,7 +30,11 @@
 #                        primer usuario del portal. Si van vacíos no se siembra
 #                        nadie y el portal queda sin forma de entrar.
 # Opcionales:
-#   API_DOMAIN               api.dimabe.cl (para Odoo, ver arriba)
+#   API_PUBLIC               'true' publica el API en Traefik. Por omisión NO se
+#                            publica: si Odoo corre en este servidor, déjalo así
+#                            y conéctalo a la red interna (http://api:8000)
+#   API_DOMAIN               api.dimabe.cl, sólo si API_PUBLIC=true
+#   API_ALLOWED_IPS          lista blanca del API, si se publica
 #   PORTAL_ALLOWED_IPS       si la defines, sólo esas IP alcanzan el portal
 #   DTE_ADMIN_BOOTSTRAP_KEY_ENABLED
 #                            false apaga DTE_ADMIN_API_KEY (que entonces puede
@@ -90,16 +96,36 @@ services:
       # Los XSD oficiales del SII, para validar libros y documentos.
       - ./schemas:/srv/schemas:ro
     networks: [interna, dokploy-network]
-    # Sin 'ports': no se publica en el host. Sale a internet sólo si existe el
-    # registro DNS de API_DOMAIN; si no, sólo lo alcanzan los otros servicios.
+    # Sin 'ports': no se publica en el host.
+    #
+    # Y por omisión tampoco en Traefik: API_PUBLIC=false. OJO — Traefik enruta
+    # por la cabecera Host, NO por DNS: con traefik.enable=true bastaría apuntar
+    # a la IP del servidor mandando `Host: api.dimabe.cl` para alcanzarlo,
+    # exista o no el registro. Por eso publicarlo es una decisión explícita.
+    #
+    # Cuando se publica, sale SÓLO la superficie de máquina. /admin, /auth,
+    # /users, /machine-keys y /audit no se enrutan aquí: viven en el dominio del
+    # portal, que sí tiene lista blanca de IP. Si no fuera así, la lista blanca
+    # del portal sería decorativa — la misma administración quedaría abierta por
+    # este otro dominio.
+    #
+    # El filtro por prefijo aguanta porque NADIE colapsa '..' en el camino:
+    # Traefik enruta con la ruta cruda y uvicorn la entrega igual, así que
+    # /dte/../admin/customers casa con PathPrefix(/dte) pero la app no lo
+    # resuelve a /admin y devuelve 404 (verificado). Si algún día se mete un
+    # proxy que normalice ENTRE Traefik y el API, ese filtro deja de valer.
     labels:
-      - traefik.enable=true
+      - traefik.enable=${API_PUBLIC:-false}
       - traefik.docker.network=dokploy-network
-      - traefik.http.routers.dteapi.rule=Host(`${API_DOMAIN:-api.dimabe.cl}`)
+      - traefik.http.routers.dteapi.rule=Host(`${API_DOMAIN:-api.dimabe.cl}`) && (PathPrefix(`/dte`) || PathPrefix(`/boletas`) || PathPrefix(`/rcv`) || PathPrefix(`/books`) || PathPrefix(`/bhe`) || PathPrefix(`/exchange`) || PathPrefix(`/health`))
       - traefik.http.routers.dteapi.entrypoints=websecure
       - traefik.http.routers.dteapi.tls=true
       - traefik.http.routers.dteapi.tls.certresolver=letsencrypt
       - traefik.http.services.dteapi.loadbalancer.server.port=8000
+      # Lista blanca propia del API. Vacía deja pasar a todos: si Odoo sale por
+      # una IP fija, fíjala aquí.
+      - traefik.http.middlewares.api-ips.ipallowlist.sourcerange=${API_ALLOWED_IPS:-0.0.0.0/0}
+      - traefik.http.routers.dteapi.middlewares=api-ips
 
   # Portal de administración: clientes, certificados, CAF, servicios.
   web:

@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     admin_bootstrap_key_enabled: bool = True
     request_timeout_s: int = 60
     log_level: str = "INFO"
-    # Orígenes permitidos para la SPA (coma-separados). Vacío = sin CORS (dev usa proxy).
+    # Orígenes permitidos para la SPA (coma-separados), con esquema. Vacío = sin
+    # CORS, que es lo normal: portal y API se sirven en el mismo sitio.
     cors_origins: str = ""
 
     # --- Rate limiting (estado por proceso: con N workers el límite efectivo es ~N x) ---
@@ -67,6 +68,22 @@ class Settings(BaseSettings):
                 "DTE_ADMIN_API_KEY debe configurarse con un valor aleatorio de >=16 caracteres"
                 " (o apagarse con DTE_ADMIN_BOOTSTRAP_KEY_ENABLED=false)"
             )
+        # El comodín con allow_credentials=True es la combinación prohibida: el
+        # navegador se niega a usarla, así que la SPA dejaría de funcionar y
+        # alguien "arreglaría" el CORS quitando las credenciales. Y un origen sin
+        # esquema no casa nunca con el header Origin, que siempre lo trae: falla
+        # en silencio y cuesta horas de depuración.
+        for origin in self.cors_origin_list:
+            if origin == "*":
+                raise ValueError(
+                    "DTE_CORS_ORIGINS no acepta '*': el API se sirve con"
+                    " allow_credentials=True. Enumera los orígenes de la SPA."
+                )
+            if not origin.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"DTE_CORS_ORIGINS: '{origin}' debe incluir el esquema"
+                    " (https://dte.dimabe.cl), que es como llega el header Origin"
+                )
         return self
 
     @property
