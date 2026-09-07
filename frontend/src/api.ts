@@ -11,6 +11,8 @@ import type {
   ServiceGrantResult,
   ServiceInfo,
   Token,
+  TotpSetup,
+  TotpStatus,
   User,
 } from "./types";
 
@@ -23,21 +25,32 @@ const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 // `credentials: "include"` hace que el navegador la envíe en cada request.
 class ApiError extends Error {}
 
+/** Saca el mensaje del cuerpo, venga del handler de errores o de FastAPI. */
+async function mensajeDe(res: Response, porDefecto: string): Promise<string> {
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+  return (
+    (body as { error?: { message?: string } }).error?.message ??
+    (body as { detail?: string }).detail ??
+    porDefecto
+  );
+}
+
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const res = await fetch(`${BASE}${path}`, { ...opts, headers, credentials: "include" });
   if (res.status === 401) {
     // /auth/* (me, login, logout) gestionan su propio estado: no redirigir aquí.
-    if (!path.startsWith("/auth/")) window.location.assign("/login");
-    throw new ApiError("no autenticado");
+    if (!path.startsWith("/auth/")) {
+      window.location.assign("/login");
+      throw new ApiError("no autenticado");
+    }
+    // Y NECESITAN el detalle: el login distingue "falta el segundo factor"
+    // ('totp_required') de una contraseña incorrecta, y con un mensaje genérico
+    // nunca llegaría a pedir el código.
+    throw new ApiError(await mensajeDe(res, "no autenticado"));
   }
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
-    const msg =
-      (body as { error?: { message?: string } }).error?.message ??
-      (body as { detail?: string }).detail ??
-      `HTTP ${res.status}`;
-    throw new ApiError(msg);
+    throw new ApiError(await mensajeDe(res, `HTTP ${res.status}`));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -48,7 +61,17 @@ function body(data: unknown): RequestInit {
 }
 
 export const api = {
-  login: (email: string, password: string) => req<Token>("/auth/login", body({ email, password })),
+  login: (
+    email: string,
+    password: string,
+    second?: { totp_code?: string; recovery_code?: string },
+  ) => req<Token>("/auth/login", body({ email, password, ...second })),
+  totpStatus: () => req<TotpStatus>("/auth/totp"),
+  totpSetup: () => req<TotpSetup>("/auth/totp/setup", { method: "POST" }),
+  totpActivate: (code: string) =>
+    req<{ recovery_codes: string[] }>("/auth/totp/activate", body({ code })),
+  totpDisable: (password: string) => req<void>("/auth/totp/disable", body({ password })),
+  resetUserTotp: (id: number) => req<User>(`/users/${id}/totp/reset`, { method: "POST" }),
   logout: () => req<void>("/auth/logout", { method: "POST" }),
   me: () => req<Me>("/auth/me"),
 

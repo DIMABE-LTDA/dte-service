@@ -216,6 +216,38 @@ class User(Base):
     # Soft delete: NULL = activo; con fecha = archivado (no puede iniciar sesión).
     deleted_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
+    # --- Segundo factor (TOTP) ---
+    # El secreto va cifrado con Fernet, como el resto del material sensible: con
+    # él en claro cualquiera con acceso a la base genera códigos válidos.
+    totp_secret: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    # Se separa de tener secreto: entre pedir el alta y confirmar el primer
+    # código hay un estado intermedio, y ahí el segundo factor NO debe exigirse
+    # todavía o el usuario se queda fuera si cierra la pestaña.
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    recovery_codes: Mapped[list[RecoveryCode]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class RecoveryCode(Base):
+    """Código de un solo uso para entrar si se pierde el teléfono.
+
+    Hasheados con argon2, igual que las contraseñas: no se vuelven a mostrar. Sin
+    esto, perder el teléfono deja fuera del portal que custodia los certificados
+    de todas las empresas, y no hay a quién pedirle ayuda si eras el único
+    superadmin.
+    """
+
+    __tablename__ = "recovery_code"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"))
+    code_hash: Mapped[str] = mapped_column(String)
+    used_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+    user: Mapped[User] = relationship(back_populates="recovery_codes")
+
 
 class RequestLog(Base):
     """Access-log de TODA petición (lo escribe el middleware). Sin secretos."""

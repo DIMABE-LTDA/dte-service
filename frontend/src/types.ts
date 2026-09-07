@@ -10,6 +10,17 @@ export interface Me {
   email: string;
   role: string;
   customer_id: number | null;
+  totp_enabled: boolean;
+}
+
+export interface TotpStatus {
+  enabled: boolean;
+  recovery_codes_left: number;
+}
+
+export interface TotpSetup {
+  otpauth_uri: string;
+  secret: string;
 }
 
 export interface Customer {

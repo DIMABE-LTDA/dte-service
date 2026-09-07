@@ -22,6 +22,8 @@ dependencies = [
     # en dependencias: tenerla como extra convierte un despliegue con la
     # variable puesta y el paquete ausente en un límite que falla en silencio.
     "redis>=5.0",
+    # TOTP del segundo factor del portal (RFC 6238).
+    "pyotp>=2.9",
     # El motor dte_chile NO va en dependencies directas: rompería el editable
     # local de dev y el vendoring offline de Docker (referencia directa de git).
     # Dev: `pip install -e ../dte_chile`. CI: extra `engine` (pineado, abajo).

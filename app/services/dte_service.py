@@ -558,9 +558,7 @@ def issue_settlement_batch(db: Session, customer: Customer, cert, req) -> dict:
     try:
         for settlement in settlements:
             doc_type = int(settlement.type)
-            folio, caf = folio_service.next_folio(
-                db, customer.id, doc_type, request_id_var.get()
-            )
+            folio, caf = folio_service.next_folio(db, customer.id, doc_type, request_id_var.get())
             settlement.folio = folio
             assigned.append((doc_type, folio))
             cafs.append(caf)

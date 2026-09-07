@@ -8,7 +8,15 @@ import type { User } from "../types";
 
 const EMPTY = { email: "", password: "", role: "operator", customer_id: "" };
 
-type Confirm = { kind: "delete" | "restore"; user: User };
+type Confirm = { kind: "delete" | "restore" | "totp"; user: User };
+
+const TITULOS = {
+  delete: "Eliminar usuario",
+  restore: "Reactivar usuario",
+  totp: "Resetear la verificación en dos pasos",
+} as const;
+const ETIQUETAS = { delete: "Eliminar", restore: "Reactivar", totp: "Resetear" } as const;
+const ICONOS = { delete: "trash", restore: "restore", totp: "key" } as const;
 
 export default function Users() {
   const [showArchived, setShowArchived] = useState(false);
@@ -67,6 +75,7 @@ export default function Users() {
     setBusy(true);
     try {
       if (confirm.kind === "delete") await api.deleteUser(confirm.user.id);
+      else if (confirm.kind === "totp") await api.resetUserTotp(confirm.user.id);
       else await api.restoreUser(confirm.user.id);
       setConfirm(null);
       await reload();
@@ -134,6 +143,15 @@ export default function Users() {
                       <div className="actions">
                         {!archived && (
                           <>
+                            <button
+                              className="btn-link"
+                              type="button"
+                              title="Apaga su verificación en dos pasos: la salida cuando alguien pierde el teléfono y los códigos"
+                              onClick={() => setConfirm({ kind: "totp", user: u })}
+                            >
+                              <Icon name="key" />
+                              Resetear 2FA
+                            </button>
                             <button className="btn-link" type="button" onClick={() => toggle(u)}>
                               <Icon name="power" />
                               {u.is_active ? "Desactivar" : "Activar"}
@@ -240,11 +258,11 @@ export default function Users() {
 
       {confirm && (
         <ConfirmModal
-          title={confirm.kind === "delete" ? "Eliminar usuario" : "Reactivar usuario"}
-          danger={confirm.kind === "delete"}
+          title={TITULOS[confirm.kind]}
+          danger={confirm.kind !== "restore"}
           busy={busy}
-          confirmLabel={confirm.kind === "delete" ? "Eliminar" : "Reactivar"}
-          confirmIcon={confirm.kind === "delete" ? "trash" : "restore"}
+          confirmLabel={ETIQUETAS[confirm.kind]}
+          confirmIcon={ICONOS[confirm.kind]}
           onClose={() => setConfirm(null)}
           onConfirm={doConfirm}
           message={
@@ -252,6 +270,13 @@ export default function Users() {
               <>
                 ¿Archivar al usuario <strong>{confirm.user.email}</strong>? No podrá iniciar sesión.
                 Podrás reactivarlo después.
+              </>
+            ) : confirm.kind === "totp" ? (
+              <>
+                ¿Apagar la verificación en dos pasos de <strong>{confirm.user.email}</strong>? Su
+                cuenta quedará protegida sólo por la contraseña hasta que vuelva a activarla, y se
+                borran sus códigos de recuperación. Hazlo únicamente si te lo pidió esa persona:
+                queda anotado en la auditoría de cambios.
               </>
             ) : (
               <>

@@ -8,11 +8,11 @@ tras cerrar los tres primeros huecos).
 
 ---
 
-## 1. Endurecer el servicio para exponerlo a internet
+## 1. Endurecer el servicio para exponerlo a internet — **cerrado**
 
-El servicio es multiempresa y va a quedar público, así que estos huecos dejan
-de ser teóricos. Salen de una auditoría del código, no de una lista genérica:
-cada uno se verificó leyendo la implementación.
+El servicio es multiempresa y va a quedar público, así que estos huecos dejaban
+de ser teóricos. Salieron de dos auditorías del código y todos están cerrados,
+cada uno verificado contra el servicio corriendo, no sólo con tests.
 
 ### Lo que ya está bien resuelto — no gastar ahí
 
@@ -26,7 +26,7 @@ consumidor, hasheadas en base y con rol propio.
 
 ### Cerrado el 2026-09-07
 
-Siete de los ocho huecos del inventario:
+**Los ocho huecos del inventario.** El servicio queda listo para exponerse:
 
 - **Límite de intentos sobre `X-Admin-Key`.** Antes era la única credencial que
   se podía probar sin tope, y es la que escribe sobre **todos** los clientes.
@@ -68,21 +68,19 @@ Siete de los ocho huecos del inventario:
   omisión, 0 la apaga). La llave es el cliente, no la IP: es el cliente quien
   consume, salga por donde salga. Se cobra **después** de autenticar, para que
   nadie pueda agotarle la cuota a un cliente ajeno sin conocer su credencial.
+- **Segundo factor en el portal** (TOTP, RFC 6238). El secreto va cifrado con
+  Fernet: en claro equivale a la credencial. El alta es en dos pasos y no activa
+  nada hasta confirmar un código, porque si se activara al generar el secreto,
+  cerrar la pestaña a medias dejaría al usuario fuera de su propio portal.
+  Ocho **códigos de recuperación** de un solo uso, hasheados con argon2 — sin
+  ellos, perder el teléfono deja fuera del portal que custodia los certificados
+  de todas las empresas, y si eras el único superadmin no hay a quién pedirle
+  ayuda. Como última salida, un superadmin puede resetear el de otro, y queda
+  anotado en la auditoría de cambios.
 - **`cors_origins` se valida al arrancar** (`app/core/config.py`): rechaza `*`
   —prohibido junto a `allow_credentials=True`— y exige el esquema, porque el
   header `Origin` siempre lo trae y sin él la regla no casa nunca y falla en
   silencio.
-
-### Huecos, por gravedad
-
-**1. Sin segundo factor en el portal.** Quien administra el material tributario
-de todos los clientes entra sólo con correo y contraseña. Es lo más caro de
-implementar y lo que menos urge si el portal queda restringido por IP.
-
-### Orden sugerido
-
-Es el único que queda, y el que menos urge mientras el portal esté restringido
-por IP. También el más caro.
 
 ---
 

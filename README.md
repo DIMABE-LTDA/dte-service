@@ -166,6 +166,12 @@ Pensado para que el servicio pueda quedar expuesto a internet:
   no se penaliza. Una credencial válida rechazada por rol (403) no cuenta como
   fallo. El estado vive en la memoria de cada proceso: con N workers el límite
   efectivo es ~N x, suficiente como freno, no como cuota exacta.
+- **Segundo factor.** Opcional y por usuario, en *Mi cuenta* del portal (TOTP de
+  cualquier app de autenticación). El secreto va cifrado con Fernet y el alta no
+  activa nada hasta confirmar un código. Entrega ocho códigos de recuperación de
+  un solo uso: guárdalos, son la única salida si se pierde el teléfono. Si
+  también se pierden, un `superadmin` puede resetearlo desde *Usuarios*, y queda
+  en la auditoría de cambios.
 - **Cabeceras.** Toda respuesta lleva `X-Frame-Options: DENY`,
   `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options` y
   `Referrer-Policy`; con `DTE_COOKIE_SECURE=true` (o sea, con TLS delante) se

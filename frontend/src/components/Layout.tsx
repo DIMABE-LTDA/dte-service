@@ -6,6 +6,7 @@ const TITLES: Record<string, string> = {
   "/customers": "Clientes",
   "/users": "Usuarios",
   "/audit": "Auditoría",
+  "/security": "Mi cuenta",
 };
 
 function titleFor(path: string): string {
@@ -49,12 +50,17 @@ export default function Layout() {
         <header className="topbar">
           <div className="page-title">{titleFor(pathname)}</div>
           <span className="spacer" />
-          <div className="user">
+          <NavLink className="user" to="/security" title="Mi cuenta y verificación en dos pasos">
             <span className="avatar">{initial}</span>
             <span>
               {user?.email} · {user?.role}
             </span>
-          </div>
+            {!user?.totp_enabled && (
+              <span className="badge warn" title="Sin verificación en dos pasos">
+                2FA
+              </span>
+            )}
+          </NavLink>
           <button className="secondary sm" onClick={logout}>
             <Icon name="logout" />
             Salir

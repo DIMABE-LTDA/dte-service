@@ -27,9 +27,7 @@ _CL_TZ = ZoneInfo("America/Santiago")  # el SII fecha el libro en hora chilena
 
 def _send(customer: Customer, cert: Certificate, xml: bytes):
     """Sube el libro por el mismo canal que los sobres de documentos."""
-    return sii_upload.upload(
-        customer, cert, xml, customer.rut, get_settings().request_timeout_s
-    )
+    return sii_upload.upload(customer, cert, xml, customer.rut, get_settings().request_timeout_s)
 
 
 def _book_line(line) -> BookLine:
