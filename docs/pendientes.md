@@ -154,3 +154,23 @@ rodeo: los CAF son distintos, los correlativos independientes, y mezclarlos
 llevaría a emitir en producción con un folio de prueba. El conector de Odoo ya
 tiene los dos pares de credenciales y elige según el campo
 `dte_service_environment` del diario de ventas.
+
+**Se evaluó unificarlo** —un solo cliente con N ambientes— y se descartó. El
+puntero de folios está clavado en `(customer_id, doc_type)`
+(`app/db/models.py:137`), así que unificar obliga a meter el ambiente en esa
+clave y en la del CAF, el certificado y la credencial del SII. El ambiente
+dejaría de ser un dato del inquilino para pasar a ser un parámetro que hay que
+arrastrar por cada consulta, y basta olvidarlo una vez para emitir en
+producción con un folio de certificación. Hoy eso es irrepresentable: el
+ambiente se resuelve al autenticar y las cuatro líneas que lo leen lo toman del
+cliente ya resuelto (`app/routers/dte.py`, `app/services/sii_upload.py`,
+`app/services/receipt_service.py`).
+
+Hay además un argumento de seguridad: con el modelo actual una `apiKey` de
+certificación no puede alcanzar Palena por construcción. Unificar convertiría
+una credencial de pruebas filtrada —que siempre circulan más— en una que emite
+en producción.
+
+Lo que sí molestaba era de presentación, y está resuelto: la lista de clientes
+agrupa las fichas por RUT, así que la empresa se ve una vez aunque siga siendo
+dos clientes independientes.

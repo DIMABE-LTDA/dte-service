@@ -18,6 +18,25 @@ const EMPTY = {
 
 type Confirm = { kind: "delete" | "restore"; customer: Customer };
 
+type Company = { rut: string; name: string; fichas: Customer[] };
+
+/** Agrupa las fichas por RUT.
+ *
+ * Una empresa que opera en certificación y en producción son dos clientes
+ * distintos —cada uno con su certificado, sus CAF y sus correlativos— y esa
+ * separación es deliberada. Pero en la lista se leía como dos empresas: aquí
+ * se muestran juntas sin que dejen de ser fichas independientes.
+ */
+function groupByRut(items: Customer[]): Company[] {
+  const byRut = new Map<string, Company>();
+  for (const c of items) {
+    const g = byRut.get(c.rut);
+    if (g) g.fichas.push(c);
+    else byRut.set(c.rut, { rut: c.rut, name: c.name, fichas: [c] });
+  }
+  return [...byRut.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
 export default function Customers() {
   const { user } = useAuth();
   const writable = canWrite(user?.role);
@@ -159,70 +178,103 @@ export default function Customers() {
                 <th />
               </tr>
             </thead>
-            <tbody>
-              {(items ?? []).map((c) => {
-                const archived = !!c.deleted_at;
-                return (
-                  <tr key={c.id} className={archived ? "archived" : ""}>
-                    <td>{c.id}</td>
-                    <td>
-                      {c.name}
-                      {archived && <span className="badge denied"> archivado</span>}
-                    </td>
-                    <td>
-                      <span className="code">{c.key}</span>
-                    </td>
-                    <td>{c.rut}</td>
-                    <td>
-                      <span className={`badge ${c.environment === "PRODUCTION" ? "denied" : "ok"}`}>
-                        {c.environment}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="actions">
-                        <Link className="btn-link neutral" to={`/customers/${c.id}`}>
-                          <Icon name="settings" />
-                          Gestionar
-                        </Link>
-                        {writable && !archived && (
-                          <>
-                            <button className="btn-link" type="button" onClick={() => openEdit(c)}>
-                              <Icon name="edit" />
-                              Editar
-                            </button>
-                            <button
-                              className="btn-link danger"
-                              type="button"
-                              onClick={() => setConfirm({ kind: "delete", customer: c })}
-                            >
-                              <Icon name="trash" />
-                              Eliminar
-                            </button>
-                          </>
-                        )}
-                        {writable && archived && (
-                          <button
-                            className="btn-link"
-                            type="button"
-                            onClick={() => setConfirm({ kind: "restore", customer: c })}
+            {groupByRut(items ?? []).map((company) => {
+              // Una sola ficha se muestra como siempre; con dos o más, el
+              // nombre y el RUT suben a una cabecera y no se repiten fila a fila.
+              const agrupada = company.fichas.length > 1;
+              return (
+                <tbody key={company.rut}>
+                  {agrupada && (
+                    <tr className="group-head">
+                      <td />
+                      <td colSpan={5}>
+                        <strong>{company.name}</strong> · RUT {company.rut} ·{" "}
+                        <span className="muted">
+                          {company.fichas.length} fichas, una por ambiente
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  {company.fichas.map((c) => {
+                    const archived = !!c.deleted_at;
+                    return (
+                      <tr key={c.id} className={archived ? "archived" : ""}>
+                        <td>{c.id}</td>
+                        <td className={agrupada ? "sub" : ""}>
+                          {agrupada ? (
+                            <span className="muted">↳</span>
+                          ) : (
+                            <>
+                              {c.name}
+                              {archived && <span className="badge denied"> archivado</span>}
+                            </>
+                          )}
+                          {agrupada && archived && <span className="badge denied"> archivado</span>}
+                        </td>
+                        <td>
+                          <span className="code">{c.key}</span>
+                        </td>
+                        <td className="nowrap">{agrupada ? "" : c.rut}</td>
+                        <td>
+                          <span
+                            className={`badge ${c.environment === "PRODUCTION" ? "denied" : "ok"}`}
                           >
-                            <Icon name="restore" />
-                            Reactivar
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {items && items.length === 0 && (
+                            {c.environment}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="actions">
+                            <Link className="btn-link neutral" to={`/customers/${c.id}`}>
+                              <Icon name="settings" />
+                              Gestionar
+                            </Link>
+                            {writable && !archived && (
+                              <>
+                                <button
+                                  className="btn-link"
+                                  type="button"
+                                  onClick={() => openEdit(c)}
+                                >
+                                  <Icon name="edit" />
+                                  Editar
+                                </button>
+                                <button
+                                  className="btn-link danger"
+                                  type="button"
+                                  onClick={() => setConfirm({ kind: "delete", customer: c })}
+                                >
+                                  <Icon name="trash" />
+                                  Eliminar
+                                </button>
+                              </>
+                            )}
+                            {writable && archived && (
+                              <button
+                                className="btn-link"
+                                type="button"
+                                onClick={() => setConfirm({ kind: "restore", customer: c })}
+                              >
+                                <Icon name="restore" />
+                                Reactivar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              );
+            })}
+            {items && items.length === 0 && (
+              <tbody>
                 <tr>
                   <td colSpan={6} className="muted">
                     Sin clientes.
                   </td>
                 </tr>
-              )}
-            </tbody>
+              </tbody>
+            )}
           </table>
         )}
       </div>

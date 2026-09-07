@@ -558,8 +558,8 @@ export default function CustomerDetail() {
             <>
               ¿Sacar de circulación el CAF del tipo <strong>{confirmCaf.doc_type}</strong> (folios{" "}
               {confirmCaf.folio_from}–{confirmCaf.folio_to})? Los documentos ya emitidos con él
-              siguen siendo válidos; lo que se corta es que se emitan más. El siguiente folio
-              saldrá del CAF que siga, y esto no se puede deshacer.
+              siguen siendo válidos; lo que se corta es que se emitan más. El siguiente folio saldrá
+              del CAF que siga, y esto no se puede deshacer.
             </>
           }
         />

@@ -572,3 +572,30 @@ button:disabled {
   background: var(--accent);
   color: #04293b;
 }
+
+/* Cabecera de agrupación por RUT en la lista de clientes: una empresa que
+   opera en los dos ambientes son dos fichas, y así se leen como una sola
+   empresa sin dejar de ser independientes. */
+tr.group-head td {
+  padding-top: 0.9rem;
+  padding-bottom: 0.3rem;
+  border-bottom: none;
+  font-size: 0.9rem;
+}
+tr.group-head:hover {
+  background: none;
+}
+td.sub {
+  padding-left: 1.2rem;
+}
+
+/* Dentro de una tabla el customerCode y el RUT son identificadores cortos: no
+   deben partirse a mitad de palabra. El break-all de .code existe para los
+   secretos largos de la ficha, que sí necesitan quebrar. */
+td .code {
+  white-space: nowrap;
+  word-break: normal;
+}
+td.nowrap {
+  white-space: nowrap;
+}

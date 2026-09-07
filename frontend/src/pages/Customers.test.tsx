@@ -33,4 +33,39 @@ describe("Customers", () => {
     expect(await screen.findByText("ACME")).toBeInTheDocument();
     expect(screen.getByText("Nuevo cliente")).toBeInTheDocument();
   });
+
+  it("agrupa las dos fichas de un mismo RUT bajo una empresa", async () => {
+    (api.customers as Mock).mockResolvedValue([
+      { id: 1, name: "ACME", key: "acme-cert", rut: "76158145-7", environment: "CERTIFICATION" },
+      { id: 2, name: "ACME", key: "acme-prod", rut: "76158145-7", environment: "PRODUCTION" },
+    ]);
+    render(
+      <MemoryRouter>
+        <Customers />
+      </MemoryRouter>,
+    );
+    // El nombre aparece UNA vez, en la cabecera del grupo, no una por ficha.
+    expect(await screen.findByText("2 fichas, una por ambiente")).toBeInTheDocument();
+    expect(screen.getAllByText("ACME")).toHaveLength(1);
+    // Pero las fichas siguen siendo dos, cada una con su customerCode.
+    expect(screen.getByText("acme-cert")).toBeInTheDocument();
+    expect(screen.getByText("acme-prod")).toBeInTheDocument();
+  });
+
+  it("no agrupa cuando la empresa tiene una sola ficha", async () => {
+    (api.customers as Mock).mockResolvedValue([
+      { id: 1, name: "ACME", key: "acme", rut: "76158145-7", environment: "CERTIFICATION" },
+      { id: 2, name: "OTRA", key: "otra", rut: "77073851-2", environment: "CERTIFICATION" },
+    ]);
+    render(
+      <MemoryRouter>
+        <Customers />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("ACME")).toBeInTheDocument();
+    expect(screen.getByText("OTRA")).toBeInTheDocument();
+    expect(screen.queryByText(/fichas, una por ambiente/)).not.toBeInTheDocument();
+    // Sin agrupar, el RUT se sigue viendo en su columna.
+    expect(screen.getByText("76158145-7")).toBeInTheDocument();
+  });
 });
