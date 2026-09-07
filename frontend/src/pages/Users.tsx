@@ -121,7 +121,7 @@ export default function Users() {
                     <td>{u.id}</td>
                     <td>
                       {u.email}
-                      {archived && <span className="badge denied"> archivado</span>}
+                      {archived && <span className="badge neutral"> archivado</span>}
                     </td>
                     <td>{u.role}</td>
                     <td>{u.customer_id ?? "—"}</td>

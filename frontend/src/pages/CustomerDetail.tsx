@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { canWrite, useAuth } from "../auth";
@@ -6,7 +6,7 @@ import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
-import type { BheResponse, CafInfo, RcvResponse } from "../types";
+import type { BheResponse, CafInfo, GrantedService, RcvResponse } from "../types";
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,12 +53,21 @@ export default function CustomerDetail() {
   const [certPass, setCertPass] = useState("");
   const [cafFile, setCafFile] = useState<File | null>(null);
   const [confirmCaf, setConfirmCaf] = useState<CafInfo | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<GrantedService | null>(null);
+  const [confirmSiiKey, setConfirmSiiKey] = useState(false);
+  const keyNotice = useRef<HTMLDivElement>(null);
   const [siiPass, setSiiPass] = useState("");
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [operation, setOperation] = useState("COMPRA");
   const [rcv, setRcv] = useState<RcvResponse | null>(null);
   const [bhePeriod, setBhePeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [bhe, setBhe] = useState<BheResponse | null>(null);
+
+  // La apiKey se ve UNA vez y el aviso se pinta al principio de la página: si
+  // el operador estaba abajo, se lo perdía sin enterarse.
+  useEffect(() => {
+    if (grantedKey) keyNotice.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [grantedKey]);
 
   function openModal(kind: Exclude<ModalKind, null>) {
     setActionError("");
@@ -127,16 +136,20 @@ export default function CustomerDetail() {
       .catch((err) => setActionError((err as Error).message))
       .finally(() => setBusy(false));
   }
-  function revoke(code: string) {
+  function revoke() {
+    if (!confirmRevoke) return;
     setActionError("");
     setMsg("");
+    setBusy(true);
     api
-      .revokeService(cid, code)
+      .revokeService(cid, confirmRevoke.service_code)
       .then(() => {
-        setMsg("Servicio revocado.");
+        setMsg(`Servicio "${confirmRevoke.name}" revocado.`);
+        setConfirmRevoke(null);
         return reload();
       })
-      .catch((err) => setActionError((err as Error).message));
+      .catch((err) => setActionError((err as Error).message))
+      .finally(() => setBusy(false));
   }
   async function uploadCert(e: FormEvent) {
     e.preventDefault();
@@ -194,13 +207,16 @@ export default function CustomerDetail() {
   function deleteSiiKey() {
     setActionError("");
     setMsg("");
+    setBusy(true);
     api
       .deleteSiiKey(cid)
       .then(() => {
         setMsg("Clave tributaria eliminada.");
+        setConfirmSiiKey(false);
         return reload();
       })
-      .catch((err) => setActionError((err as Error).message));
+      .catch((err) => setActionError((err as Error).message))
+      .finally(() => setBusy(false));
   }
   function queryRcv(e: FormEvent) {
     e.preventDefault();
@@ -238,15 +254,15 @@ export default function CustomerDetail() {
       <h1>{customer.name}</h1>
       <p className="muted">
         Código <span className="code">{customer.key}</span> · RUT {customer.rut} ·{" "}
-        <span className={`badge ${customer.environment === "PRODUCTION" ? "denied" : "ok"}`}>
+        <span className={`badge ${customer.environment === "PRODUCTION" ? "warn" : "neutral"}`}>
           {customer.environment}
         </span>
       </p>
       {msg && !grantedKey && <p style={{ color: "var(--ok)" }}>{msg}</p>}
       {actionError && <p className="error">{actionError}</p>}
       {grantedKey && (
-        <div className="notice ok">
-          {msg} Copia la <strong>apiKey</strong> ahora — no se vuelve a mostrar:
+        <div className="notice ok" ref={keyNotice}>
+          Servicio habilitado. Copia la <strong>apiKey</strong> ahora — no se vuelve a mostrar:
           <div className="secret">
             <span className="code">{grantedKey}</span>
             <button
@@ -256,6 +272,10 @@ export default function CustomerDetail() {
             >
               <Icon name="copy" />
               Copiar
+            </button>
+            <button className="btn-link" type="button" onClick={() => setGrantedKey(null)}>
+              <Icon name="x" />
+              Ya la copié
             </button>
           </div>
         </div>
@@ -291,7 +311,7 @@ export default function CustomerDetail() {
                     <button
                       className="btn-link danger"
                       type="button"
-                      onClick={() => revoke(s.service_code)}
+                      onClick={() => setConfirmRevoke(s)}
                     >
                       <Icon name="revoke" />
                       Revocar
@@ -372,11 +392,15 @@ export default function CustomerDetail() {
           Clave del portal del SII (login web) para consultar las Boletas de Honorarios recibidas.
         </p>
         <div className="actions">
-          <span className={`badge ${siiKey.configured ? "ok" : "denied"}`}>
+          <span className={`badge ${siiKey.configured ? "ok" : "neutral"}`}>
             {siiKey.configured ? "configurada" : "no configurada"}
           </span>
           {writable && siiKey.configured && (
-            <button className="btn-link danger" type="button" onClick={deleteSiiKey}>
+            <button
+              className="btn-link danger"
+              type="button"
+              onClick={() => setConfirmSiiKey(true)}
+            >
               <Icon name="trash" />
               Eliminar clave
             </button>
@@ -415,7 +439,7 @@ export default function CustomerDetail() {
                 <td>{c.folio_to}</td>
                 <td>{c.last_folio || "—"}</td>
                 <td>
-                  <span className={`badge ${c.exhausted ? "denied" : "ok"}`}>
+                  <span className={`badge ${c.exhausted ? "warn" : "ok"}`}>
                     {c.exhausted ? "agotado" : "disponible"}
                   </span>
                 </td>
@@ -544,6 +568,45 @@ export default function CustomerDetail() {
             {busy && <p className="muted">Subiendo y validando el certificado…</p>}
           </form>
         </Modal>
+      )}
+
+      {confirmRevoke && (
+        <ConfirmModal
+          title="Revocar servicio"
+          danger
+          busy={busy}
+          confirmLabel="Revocar"
+          confirmIcon="revoke"
+          onClose={() => setConfirmRevoke(null)}
+          onConfirm={revoke}
+          message={
+            <>
+              ¿Quitarle a este cliente <strong>{confirmRevoke.name}</strong>? Su sistema empezará a
+              recibir <strong>401</strong> en ese servicio de inmediato, y para devolvérselo hay que
+              habilitarlo de nuevo con una <strong>apiKey nueva</strong>: la actual no se recupera y
+              habrá que reconfigurar el sistema del cliente.
+            </>
+          }
+        />
+      )}
+
+      {confirmSiiKey && (
+        <ConfirmModal
+          title="Eliminar clave tributaria"
+          danger
+          busy={busy}
+          confirmLabel="Eliminar"
+          confirmIcon="trash"
+          onClose={() => setConfirmSiiKey(false)}
+          onConfirm={deleteSiiKey}
+          message={
+            <>
+              ¿Borrar la clave del portal del SII de este cliente? Se dejarán de poder consultar sus
+              boletas de honorarios recibidas. La clave no queda guardada en ninguna otra parte:
+              para reponerla hay que volver a pedírsela a la empresa.
+            </>
+          }
+        />
       )}
 
       {confirmCaf && (

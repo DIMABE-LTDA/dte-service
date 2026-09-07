@@ -206,7 +206,7 @@ export default function Customers() {
                           ) : (
                             <>
                               {c.name}
-                              {archived && <span className="badge denied"> archivado</span>}
+                              {archived && <span className="badge neutral"> archivado</span>}
                             </>
                           )}
                           {agrupada && archived && <span className="badge denied"> archivado</span>}
@@ -217,7 +217,7 @@ export default function Customers() {
                         <td className="nowrap">{agrupada ? "" : c.rut}</td>
                         <td>
                           <span
-                            className={`badge ${c.environment === "PRODUCTION" ? "denied" : "ok"}`}
+                            className={`badge ${c.environment === "PRODUCTION" ? "warn" : "neutral"}`}
                           >
                             {c.environment}
                           </span>

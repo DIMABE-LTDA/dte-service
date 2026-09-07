@@ -11,6 +11,8 @@
   --ok: #22c55e;
   --bad: #ef4444;
   --warn: #f59e0b;
+  /* Anillo de foco: tiene que verse sobre --panel y sobre --bg. */
+  --focus: #7dd3fc;
 }
 
 * {
@@ -253,10 +255,6 @@ a {
 .btn-link.danger:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.14);
 }
-.btn-link:hover {
-  text-decoration: underline;
-  background: none;
-}
 .actions {
   display: flex;
   gap: 0.75rem;
@@ -384,7 +382,6 @@ button {
 }
 input:focus,
 select:focus {
-  outline: none;
   border-color: var(--accent);
 }
 button {
@@ -494,6 +491,18 @@ button:disabled {
   background: rgba(239, 68, 68, 0.15);
   color: var(--bad);
 }
+/* Ámbar = "mírame": producción (donde los documentos son reales) y folios
+   agotados. `denied` queda para su significado original, el resultado de una
+   petición en la auditoría. */
+.badge.warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warn);
+}
+/* Gris = dato, no alerta: archivado, no configurado. */
+.badge.neutral {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--muted);
+}
 
 .error {
   color: var(--bad);
@@ -598,4 +607,15 @@ td .code {
 }
 td.nowrap {
   white-space: nowrap;
+}
+
+/* Foco de teclado. El portal se opera a diario con el teclado y hasta aquí no
+   había ningún indicador: los inputs tenían `outline: none` y los botones y
+   enlaces nunca definieron uno, así que la posición del foco era invisible.
+   :focus-visible sólo lo pinta cuando el navegador estima que el foco viene
+   del teclado, así que el clic con ratón no deja el anillo pegado. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
