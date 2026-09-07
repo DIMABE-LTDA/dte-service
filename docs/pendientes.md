@@ -3,7 +3,8 @@
 Lo que queda por hacer fuera de la certificación ante el SII, que tiene su
 propio archivo en [`certificacion-sii.md`](certificacion-sii.md).
 
-**Actualizar al avanzar.** Última revisión: **2026-09-07**.
+**Actualizar al avanzar.** Última revisión: **2026-09-07** (segunda auditoría,
+tras cerrar los tres primeros huecos).
 
 ---
 
@@ -50,28 +51,60 @@ Los tres huecos más expuestos, que eran también los más baratos:
 
 ### Huecos, por gravedad
 
-**1. El límite de tasa vive en la memoria de cada proceso**
+**1. El API publica la administración fuera de la lista blanca del portal.**
+Hallado en la auditoría del 2026-09-07, en `docker-compose.dokploy.yml`. El
+portal lleva un middleware `ipallowlist` de Traefik (`PORTAL_ALLOWED_IPS`)
+porque desde ahí se administra el material tributario. Pero el servicio `api`
+se publica en el mismo Traefik con `traefik.enable=true` y **sin ese
+middleware**, y sirve exactamente los mismos routers: `/admin/*`, `/auth/login`,
+`/users`, `/machine-keys`, `/audit`.
+
+El comentario del propio archivo dice que el API «sale a internet sólo si
+creas el registro DNS de `API_DOMAIN`». **Es falso**: Traefik enruta por la
+cabecera `Host`, no por DNS. Basta conectar a la IP del servidor mandando
+`Host: api.dimabe.cl` e ignorar el aviso de certificado —sin registro DNS, Let's
+Encrypt no puede emitirlo y Traefik sirve el suyo por defecto— para alcanzar la
+administración desde cualquier punto de internet.
+
+No es un bypass de autenticación: sigue haciendo falta una credencial válida.
+Lo que rompe es el control de red que el operador cree haber puesto, y deja la
+fuerza bruta contra `X-Admin-Key` y contra el login del portal accesible desde
+fuera del perímetro. Como todavía **no se ha desplegado**, corregirlo ahora es
+gratis. Tres caminos, y hay que elegir:
+
+- aplicar el mismo `ipallowlist` al router `dteapi` — simple, pero Odoo tendría
+  que salir por una IP de la lista;
+- publicar en `api.dimabe.cl` sólo los prefijos de máquina (`/dte`, `/boletas`,
+  `/books`, `/rcv`, `/bhe`, `/exchange`) y bloquear el resto en Traefik — ojo:
+  el README documenta que Odoo use `X-Admin-Key` contra
+  `/admin/customers/{id}/rcv`, así que ese flujo habría que moverlo;
+- quitarle `traefik.enable=true` al servicio `api` y dejarlo sólo en la red
+  `interna`, que es lo correcto si Odoo corre en el mismo servidor.
+
+**2. El límite de tasa vive en la memoria de cada proceso**
 (`app/security/ratelimit.py`, ya documentado ahí). Con 2 workers el límite
 efectivo es el doble; con varias réplicas se multiplica. Para internet hay que
 moverlo a Redis, o aplicarlo además en Traefik.
 
-**2. Sin cuota por cliente.** El único freno es sobre *fallos* de
+**3. Sin cuota por cliente.** El único freno es sobre *fallos* de
 autenticación. Un cliente autenticado llama sin tope, y las operaciones caras
 —firmar, hablar con el SII— no tienen límite: un cliente puede degradar el
 servicio de los demás. En multiempresa importa.
 
-**3. Sin segundo factor en el portal.** Quien administra el material tributario
+**4. Sin segundo factor en el portal.** Quien administra el material tributario
 de todos los clientes entra sólo con correo y contraseña. Es lo más caro de
 implementar y lo que menos urge si el portal queda restringido por IP.
 
-**4. `cors_origins` no se valida** (`app/core/config.py:29` y `:77`). Acepta
+**5. `cors_origins` no se valida** (`app/core/config.py:29` y `:77`). Acepta
 cualquier valor, incluido `*`, y se usa con `allow_credentials=True`. Debería
 rechazar el comodín al arrancar, como ya hace con las claves débiles.
 
 ### Orden sugerido
 
-El 4 es de un rato y cierra un pie forzado. El 1 y el 2 son los que de verdad
-importan para multiempresa en serio, y son más trabajo. El 3, al final.
+El 1 va primero: no se ha desplegado todavía, así que sale gratis y es el único
+que deja una puerta abierta en producción. El 5 es de un rato. El 2 y el 3 son
+los que de verdad importan para multiempresa en serio, y son más trabajo. El 4,
+al final.
 
 ---
 
