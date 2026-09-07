@@ -21,14 +21,14 @@ from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.db.models import User
 from app.db.session import get_db
-from app.security.ratelimit import SlidingWindowLimiter
+from app.security.ratelimit import make_limiter
 from app.security.roles import ADMIN_ROLES, WRITE_ROLES, Role
 
 COOKIE_NAME = "access_token"
 
 # Solo cuenta FALLOS de X-Admin-Key por IP. Es la credencial con escritura sobre
 # TODOS los clientes: sin tope se puede probar a ciegas hasta dar con ella.
-_admin_failures = SlidingWindowLimiter(get_settings().admin_key_failures_per_5min, 300.0)
+_admin_failures = make_limiter("adminkey", get_settings().admin_key_failures_per_5min, 300.0)
 
 
 def _token_from(request: Request, authorization: str) -> str | None:

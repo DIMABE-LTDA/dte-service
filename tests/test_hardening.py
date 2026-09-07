@@ -9,7 +9,10 @@ from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
 from app.security.auth import _admin_failures
-from tests.conftest import auth_header, make_user
+from app.security.service_codes import SERVICE_RCV
+from app.security.tenant import _customer_quota
+from app.services import rcv_service
+from tests.conftest import auth_header, grant, headers, make_customer, make_user
 
 _ENV_KEY = "test-admin-key-0123456789"  # el de conftest
 
@@ -130,3 +133,72 @@ def test_cors_exige_esquema():
 @pytest.mark.parametrize("origins", ["", "https://dte.dimabe.cl", "https://a.cl,https://b.cl"])
 def test_cors_acepta_origenes_explicitos(origins):
     assert Settings(cors_origins=origins).cors_origins == origins
+
+
+# --- 5. Cuota del cliente autenticado ----------------------------------------
+
+
+def _con_cuota(monkeypatch, n):
+    """Baja la cuota para no tener que hacer 120 llamadas en un test."""
+    assert _customer_quota is not None, "la cuota está apagada en la configuración"
+    monkeypatch.setattr(_customer_quota, "max_events", n)
+    return _customer_quota
+
+
+def _cliente_rcv(db, key, apikey):
+    c = make_customer(db, key=key)
+    grant(db, c, SERVICE_RCV, apikey)
+    return c
+
+
+def test_un_cliente_autenticado_tiene_cuota(client, db, monkeypatch):
+    """Antes, un cliente que acertaba su apiKey llamaba sin tope: las operaciones
+    caras —firmar, hablar con el SII— las pagaban todos."""
+    from tests.test_auth_rcv import _FakeRcv
+
+    monkeypatch.setattr(rcv_service, "RCVClient", _FakeRcv)
+    _con_cuota(monkeypatch, 3)
+    _cliente_rcv(db, "cust-1", "secret")
+
+    payload = {"period": "202505", "operation": "COMPRA"}
+    for _ in range(3):
+        assert client.post("/rcv/documents", json=payload, headers=headers()).status_code == 200
+    r = client.post("/rcv/documents", json=payload, headers=headers())
+    assert r.status_code == 429
+    assert "cuota" in r.json()["detail"]
+
+
+def test_la_cuota_es_por_cliente_no_global(client, db, monkeypatch):
+    """Un cliente que se pasa no puede dejar fuera a los demás: por eso la llave
+    es el cliente y no la IP."""
+    from tests.test_auth_rcv import _FakeRcv
+
+    monkeypatch.setattr(rcv_service, "RCVClient", _FakeRcv)
+    _con_cuota(monkeypatch, 2)
+    _cliente_rcv(db, "cust-1", "secret")
+    _cliente_rcv(db, "cust-2", "otra-clave")
+
+    payload = {"period": "202505", "operation": "COMPRA"}
+    for _ in range(2):
+        client.post("/rcv/documents", json=payload, headers=headers())
+    assert client.post("/rcv/documents", json=payload, headers=headers()).status_code == 429
+
+    otro = headers("cust-2", "otra-clave")
+    assert client.post("/rcv/documents", json=payload, headers=otro).status_code == 200
+
+
+def test_los_fallos_de_autenticacion_no_gastan_la_cuota(client, db, monkeypatch):
+    """Si no, cualquiera desde fuera podría agotarle la cuota a un cliente ajeno
+    sin conocer su credencial."""
+    from tests.test_auth_rcv import _FakeRcv
+
+    monkeypatch.setattr(rcv_service, "RCVClient", _FakeRcv)
+    _con_cuota(monkeypatch, 2)
+    _cliente_rcv(db, "cust-1", "secret")
+
+    payload = {"period": "202505", "operation": "COMPRA"}
+    for _ in range(5):
+        mala = client.post("/rcv/documents", json=payload, headers=headers("cust-1", "no-es"))
+        assert mala.status_code == 401
+    # La cuota sigue entera.
+    assert client.post("/rcv/documents", json=payload, headers=headers()).status_code == 200

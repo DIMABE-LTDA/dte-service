@@ -26,7 +26,7 @@ consumidor, hasheadas en base y con rol propio.
 
 ### Cerrado el 2026-09-07
 
-Cinco de los ocho huecos del inventario:
+Siete de los ocho huecos del inventario:
 
 - **Límite de intentos sobre `X-Admin-Key`.** Antes era la única credencial que
   se podía probar sin tope, y es la que escribe sobre **todos** los clientes.
@@ -56,6 +56,18 @@ Cinco de los ocho huecos del inventario:
   portal, que sí tiene lista blanca. Verificado e2e contra un Traefik real,
   incluidos diez intentos de saltarse el prefijo con `..` y codificaciones: la
   app no colapsa `..`, así que ninguno alcanza el router de administración.
+- **Los límites pueden compartir estado.** Con `DTE_REDIS_URL` el contador vive
+  en Redis y el tope vale para todo el despliegue; sin ella todo sigue igual, en
+  la memoria de cada proceso. El cliente se importa de forma perezosa y, si
+  Redis deja de responder, se degrada al limitador en memoria en vez de fallar
+  el request: perder exactitud es mejor que tumbar el servicio. En el compose va
+  con el perfil `escalado`, porque con un solo worker sobra.
+  Medido con dos workers y tope 10: sin Redis, 13 intentos antes del primer 429
+  y algunos 401 colándose después; con Redis, exactamente 10 y corta.
+- **Cuota por cliente autenticado** (`DTE_CUSTOMER_REQUESTS_PER_MINUTE`, 120 por
+  omisión, 0 la apaga). La llave es el cliente, no la IP: es el cliente quien
+  consume, salga por donde salga. Se cobra **después** de autenticar, para que
+  nadie pueda agotarle la cuota a un cliente ajeno sin conocer su credencial.
 - **`cors_origins` se valida al arrancar** (`app/core/config.py`): rechaza `*`
   —prohibido junto a `allow_credentials=True`— y exige el esquema, porque el
   header `Origin` siempre lo trae y sin él la regla no casa nunca y falla en
@@ -63,25 +75,14 @@ Cinco de los ocho huecos del inventario:
 
 ### Huecos, por gravedad
 
-**1. El límite de tasa vive en la memoria de cada proceso**
-(`app/security/ratelimit.py`, ya documentado ahí). Con 2 workers el límite
-efectivo es el doble; con varias réplicas se multiplica. Para internet hay que
-moverlo a Redis, o aplicarlo además en Traefik.
-
-**2. Sin cuota por cliente.** El único freno es sobre *fallos* de
-autenticación. Un cliente autenticado llama sin tope, y las operaciones caras
-—firmar, hablar con el SII— no tienen límite: un cliente puede degradar el
-servicio de los demás. En multiempresa importa.
-
-**3. Sin segundo factor en el portal.** Quien administra el material tributario
+**1. Sin segundo factor en el portal.** Quien administra el material tributario
 de todos los clientes entra sólo con correo y contraseña. Es lo más caro de
 implementar y lo que menos urge si el portal queda restringido por IP.
 
 ### Orden sugerido
 
-El 1 y el 2 son los que de verdad importan para multiempresa en serio, y van
-juntos: el estado compartido es lo que hace exacta cualquier cuota. El 3, al
-final — es lo más caro y lo que menos urge con el portal restringido por IP.
+Es el único que queda, y el que menos urge mientras el portal esté restringido
+por IP. También el más caro.
 
 ---
 

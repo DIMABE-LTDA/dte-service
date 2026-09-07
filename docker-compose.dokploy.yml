@@ -36,6 +36,9 @@
 #   API_DOMAIN               api.dimabe.cl, sólo si API_PUBLIC=true
 #   API_ALLOWED_IPS          lista blanca del API, si se publica
 #   PORTAL_ALLOWED_IPS       si la defines, sólo esas IP alcanzan el portal
+#   DTE_REDIS_URL            redis://redis:6379/0 para compartir el estado de los
+#                            límites de tasa entre workers y réplicas. Arranca
+#                            el servicio con --profile escalado
 #   DTE_ADMIN_BOOTSTRAP_KEY_ENABLED
 #                            false apaga DTE_ADMIN_API_KEY (que entonces puede
 #                            ir vacía). Hazlo cuando Odoo y los demás ya usen
@@ -92,6 +95,13 @@ services:
       # de entrar; cámbiale la contraseña apenas ingreses.
       DTE_SUPERADMIN_EMAIL: ${DTE_SUPERADMIN_EMAIL:-}
       DTE_SUPERADMIN_PASSWORD: ${DTE_SUPERADMIN_PASSWORD:-}
+      # Vacía = los límites de tasa cuentan en la memoria de cada worker, así
+      # que con N workers el tope efectivo es ~N x. Apuntando a Redis el estado
+      # se comparte y el límite vale para todo el despliegue. Necesario si algún
+      # día hay más de una réplica: sin esto la cuota por cliente se multiplica.
+      DTE_REDIS_URL: ${DTE_REDIS_URL:-}
+      # Cuota de un cliente ya autenticado, por minuto. 0 = sin cuota.
+      DTE_CUSTOMER_REQUESTS_PER_MINUTE: ${DTE_CUSTOMER_REQUESTS_PER_MINUTE:-120}
     volumes:
       # Los XSD oficiales del SII, para validar libros y documentos.
       - ./schemas:/srv/schemas:ro
@@ -126,6 +136,21 @@ services:
       # una IP fija, fíjala aquí.
       - traefik.http.middlewares.api-ips.ipallowlist.sourcerange=${API_ALLOWED_IPS:-0.0.0.0/0}
       - traefik.http.routers.dteapi.middlewares=api-ips
+
+  # Estado compartido de los límites de tasa. Sólo arranca con el perfil
+  # 'escalado' (docker compose --profile escalado up): con un único worker el
+  # limitador en memoria basta y esto sería un servicio de más.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    profiles: ["escalado"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks: [interna]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   # Portal de administración: clientes, certificados, CAF, servicios.
   web:

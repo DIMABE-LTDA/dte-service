@@ -29,7 +29,11 @@ class Settings(BaseSettings):
     # CORS, que es lo normal: portal y API se sirven en el mismo sitio.
     cors_origins: str = ""
 
-    # --- Rate limiting (estado por proceso: con N workers el límite efectivo es ~N x) ---
+    # --- Rate limiting ---
+    # Vacío = estado en memoria de cada proceso (con N workers el límite
+    # efectivo es ~N x). Con una URL de Redis el estado se comparte y el
+    # límite vale para todo el despliegue, réplicas incluidas.
+    redis_url: str = ""
     login_attempts_per_minute: int = 10
     # Fallos de X-Admin-Key por IP. Más estrecho que el de clientes: es la
     # credencial con escritura sobre TODOS los clientes y nadie la teclea.
@@ -40,6 +44,10 @@ class Settings(BaseSettings):
     # Sitio que se imprime en la boleta para que el consumidor la consulte.
     receipt_verification_url: str = ""
     tenant_auth_failures_per_5min: int = 30
+    # Cuota de un cliente YA autenticado. Sin esto, el único freno es sobre
+    # fallos de autenticación y un cliente puede acaparar el servicio: firmar
+    # y hablar con el SII son caros y los paga todo el mundo. 0 = sin cuota.
+    customer_requests_per_minute: int = 120
 
     # --- Portal (JWT + cookie) ---
     jwt_secret: str = "change-me-jwt"

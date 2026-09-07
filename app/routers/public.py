@@ -30,13 +30,13 @@ from app.core.config import get_settings
 from app.db.models import Customer, IssuedReceipt
 from app.db.session import get_db
 from app.schemas.validators import normalize_rut
-from app.security.ratelimit import SlidingWindowLimiter
+from app.security.ratelimit import make_limiter
 
 router = APIRouter(prefix="/public", tags=["Consulta pública"])
 
 # Suficiente para quien busca su boleta y erra un par de veces; muy poco para
 # tantear montos por fuerza bruta.
-_lookup_limiter = SlidingWindowLimiter(get_settings().public_lookup_per_minute, 60.0)
+_lookup_limiter = make_limiter("publookup", get_settings().public_lookup_per_minute, 60.0)
 
 
 class ReceiptLookupRequest(BaseModel):

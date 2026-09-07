@@ -39,6 +39,11 @@ services:
       DTE_SUPERADMIN_EMAIL: ${DTE_SUPERADMIN_EMAIL:-}
       DTE_SUPERADMIN_PASSWORD: ${DTE_SUPERADMIN_PASSWORD:-}
       DTE_SCHEMAS_DIR: /srv/schemas
+      # Vacía = cada worker cuenta sus propios límites. Con Redis el estado se
+      # comparte: `docker compose --profile escalado up` levanta el servicio.
+      DTE_REDIS_URL: ${DTE_REDIS_URL:-}
+      # Cuota de un cliente ya autenticado, por minuto. 0 = sin cuota.
+      DTE_CUSTOMER_REQUESTS_PER_MINUTE: ${DTE_CUSTOMER_REQUESTS_PER_MINUTE:-120}
       # Sitio que se imprime en la boleta para que el consumidor la consulte.
       DTE_RECEIPT_VERIFICATION_URL: ${DTE_RECEIPT_VERIFICATION_URL:-}
       # Proxys de confianza para X-Forwarded-For: la red bridge de Docker, donde
@@ -53,6 +58,12 @@ services:
     volumes:
       # Monta los XSD oficiales del SII (del motor) en el contenedor.
       - ./schemas:/srv/schemas:ro
+
+  # Estado compartido de los límites de tasa (opcional, ver DTE_REDIS_URL).
+  redis:
+    image: redis:7-alpine
+    profiles: ["escalado"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
 
   # Ingress del portal: sirve la SPA y proxya /api/* al API (mismo sitio).
   web:

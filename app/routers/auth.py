@@ -15,13 +15,13 @@ from app.db.models import User
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, MeResponse, TokenResponse
 from app.security.auth import COOKIE_NAME, get_current_user
-from app.security.ratelimit import SlidingWindowLimiter
+from app.security.ratelimit import make_limiter
 from app.services import user_service
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 # Cuenta TODO intento de login por IP (éxito incluido): frena fuerza bruta.
-_login_limiter = SlidingWindowLimiter(get_settings().login_attempts_per_minute, 60.0)
+_login_limiter = make_limiter("login", get_settings().login_attempts_per_minute, 60.0)
 
 
 def _set_session_cookie(response: Response, token: str) -> None:

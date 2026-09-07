@@ -18,6 +18,10 @@ dependencies = [
     "cryptography>=42.0",
     "argon2-cffi>=23.1",
     "pyjwt>=2.8",
+    # Sólo se usa si DTE_REDIS_URL está configurada (import perezoso), pero va
+    # en dependencias: tenerla como extra convierte un despliegue con la
+    # variable puesta y el paquete ausente en un límite que falla en silencio.
+    "redis>=5.0",
     # El motor dte_chile NO va en dependencies directas: rompería el editable
     # local de dev y el vendoring offline de Docker (referencia directa de git).
     # Dev: `pip install -e ../dte_chile`. CI: extra `engine` (pineado, abajo).
