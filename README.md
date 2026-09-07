@@ -148,7 +148,29 @@ curl -X DELETE http://localhost:8000/machine-keys/<id> -H "Authorization: Bearer
 ```
 
 Recomendado: usar `DTE_ADMIN_API_KEY` solo para crear la primera clave de
-consumidor y migrar Odoo (y otros) a claves dedicadas.
+consumidor y migrar Odoo (y otros) a claves dedicadas. Hecha esa migración,
+**apagar la de bootstrap** con `DTE_ADMIN_BOOTSTRAP_KEY_ENABLED=false`: deja de
+autenticar (y puede ir vacía). Es la única credencial con poder sobre todos los
+clientes que no es revocable ni deja identidad en la auditoría. Si se apaga sin
+haber creado ninguna clave de máquina, `/admin` queda solo con el JWT del
+portal y el servicio lo avisa en el log al arrancar.
+
+## Endurecimiento
+
+Pensado para que el servicio pueda quedar expuesto a internet:
+
+- **Fuerza bruta.** El login del portal cuenta *todo* intento por IP
+  (`DTE_LOGIN_ATTEMPTS_PER_MINUTE`); `X-Admin-Key` y las credenciales de cliente
+  cuentan solo los **fallos** (`DTE_ADMIN_KEY_FAILURES_PER_5MIN`,
+  `DTE_TENANT_AUTH_FAILURES_PER_5MIN`), así el tráfico legítimo de alto volumen
+  no se penaliza. Una credencial válida rechazada por rol (403) no cuenta como
+  fallo. El estado vive en la memoria de cada proceso: con N workers el límite
+  efectivo es ~N x, suficiente como freno, no como cuota exacta.
+- **Cabeceras.** Toda respuesta lleva `X-Frame-Options: DENY`,
+  `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options` y
+  `Referrer-Policy`; con `DTE_COOKIE_SECURE=true` (o sea, con TLS delante) se
+  agrega HSTS. Los nginx del portal y del sitio de boletas ponen las mismas
+  sobre el HTML que sirven ellos.
 
 ## Panel admin (SPA React)
 

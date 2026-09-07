@@ -23,51 +23,55 @@ Fernet. La cookie de sesión es `httponly` + `secure` + `SameSite=Strict`
 autentica. Hay auditoría de cambios y de requests. Existen `MachineKey` por
 consumidor, hasheadas en base y con rol propio.
 
+### Cerrado el 2026-09-07
+
+Los tres huecos más expuestos, que eran también los más baratos:
+
+- **Límite de intentos sobre `X-Admin-Key`.** Antes era la única credencial que
+  se podía probar sin tope, y es la que escribe sobre **todos** los clientes.
+  Ahora cuenta fallos por IP (`DTE_ADMIN_KEY_FAILURES_PER_5MIN`, 10 por defecto)
+  y bloquea **antes** de verificar el hash, para no gastar argon2 en el
+  atacante. Un 403 por rol no cuenta: esa credencial es válida.
+- **La clave de bootstrap se puede apagar.** `DTE_ADMIN_BOOTSTRAP_KEY_ENABLED=false`
+  deja `DTE_ADMIN_API_KEY` sin efecto (y la variable puede ir vacía). Hacerlo en
+  cuanto Odoo y los demás consumidores usen `MachineKey`. Si se apaga sin que
+  exista ninguna, el arranque lo advierte en el log: `/admin` queda solo con el
+  JWT del portal.
+- **Cabeceras de seguridad.** `X-Frame-Options: DENY`, CSP `frame-ancestors
+  'none'`, `X-Content-Type-Options` y `Referrer-Policy` en toda respuesta, más
+  HSTS donde hay TLS delante (`DTE_COOKIE_SECURE=true`). El nginx del portal y
+  el del sitio de boletas ponen las mismas sobre el HTML que sirven ellos, que
+  es donde estaba el riesgo real de clickjacking.
+
+  Va como middleware **ASGI puro** (`app/security/headers.py`), no como
+  `BaseHTTPMiddleware`: esa clase envuelve cada request en un task group y mueve
+  el cierre de las dependencias. Con ella, el insert del access-log llegaba a
+  perderse. Para agregar cuatro cabeceras no hace falta nada de eso.
+
 ### Huecos, por gravedad
 
-**1. La clave de administración no tiene límite de intentos.** Es lo más
-expuesto. El login del portal sí lo tiene (`app/routers/auth.py:24`, 10/min) y
-los clientes máquina también (`app/security/tenant.py:25`, 30 fallos/5 min),
-pero `X-Admin-Key` no pasa por ningún limitador — ver `_admin_principal` en
-`app/security/auth.py`. Es la credencial con escritura sobre **todos** los
-clientes y se puede probar sin tope. Aplicarle el mismo patrón por IP.
-
-**2. La clave de bootstrap no caduca ni se puede apagar.** `DTE_ADMIN_API_KEY`
-(`app/core/config.py:21`, comparada en `app/security/auth.py:86`) es una sola
-clave estática en variable de entorno con poder total sobre todos los tenants.
-Las `MachineKey` son mejores en todo —revocables, con rol, hasheadas— pero la
-de entorno sigue viva en paralelo. Debería poder desactivarse una vez que
-existan claves de máquina.
-
-**3. Ningún header de seguridad.** `create_app` (`app/main.py`) sólo agrega
-CORS. Faltan HSTS, `X-Frame-Options` o CSP `frame-ancestors`,
-`X-Content-Type-Options` y `Referrer-Policy`. El portal se puede embeber en un
-iframe ajeno, y ahí hay acciones destructivas (retirar CAF, eliminar cliente)
-expuestas a clickjacking.
-
-**4. El límite de tasa vive en la memoria de cada proceso**
+**1. El límite de tasa vive en la memoria de cada proceso**
 (`app/security/ratelimit.py`, ya documentado ahí). Con 2 workers el límite
 efectivo es el doble; con varias réplicas se multiplica. Para internet hay que
 moverlo a Redis, o aplicarlo además en Traefik.
 
-**5. Sin cuota por cliente.** El único freno es sobre *fallos* de
+**2. Sin cuota por cliente.** El único freno es sobre *fallos* de
 autenticación. Un cliente autenticado llama sin tope, y las operaciones caras
 —firmar, hablar con el SII— no tienen límite: un cliente puede degradar el
 servicio de los demás. En multiempresa importa.
 
-**6. Sin segundo factor en el portal.** Quien administra el material tributario
+**3. Sin segundo factor en el portal.** Quien administra el material tributario
 de todos los clientes entra sólo con correo y contraseña. Es lo más caro de
 implementar y lo que menos urge si el portal queda restringido por IP.
 
-**7. `cors_origins` no se valida** (`app/core/config.py:25` y `:67`). Acepta
+**4. `cors_origins` no se valida** (`app/core/config.py:29` y `:77`). Acepta
 cualquier valor, incluido `*`, y se usa con `allow_credentials=True`. Debería
 rechazar el comodín al arrancar, como ya hace con las claves débiles.
 
 ### Orden sugerido
 
-Los tres primeros son baratos y cierran lo más expuesto. El 4 y el 5 son los
-que de verdad importan para multiempresa en serio, y son más trabajo. El 6, al
-final.
+El 4 es de un rato y cierra un pie forzado. El 1 y el 2 son los que de verdad
+importan para multiempresa en serio, y son más trabajo. El 3, al final.
 
 ---
 

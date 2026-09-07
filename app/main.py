@@ -31,7 +31,8 @@ from app.routers import (
     receipts,
     users,
 )
-from app.services import audit_service, user_service
+from app.security.headers import SecurityHeadersMiddleware
+from app.services import audit_service, machine_key_service, user_service
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +87,20 @@ def _log_request(request: Request, status_code: int, latency_ms: int, request_id
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    if settings.superadmin_email and settings.superadmin_password:
-        with db_session.SessionLocal() as db:
+    with db_session.SessionLocal() as db:
+        if settings.superadmin_email and settings.superadmin_password:
             user_service.seed_superadmin(
                 db, settings.superadmin_email, settings.superadmin_password
+            )
+        # Apagar la clave de bootstrap sin haber creado ninguna MachineKey deja
+        # /admin sólo con el JWT del portal. Es válido, pero conviene saberlo
+        # antes de que Odoo empiece a recibir 401.
+        if not settings.admin_bootstrap_key_enabled and not machine_key_service.list_keys(
+            db, limit=1
+        ):
+            logger.warning(
+                "DTE_ADMIN_BOOTSTRAP_KEY_ENABLED=false y no hay claves de máquina activas: "
+                "/admin sólo acepta el JWT del portal"
             )
     yield
 
@@ -160,6 +171,10 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Último = el más externo: las cabeceras salen en toda respuesta, incluidas
+    # las que genera CORS. ``cookie_secure`` es la señal de que hay TLS delante.
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)
 
     return app
 

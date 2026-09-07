@@ -27,7 +27,10 @@ services:
       DTE_DATABASE_URL: postgresql+psycopg://dte:dte@db:5432/dte_service
       # :? → compose falla si no están definidas (nunca arrancar con defaults).
       DTE_FERNET_KEYS: ${DTE_FERNET_KEYS:?definir DTE_FERNET_KEYS}
-      DTE_ADMIN_API_KEY: ${DTE_ADMIN_API_KEY:?definir DTE_ADMIN_API_KEY (>=16 chars)}
+      # Sin ':?': se puede omitir apagando la clave de bootstrap. Que no falte
+      # con la clave encendida lo verifica igual el propio servicio al arrancar.
+      DTE_ADMIN_API_KEY: ${DTE_ADMIN_API_KEY:-}
+      DTE_ADMIN_BOOTSTRAP_KEY_ENABLED: ${DTE_ADMIN_BOOTSTRAP_KEY_ENABLED:-true}
       DTE_JWT_SECRET: ${DTE_JWT_SECRET:?definir DTE_JWT_SECRET (>=32 chars)}
       # Demo sobre HTTP → cookie sin Secure. En prod (TLS delante) poner true.
       DTE_COOKIE_SECURE: ${DTE_COOKIE_SECURE:-false}

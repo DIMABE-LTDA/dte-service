@@ -21,9 +21,14 @@ from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.db.models import User
 from app.db.session import get_db
+from app.security.ratelimit import SlidingWindowLimiter
 from app.security.roles import ADMIN_ROLES, WRITE_ROLES, Role
 
 COOKIE_NAME = "access_token"
+
+# Solo cuenta FALLOS de X-Admin-Key por IP. Es la credencial con escritura sobre
+# TODOS los clientes: sin tope se puede probar a ciegas hasta dar con ella.
+_admin_failures = SlidingWindowLimiter(get_settings().admin_key_failures_per_5min, 300.0)
 
 
 def _token_from(request: Request, authorization: str) -> str | None:
@@ -77,22 +82,35 @@ def _admin_principal(
     de máquina. Devuelve el ``User`` (JWT) o ``None`` (máquina).
 
     Claves de máquina, en orden: la ``DTE_ADMIN_API_KEY`` de entorno (bootstrap,
-    rol admin) o una ``MachineKey`` de BD por consumidor (``key_id.secret``,
-    con rol propio). Una X-Admin-Key presente pero inválida es 401 (no degrada)."""
+    rol admin, sólo si ``DTE_ADMIN_BOOTSTRAP_KEY_ENABLED`` sigue en true) o una
+    ``MachineKey`` de BD por consumidor (``key_id.secret``, con rol propio). Una
+    X-Admin-Key presente pero inválida es 401 (no degrada) y cuenta contra el
+    límite de fallos por IP."""
     if x_admin_key:
         from app.services import machine_key_service
 
+        settings = get_settings()
+        ip = request.client.host if request.client else "-"
+        # Bloquear ANTES de verificar: no gastar argon2 en quien está tanteando.
+        if _admin_failures.is_limited(ip):
+            raise HTTPException(
+                status_code=429, detail="demasiados intentos fallidos; reintenta más tarde"
+            )
         # 1) Clave de bootstrap por entorno (compat). compare_digest: sin timing.
-        if secrets.compare_digest(x_admin_key, get_settings().admin_api_key):
+        if settings.admin_bootstrap_key_enabled and secrets.compare_digest(
+            x_admin_key, settings.admin_api_key
+        ):
             request.state.principal = ("system", None, "admin")
             return None
         # 2) Clave de máquina por consumidor (hasheada en BD), con su rol.
         mk = machine_key_service.authenticate(db, x_admin_key)
         if mk is not None:
+            # Credencial válida: un 403 por rol no cuenta como intento fallido.
             if mk.role not in allowed:
                 raise HTTPException(status_code=403, detail="permiso insuficiente")
             request.state.principal = ("system", mk.id, mk.role)
             return None
+        _admin_failures.record(ip)
         raise HTTPException(status_code=401, detail="credenciales inválidas")
     token = _token_from(request, authorization)
     if token:

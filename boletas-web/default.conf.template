@@ -29,7 +29,14 @@ server {
         return 404;
     }
 
+    # Cabeceras de seguridad del sitio. Van aquí y no en el server porque bajo
+    # /api/public/ las pone el propio API y nginx las duplicaría. 'always'
+    # porque add_header, por omisión, no toca las respuestas de error.
     location / {
+        add_header X-Frame-Options "DENY" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
         try_files $uri $uri/ /index.html;
     }
 }

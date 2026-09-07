@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     fernet_keys: str = ""
     schemas_dir: str = "schemas"
     admin_api_key: str = "change-me"
+    # La clave de bootstrap (entorno) tiene poder total sobre todos los clientes
+    # y no es revocable ni deja identidad en la auditoría. Apagarla en cuanto
+    # existan MachineKey, que sí son revocables y tienen rol propio.
+    admin_bootstrap_key_enabled: bool = True
     request_timeout_s: int = 60
     log_level: str = "INFO"
     # Orígenes permitidos para la SPA (coma-separados). Vacío = sin CORS (dev usa proxy).
@@ -26,6 +30,9 @@ class Settings(BaseSettings):
 
     # --- Rate limiting (estado por proceso: con N workers el límite efectivo es ~N x) ---
     login_attempts_per_minute: int = 10
+    # Fallos de X-Admin-Key por IP. Más estrecho que el de clientes: es la
+    # credencial con escritura sobre TODOS los clientes y nadie la teclea.
+    admin_key_failures_per_5min: int = 10
     # Consulta pública de boletas: holgado para el comprador, estrecho para
     # quien quiera tantear montos por fuerza bruta.
     public_lookup_per_minute: int = 20
@@ -53,9 +60,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 "DTE_JWT_SECRET debe configurarse con un valor aleatorio de >=32 caracteres"
             )
-        if self.admin_api_key.startswith("change-me") or len(self.admin_api_key) < 16:
+        if self.admin_bootstrap_key_enabled and (
+            self.admin_api_key.startswith("change-me") or len(self.admin_api_key) < 16
+        ):
             raise ValueError(
                 "DTE_ADMIN_API_KEY debe configurarse con un valor aleatorio de >=16 caracteres"
+                " (o apagarse con DTE_ADMIN_BOOTSTRAP_KEY_ENABLED=false)"
             )
         return self
 

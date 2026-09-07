@@ -17,7 +17,9 @@
 #
 # Variables que hay que definir en Dokploy (Environment):
 #   DTE_FERNET_KEYS      clave(s) Fernet con que se cifran certificados y CAF
-#   DTE_ADMIN_API_KEY    clave de administración (>= 16 caracteres)
+#   DTE_ADMIN_API_KEY    clave de administración (>= 16 caracteres). Es la de
+#                        bootstrap: sirve para crear las claves de máquina y
+#                        después conviene apagarla (ver opcionales)
 #   DTE_JWT_SECRET       secreto de sesión del portal (>= 32 caracteres)
 #   POSTGRES_PASSWORD    contraseña de la base
 #   BOLETAS_DOMAIN       boletas.dimabe.cl
@@ -28,6 +30,11 @@
 # Opcionales:
 #   API_DOMAIN               api.dimabe.cl (para Odoo, ver arriba)
 #   PORTAL_ALLOWED_IPS       si la defines, sólo esas IP alcanzan el portal
+#   DTE_ADMIN_BOOTSTRAP_KEY_ENABLED
+#                            false apaga DTE_ADMIN_API_KEY (que entonces puede
+#                            ir vacía). Hazlo cuando Odoo y los demás ya usen
+#                            claves de máquina: ésas son revocables y quedan
+#                            identificadas en la auditoría; la de entorno no
 #   DTE_BOLETAS_ISSUER_RUT   vacío = el comprador elige la empresa;
 #                            con un RUT, el sitio queda dedicado a esa empresa
 #   DTE_RECEIPT_VERIFICATION_URL  lo que se imprime en la boleta
@@ -63,7 +70,8 @@ services:
     environment:
       DTE_DATABASE_URL: postgresql+psycopg://dte:${POSTGRES_PASSWORD:?}@db:5432/dte_service
       DTE_FERNET_KEYS: ${DTE_FERNET_KEYS:?definir DTE_FERNET_KEYS}
-      DTE_ADMIN_API_KEY: ${DTE_ADMIN_API_KEY:?definir DTE_ADMIN_API_KEY (>=16 chars)}
+      DTE_ADMIN_API_KEY: ${DTE_ADMIN_API_KEY:-}
+      DTE_ADMIN_BOOTSTRAP_KEY_ENABLED: ${DTE_ADMIN_BOOTSTRAP_KEY_ENABLED:-true}
       DTE_JWT_SECRET: ${DTE_JWT_SECRET:?definir DTE_JWT_SECRET (>=32 chars)}
       DTE_COOKIE_SECURE: "true"          # hay TLS delante (Traefik)
       DTE_SCHEMAS_DIR: /srv/schemas
