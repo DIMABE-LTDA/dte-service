@@ -68,8 +68,8 @@ export const api = {
   ) => req<Token>("/auth/login", body({ email, password, ...second })),
   totpStatus: () => req<TotpStatus>("/auth/totp"),
   totpSetup: () => req<TotpSetup>("/auth/totp/setup", { method: "POST" }),
-  totpActivate: (code: string) =>
-    req<{ recovery_codes: string[] }>("/auth/totp/activate", body({ code })),
+  totpActivate: (code: string, password: string) =>
+    req<{ recovery_codes: string[] }>("/auth/totp/activate", body({ code, password })),
   totpDisable: (password: string) => req<void>("/auth/totp/disable", body({ password })),
   resetUserTotp: (id: number) => req<User>(`/users/${id}/totp/reset`, { method: "POST" }),
   logout: () => req<void>("/auth/logout", { method: "POST" }),

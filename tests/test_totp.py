@@ -4,11 +4,23 @@ Lo que se fija aquí es el comportamiento del que depende que nadie se quede
 fuera del portal ni entre sin el segundo factor.
 """
 
+import time
+
 import pyotp
 import pytest
 
 from app.db.models import RecoveryCode, User
 from tests.conftest import auth_header, make_user
+
+
+def _siguiente(secret: str) -> str:
+    """Código del paso siguiente.
+
+    Activar gasta el código con el que se confirma —los TOTP son de un solo
+    uso—, así que para entrar justo después hace falta el siguiente. La ventana
+    de ±1 paso lo acepta.
+    """
+    return pyotp.TOTP(secret).at(int(time.time()) + 30)
 
 
 def _login(client, email="admin@dimabe.cl", password="secret", **extra):
@@ -20,7 +32,11 @@ def _activar(client, db, headers) -> tuple[str, list[str]]:
     r = client.post("/auth/totp/setup", headers=headers)
     assert r.status_code == 200, r.text
     secret = r.json()["secret"]
-    r = client.post("/auth/totp/activate", json={"code": pyotp.TOTP(secret).now()}, headers=headers)
+    r = client.post(
+        "/auth/totp/activate",
+        json={"code": pyotp.TOTP(secret).now(), "password": "secret"},
+        headers=headers,
+    )
     assert r.status_code == 200, r.text
     return secret, r.json()["recovery_codes"]
 
@@ -49,7 +65,7 @@ def test_una_vez_activo_la_contrasena_sola_no_basta(client, db):
     assert r.json()["detail"] == "totp_required"
 
     assert _login(client, totp_code="000000").status_code == 401
-    assert _login(client, totp_code=pyotp.TOTP(secret).now()).status_code == 200
+    assert _login(client, totp_code=_siguiente(secret)).status_code == 200
 
 
 def test_el_secreto_no_se_guarda_en_claro(client, db):
@@ -133,5 +149,72 @@ def test_activar_con_un_codigo_invalido_no_activa(client, db, codigo):
     make_user(db)
     h = auth_header(client)
     client.post("/auth/totp/setup", headers=h)
-    assert client.post("/auth/totp/activate", json={"code": codigo}, headers=h).status_code == 400
+    r = client.post("/auth/totp/activate", json={"code": codigo, "password": "secret"}, headers=h)
+    assert r.status_code == 400
     assert _login(client).status_code == 200
+
+
+def test_un_codigo_no_sirve_dos_veces(client, db):
+    """Un TOTP es de un solo uso (RFC 6238 §5.2). Sin consumirlo, quien lo vea
+    una vez —phishing, un hombro, el portapapeles— tiene minuto y medio de barra
+    libre en vez de un único disparo."""
+    make_user(db)
+    secret, _ = _activar(client, db, auth_header(client))
+
+    codigo = _siguiente(secret)
+    assert _login(client, totp_code=codigo).status_code == 200
+    assert _login(client, totp_code=codigo).status_code == 401
+    assert _login(client, totp_code=codigo).status_code == 401
+
+
+def test_un_codigo_anterior_al_ya_usado_tampoco_sirve(client, db):
+    """La tolerancia de ±1 paso no debe convertirse en una puerta hacia atrás."""
+    make_user(db)
+    secret, _ = _activar(client, db, auth_header(client))
+    totp = pyotp.TOTP(secret)
+
+    assert _login(client, totp_code=_siguiente(secret)).status_code == 200
+    # El del paso actual es anterior al que se acaba de gastar.
+    assert _login(client, totp_code=totp.now()).status_code == 401
+
+
+def test_activar_exige_la_contrasena(client, db):
+    """Con sólo una cookie robada, un atacante daba de alta un segundo factor
+    suyo sobre una cuenta que no lo tenía y dejaba fuera al titular."""
+    make_user(db)
+    h = auth_header(client)
+    secret = client.post("/auth/totp/setup", headers=h).json()["secret"]
+
+    r = client.post(
+        "/auth/totp/activate",
+        json={"code": pyotp.TOTP(secret).now(), "password": "no-es-la-suya"},
+        headers=h,
+    )
+    assert r.status_code == 401
+    # Y no quedó activado: el titular sigue entrando con su contraseña.
+    assert _login(client).status_code == 200
+
+
+def test_activar_y_desactivar_quedan_en_la_auditoria(client, db):
+    from app.db.models import AdminAudit
+
+    make_user(db)
+    h = auth_header(client)
+    _activar(client, db, h)
+    client.post("/auth/totp/disable", json={"password": "secret"}, headers=h)
+
+    acciones = [a.action for a in db.query(AdminAudit).all()]
+    assert "user.totp_enable" in acciones
+    assert "user.totp_disable" in acciones
+
+
+def test_reactivar_tras_apagarlo_no_arrastra_el_corte(client, db):
+    """El paso gastado pertenece al secreto viejo: si no se olvida, el secreto
+    nuevo empezaría rechazando códigos válidos."""
+    make_user(db)
+    h = auth_header(client)
+    _activar(client, db, h)
+    client.post("/auth/totp/disable", json={"password": "secret"}, headers=h)
+
+    secret2, _ = _activar(client, db, h)
+    assert _login(client, totp_code=_siguiente(secret2)).status_code == 200

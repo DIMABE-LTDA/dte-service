@@ -43,6 +43,12 @@ class TotpSetupResponse(BaseModel):
 
 class TotpActivateRequest(BaseModel):
     code: str
+    # Se re-pide igual que al desactivar. Con sólo una cookie de sesión robada,
+    # un atacante podía dar de alta un segundo factor que él controla sobre una
+    # cuenta que aún no lo tenía, quedarse con los códigos de recuperación y
+    # dejar fuera al titular — usando como puerta justo la contraseña filtrada
+    # contra la que el segundo factor debía proteger.
+    password: str
 
 
 class TotpActivateResponse(BaseModel):

@@ -16,18 +16,21 @@ Dos decisiones que conviene tener presentes:
 
 from __future__ import annotations
 
+import hmac
 import secrets
+import time
 
 import pyotp
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core import crypto
 from app.db.models import RecoveryCode, User
 from app.security.apikeys import hash_apikey, verify_apikey
 
-# Ventana de tolerancia: ±1 paso de 30 s. Cubre el desfase de reloj del teléfono
-# sin ampliar de más la superficie de adivinación.
+_STEP = 30  # segundos por paso (RFC 6238)
+# Ventana de tolerancia: ±1 paso. Cubre el desfase de reloj del teléfono sin
+# ampliar de más la superficie de adivinación.
 _VALID_WINDOW = 1
 
 _RECOVERY_CODES = 8
@@ -55,12 +58,47 @@ def start_enrollment(db: Session, user: User, *, commit: bool = True) -> str:
     return pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=_EMISOR)
 
 
-def verify_code(user: User, code: str) -> bool:
-    """Comprueba un código de 6 dígitos contra el secreto del usuario."""
+def verify_code(db: Session, user: User, code: str, *, commit: bool = True) -> bool:
+    """Comprueba un código de 6 dígitos y **lo gasta**.
+
+    Un TOTP es de un solo uso (RFC 6238 §5.2). Sin consumirlo, el mismo código
+    abre sesiones ilimitadas mientras dura su ventana —hasta 90 s con la
+    tolerancia de ±1 paso—, así que quien lo vea una sola vez deja de tener un
+    único disparo. Se recuerda el último paso aceptado y se rechaza cualquier
+    código de ese paso o anteriores.
+
+    El avance va en un UPDATE condicional y no en una asignación: con varios
+    workers, dos peticiones simultáneas con el mismo código entrarían las dos si
+    cada una leyera, comparara y escribiera por su cuenta.
+    """
     if not user.totp_secret or not code:
         return False
     secret = crypto.decrypt_str(user.totp_secret)
-    return pyotp.TOTP(secret).verify(code.strip(), valid_window=_VALID_WINDOW)
+    totp = pyotp.TOTP(secret)
+    presentado = code.strip()
+    paso_actual = int(time.time()) // _STEP
+
+    for delta in range(-_VALID_WINDOW, _VALID_WINDOW + 1):
+        paso = paso_actual + delta
+        # compare_digest: la comparación de pyotp también lo es, pero aquí somos
+        # nosotros quienes comparamos.
+        if not hmac.compare_digest(totp.at(paso * _STEP), presentado):
+            continue
+        gastado = db.execute(
+            update(User)
+            .where(
+                User.id == user.id,
+                or_(User.totp_last_step.is_(None), User.totp_last_step < paso),
+            )
+            .values(totp_last_step=paso)
+        )
+        if gastado.rowcount == 0:
+            return False  # ya se usó ese código (o uno posterior)
+        user.totp_last_step = paso
+        if commit:
+            db.commit()
+        return True
+    return False
 
 
 def activate(db: Session, user: User, code: str, *, commit: bool = True) -> list[str]:
@@ -72,7 +110,7 @@ def activate(db: Session, user: User, code: str, *, commit: bool = True) -> list
         raise TotpError("el segundo factor ya está activo")
     if not user.totp_secret:
         raise TotpError("primero hay que pedir el alta del segundo factor")
-    if not verify_code(user, code):
+    if not verify_code(db, user, code, commit=False):
         raise TotpError("el código no es válido; revisa la hora del teléfono")
 
     user.totp_enabled = True
@@ -127,6 +165,9 @@ def disable(db: Session, user: User, *, commit: bool = True) -> None:
     """Apaga el segundo factor y borra secreto y códigos."""
     user.totp_secret = None
     user.totp_enabled = False
+    # El paso pertenece al secreto viejo: si no se olvida, al re-activar con un
+    # secreto nuevo el corte heredado rechazaría códigos válidos.
+    user.totp_last_step = None
     for row in db.execute(select(RecoveryCode).where(RecoveryCode.user_id == user.id)).scalars():
         db.delete(row)
     db.flush()

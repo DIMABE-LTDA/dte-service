@@ -40,10 +40,11 @@ export default function Security() {
     setError("");
     setBusy(true);
     try {
-      const res = await api.totpActivate(codigo);
+      const res = await api.totpActivate(codigo, password);
       setRecovery(res.recovery_codes);
       setSetup(null);
       setCodigo("");
+      setPassword("");
       await Promise.all([reload(), refresh()]);
     } catch (err) {
       setError((err as Error).message);
@@ -159,7 +160,7 @@ export default function Security() {
                   </button>
                 </div>
               </li>
-              <li>Escribe el código de seis dígitos que aparezca:</li>
+              <li>Escribe el código de seis dígitos que aparezca y confirma con tu contraseña:</li>
             </ol>
             <form className="form-grid" onSubmit={activar}>
               <div className="field">
@@ -173,8 +174,19 @@ export default function Security() {
                   autoFocus
                 />
               </div>
+              <div className="field">
+                {/* Se pide igual que para desactivar: con una sesión robada no
+                    debe poder fijarse un segundo factor ajeno. */}
+                <label>Tu contraseña</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </div>
               <div className="actions">
-                <button disabled={busy || codigo.length < 6}>
+                <button disabled={busy || codigo.length < 6 || !password}>
                   <Icon name="check" />
                   Activar
                 </button>

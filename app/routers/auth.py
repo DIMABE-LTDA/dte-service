@@ -26,7 +26,7 @@ from app.schemas.auth import (
 from app.security.auth import COOKIE_NAME, get_current_user
 from app.security.passwords import verify_password
 from app.security.ratelimit import make_limiter
-from app.services import totp_service, user_service
+from app.services import audit_service, totp_service, user_service
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -71,7 +71,7 @@ def login(
                 raise HTTPException(status_code=401, detail="código de recuperación inválido")
         elif not data.totp_code:
             raise HTTPException(status_code=401, detail="totp_required")
-        elif not totp_service.verify_code(user, data.totp_code):
+        elif not totp_service.verify_code(db, user, data.totp_code):
             raise HTTPException(status_code=401, detail="código de verificación inválido")
     token = create_access_token(user.id, user.role, user.customer_id)
     _set_session_cookie(response, token)
@@ -124,10 +124,15 @@ def totp_activate(
     db: Session = Depends(get_db),
 ) -> TotpActivateResponse:
     """Confirma el alta con un código y entrega los códigos de recuperación."""
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="contraseña incorrecta")
     try:
-        codes = totp_service.activate(db, user, data.code)
+        codes = totp_service.activate(db, user, data.code, commit=False)
     except totp_service.TotpError as ex:
         raise HTTPException(status_code=400, detail=str(ex)) from ex
+    # Queda en la auditoría: quién protege su cuenta y quién la desprotege es
+    # exactamente lo que hay que poder revisar después de un incidente.
+    audit_service.record_change(db, user.id, "user.totp_enable", "user", str(user.id), user.email)
     return TotpActivateResponse(recovery_codes=codes)
 
 
@@ -141,4 +146,5 @@ def totp_disable(
     sesión robada no debe bastar un clic."""
     if not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="contraseña incorrecta")
-    totp_service.disable(db, user)
+    totp_service.disable(db, user, commit=False)
+    audit_service.record_change(db, user.id, "user.totp_disable", "user", str(user.id), user.email)

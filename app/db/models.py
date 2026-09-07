@@ -224,6 +224,12 @@ class User(Base):
     # código hay un estado intermedio, y ahí el segundo factor NO debe exigirse
     # todavía o el usuario se queda fuera si cierra la pestaña.
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Último paso de 30 s aceptado. Un TOTP es de un solo uso: sin esto, el mismo
+    # código de seis dígitos abre sesiones ilimitadas mientras dura su ventana
+    # (hasta 90 s con la tolerancia de ±1 paso), y quien lo vea una vez —un
+    # phishing, un hombro, un portapapeles— tiene ese minuto y medio de barra
+    # libre en vez de un único disparo.
+    totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
 
     recovery_codes: Mapped[list[RecoveryCode]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

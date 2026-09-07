@@ -77,6 +77,15 @@ consumidor, hasheadas en base y con rol propio.
   de todas las empresas, y si eras el único superadmin no hay a quién pedirle
   ayuda. Como última salida, un superadmin puede resetear el de otro, y queda
   anotado en la auditoría de cambios.
+
+  La tercera auditoría encontró dos fallos en esta parte, ya corregidos:
+  **los códigos no se consumían** —el mismo valía durante toda su ventana de
+  ±1 paso, hasta 90 s, así que verlo una vez daba barra libre en vez de un solo
+  disparo— y **el alta no re-pedía la contraseña**, siendo que la baja sí: con
+  una sesión robada se podía fijar un segundo factor ajeno sobre una cuenta que
+  aún no lo tenía, quedarse con los ocho códigos y dejar fuera al titular. Ahora
+  el paso usado se guarda y se avanza con un UPDATE condicional, para que dos
+  workers no acepten el mismo código a la vez.
 - **`cors_origins` se valida al arrancar** (`app/core/config.py`): rechaza `*`
   —prohibido junto a `allow_credentials=True`— y exige el esquema, porque el
   header `Origin` siempre lo trae y sin él la regla no casa nunca y falla en
