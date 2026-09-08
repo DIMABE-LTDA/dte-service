@@ -6,7 +6,12 @@ import datetime as dt
 import pytest
 
 from app.db.models import CertificationSet, CertificationSubmission, SiiEnvironment
-from app.services import book_service, certificate_service, certification_service
+from app.services import (
+    book_service,
+    certificate_service,
+    certification_preview,
+    certification_service,
+)
 from tests.conftest import auth_header, make_customer, make_user
 
 _SOBRE = (
@@ -39,8 +44,10 @@ def fake_book_engine(monkeypatch):
     monkeypatch.setattr(
         book_service,
         "serialize",
-        lambda x: b'<LibroCompraVenta xmlns="http://www.sii.cl/SiiDte"><EnvioLibro>'
-        b"<Detalle><TpoDoc>33</TpoDoc><NroDoc>19</NroDoc></Detalle></EnvioLibro></LibroCompraVenta>",
+        lambda x: (
+            b'<LibroCompraVenta xmlns="http://www.sii.cl/SiiDte"><EnvioLibro>'
+            b"<Detalle><TpoDoc>33</TpoDoc><NroDoc>19</NroDoc></Detalle></EnvioLibro></LibroCompraVenta>"
+        ),
     )
 
 
@@ -347,9 +354,9 @@ def test_un_rechazo_trae_que_revisar(client, db):
     puede vivir sólo en un documento que hay que acordarse de leer."""
     c = make_customer(db)
     _con_envio(db, c, code="5038170", estado="RFR")
-    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")[
-        "submissions"
-    ][0]
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")["submissions"][
+        0
+    ]
 
     assert envio["cause"]["label"] == "Rechazado por error en firma"
     assert "casi nunca es la firma" in envio["cause"]["usually"].lower()
@@ -361,9 +368,9 @@ def test_un_aceptado_tambien_avisa_de_lo_que_falta_mirar(client, db):
     """EPR es 'sobre procesado', no 'todo bien': puede traer reparos dentro."""
     c = make_customer(db)
     _con_envio(db, c, code="5038170", estado="EPR")
-    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")[
-        "submissions"
-    ][0]
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")["submissions"][
+        0
+    ]
 
     assert envio["cause"]["ok"] is True
     assert "reparos" in envio["cause"]["meaning"]
@@ -373,18 +380,18 @@ def test_un_codigo_desconocido_no_inventa_guia(client, db):
     """Preferimos no decir nada a decir algo que no sabemos."""
     c = make_customer(db)
     _con_envio(db, c, code="5038170", estado="XXX")
-    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")[
-        "submissions"
-    ][0]
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")["submissions"][
+        0
+    ]
     assert envio["cause"] is None
 
 
 def test_el_libro_descuadrado_apunta_a_los_campos_cruzados(client, db):
     c = make_customer(db)
     _con_envio(db, c, code="5038171", estado="LRH")
-    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038171")[
-        "submissions"
-    ][0]
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038171")["submissions"][
+        0
+    ]
     assert any("TotOpIVARec" in paso for paso in envio["cause"]["check"])
 
 
@@ -682,12 +689,14 @@ def test_la_vista_previa_se_entiende_sin_abrir_el_json(client, db):
                         },
                         "items": [
                             {"name": "Cajon AFECTO", "quantity": 161, "unit_price": 3071},
-                            {"name": "Servicio EXENTO", "quantity": 1, "unit_price": 1000,
-                             "exempt": True},
+                            {
+                                "name": "Servicio EXENTO",
+                                "quantity": 1,
+                                "unit_price": 1000,
+                                "exempt": True,
+                            },
                         ],
-                        "references": [
-                            {"batch_index": 1, "code": 2, "reason": "CORRIGE GIRO"}
-                        ],
+                        "references": [{"batch_index": 1, "code": 2, "reason": "CORRIGE GIRO"}],
                     }
                 ]
             },
@@ -717,8 +726,9 @@ def test_el_descuento_de_linea_se_refleja_en_el_monto(client, db):
             "documents": [
                 {
                     "type": 33,
-                    "items": [{"name": "X", "quantity": 100, "unit_price": 1000,
-                               "discount_pct": 20}],
+                    "items": [
+                        {"name": "X", "quantity": 100, "unit_price": 1000, "discount_pct": 20}
+                    ],
                 }
             ]
         },
@@ -736,9 +746,15 @@ def test_la_vista_previa_de_un_libro_muestra_sus_lineas(client, db):
             "book_type": "ESPECIAL",
             "notification_folio": 5038171,
             "lines": [
-                {"doc_type": 33, "folio": 19, "rut": "77073851-2",
-                 "business_name": "CLIENTE", "net_amount": 1000, "vat_amount": 190,
-                 "total_amount": 1190}
+                {
+                    "doc_type": 33,
+                    "folio": 19,
+                    "rut": "77073851-2",
+                    "business_name": "CLIENTE",
+                    "net_amount": 1000,
+                    "vat_amount": 190,
+                    "total_amount": 1190,
+                }
             ],
         },
     )
@@ -795,3 +811,45 @@ def test_importar_carga_los_sets_con_su_definicion(client, db):
     assert _set(r.json(), "5038170")["kind"] == "basico"
     cs = db.query(CertificationSet).filter_by(code="5038170").one()
     assert client.get(f"{_base(c.id)}/sets/{cs.id}/definition", headers=h).status_code == 200
+
+
+def test_la_previa_nombra_los_documentos_externos_de_exportacion():
+    """Una factura de exportación referencia el DUS y el documento de transporte.
+
+    Esas referencias no apuntan al propio sobre —no tienen ``batch_index`` ni
+    código de corrección—, así que si sólo se sabe leer el código de corrección
+    la fila sale vacía y el operador no ve a qué apunta el documento que va a
+    emitir. Es justo lo que el SII rechaza si va mal.
+    """
+    previa = certification_preview.definition(
+        "issue-export-batch",
+        {
+            "documents": [
+                {
+                    "type": 110,
+                    "receiver": {"business_name": "IMPORTADORA EXTRANJERA SA"},
+                    "items": [{"name": "MADERA", "quantity": 2, "unit_price": 100}],
+                    "references": [
+                        {"doc_type": 807, "folio": "1", "date": "2026-09-01", "reason": "DUS"},
+                        {"doc_type": 809, "folio": "7", "date": "2026-09-02", "reason": "AWB"},
+                    ],
+                },
+                {
+                    "type": 112,
+                    "receiver": {"business_name": "IMPORTADORA EXTRANJERA SA"},
+                    "items": [],
+                    "references": [{"batch_index": 1, "code": 3, "reason": "DEVOLUCION"}],
+                },
+            ]
+        },
+    )
+    externas = previa["documents"][0]["references"]
+    assert externas == [
+        "DUS n.º 1 del 2026-09-01 — DUS",
+        "Carta de porte aéreo (AWB) n.º 7 del 2026-09-02 — AWB",
+    ]
+    # La referencia interna se sigue diciendo por posición: el documento al que
+    # apunta todavía no tiene folio.
+    assert previa["documents"][1]["references"] == [
+        "Corrige montos n.º 1 de este mismo envío — DEVOLUCION"
+    ]

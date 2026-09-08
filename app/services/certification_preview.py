@@ -39,6 +39,23 @@ DOC_LABELS = {
 #: Códigos de referencia del SII que usa el set de pruebas.
 REF_CODES = {1: "Anula documento", 2: "Corrige texto", 3: "Corrige montos"}
 
+#: Documentos que no son DTE pero se referencian desde uno. Los de exportación
+#: son obligatorios —el SII pide declarar el DUS y el documento de transporte—,
+#: así que en la previa tienen que leerse por su nombre y no por su número.
+REF_DOC_LABELS = {
+    801: "Orden de compra",
+    802: "Nota de pedido",
+    803: "Contrato",
+    804: "Resolución",
+    807: "DUS",
+    808: "Conocimiento de embarque",
+    809: "Carta de porte aéreo (AWB)",
+    810: "MIC/DTA",
+    811: "Carta de porte",
+    812: "Resolución del SNA",
+    813: "Pasaporte",
+}
+
 
 def label(doc_type: int | None) -> str:
     if doc_type is None:
@@ -65,6 +82,29 @@ def _line_amount(item: dict) -> Decimal | None:
     return monto
 
 
+def _reference(ref: dict) -> str:
+    """Una referencia, dicha entera: a qué apunta y por qué.
+
+    Son dos cosas distintas y hay que distinguirlas. Una referencia interna
+    apunta a otro documento del mismo sobre, que todavía no tiene folio, así que
+    sólo se puede nombrar por su posición. Una externa apunta a un documento que
+    ya existe fuera —el DUS, el conocimiento de embarque— y ahí lo que importa
+    es su nombre y su folio, no una posición que no tiene.
+    """
+    razon = f" — {ref['reason']}" if ref.get("reason") else ""
+    destino = ref.get("batch_index")
+    if destino:
+        codigo = REF_CODES.get(ref.get("code"), "Referencia")
+        return f"{codigo} n.º {destino} de este mismo envío{razon}"
+    tipo = ref.get("doc_type")
+    if tipo is not None:
+        nombre = REF_DOC_LABELS.get(int(tipo)) or DOC_LABELS.get(int(tipo)) or f"Documento {tipo}"
+        folio = f" n.º {ref['folio']}" if ref.get("folio") else ""
+        fecha = f" del {ref['date']}" if ref.get("date") else ""
+        return f"{nombre}{folio}{fecha}{razon}"
+    return (REF_CODES.get(ref.get("code"), "Referencia") + razon).strip()
+
+
 def _document(doc: dict, position: int) -> dict:
     receptor = doc.get("receiver") or {}
     items = []
@@ -80,14 +120,7 @@ def _document(doc: dict, position: int) -> dict:
                 "amount": float(monto) if monto is not None else None,
             }
         )
-    referencias = []
-    for ref in doc.get("references", []):
-        destino = ref.get("batch_index")
-        codigo = REF_CODES.get(ref.get("code"), "")
-        referencias.append(
-            (f"{codigo} n.º {destino} de este mismo envío" if destino else codigo)
-            + (f" — {ref['reason']}" if ref.get("reason") else "")
-        )
+    referencias = [_reference(r) for r in doc.get("references", [])]
     afectos = sum(i["amount"] or 0 for i in items if not i["exempt"])
     exentos = sum(i["amount"] or 0 for i in items if i["exempt"])
     return {
