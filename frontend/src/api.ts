@@ -10,6 +10,11 @@ import type {
   RequestLog,
   ServiceGrantResult,
   ServiceInfo,
+  CertDossier,
+  CertEnvelope,
+  CertNote,
+  CertSet,
+  CertSubmission,
   Token,
   TotpSetup,
   TotpStatus,
@@ -72,6 +77,28 @@ export const api = {
     req<{ recovery_codes: string[] }>("/auth/totp/activate", body({ code, password })),
   totpDisable: (password: string) => req<void>("/auth/totp/disable", body({ password })),
   resetUserTotp: (id: number) => req<User>(`/users/${id}/totp/reset`, { method: "POST" }),
+
+  // --- Expediente de certificación ---
+  certDossier: (cid: number) => req<CertDossier>(`/admin/customers/${cid}/certification`),
+  certRefresh: (cid: number, sid: number) =>
+    req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/refresh`, {
+      method: "POST",
+    }),
+  certAssign: (cid: number, sid: number, code: string, kind: string) =>
+    req<CertSubmission>(
+      `/admin/customers/${cid}/certification/submissions/${sid}/assign`,
+      body({ code, kind }),
+    ),
+  certDeclare: (cid: number, setId: number, declared_at: string) =>
+    req<CertSet>(
+      `/admin/customers/${cid}/certification/sets/${setId}/declare`,
+      body({ declared_at }),
+    ),
+  certEnvelope: (cid: number, sid: number) =>
+    req<CertEnvelope>(`/admin/customers/${cid}/certification/submissions/${sid}/envelope`),
+  certNotes: (cid: number) => req<CertNote[]>(`/admin/customers/${cid}/certification/notes`),
+  certAddNote: (cid: number, set_id: number, text: string) =>
+    req<CertNote>(`/admin/customers/${cid}/certification/notes`, body({ set_id, text })),
   logout: () => req<void>("/auth/logout", { method: "POST" }),
   me: () => req<Me>("/auth/me"),
 

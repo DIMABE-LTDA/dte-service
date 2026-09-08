@@ -21,6 +21,7 @@ DTE por diseño; ésta es una excepción acotada a un corpus finito y temporal.
 from __future__ import annotations
 
 import contextvars
+import datetime as dt
 import logging
 
 from lxml import etree
@@ -84,7 +85,7 @@ def _contents(root: etree._Element) -> tuple[str, list[tuple[int, int]]]:
     return kind, docs
 
 
-def _find_or_create_set(db, customer_id: int, code: str) -> CertificationSet:
+def find_or_create_set(db, customer_id: int, code: str) -> CertificationSet:
     row = (
         db.query(CertificationSet)
         .filter(CertificationSet.customer_id == customer_id, CertificationSet.code == code)
@@ -109,7 +110,7 @@ def capture(customer: Customer, xml: bytes, track_id: str | None) -> None:
         kind, docs = _contents(etree.fromstring(xml))
         code = certification_set_var.get()
         with db_session.SessionLocal() as db:
-            cert_set = _find_or_create_set(db, customer.id, code) if code else None
+            cert_set = find_or_create_set(db, customer.id, code) if code else None
             submission = CertificationSubmission(
                 set_id=cert_set.id if cert_set else None,
                 customer_id=customer.id,
@@ -133,6 +134,175 @@ def capture(customer: Customer, xml: bytes, track_id: str | None) -> None:
         logger.exception("no se pudo registrar el envío de certificación (track %s)", track_id)
 
 
-def envelope(db, submission: CertificationSubmission) -> bytes:
+def query_status(customer: Customer, cert, track_id: str, timeout_s: int) -> dict:
+    """Pregunta al SII por un TrackID y devuelve su respuesta.
+
+    Se guarda tal cual: el estado es del Servicio, no una deducción nuestra.
+    """
+    from dte_chile.sii_client import Environment, SIIClient
+
+    client = SIIClient(cert, Environment[customer.environment.name], timeout=timeout_s)
+    try:
+        res = client.query_status(track_id, customer.rut)
+    finally:
+        client.session.close()
+    return {"state": getattr(res, "status", None), "detail": getattr(res, "detail", None)}
+
+
+def envelope(submission: CertificationSubmission) -> bytes:
     """Descifra el sobre guardado, para reimprimir o reenviar sin reemitir."""
     return crypto.decrypt(submission.envelope_encrypted)
+
+
+# --------------------------------------------------------------------------- #
+#  Expediente: etapas y semáforo
+# --------------------------------------------------------------------------- #
+
+# Respuestas del SII que cuentan como set entregado.
+_ACEPTADOS = {"EPR", "LOK"}
+# Rechazos explícitos. El resto (vacío, DOK, SOK...) queda en "en curso".
+_RECHAZOS = {"RFR", "RCT", "RCH", "LRH", "LRS", "LRC", "LRF", "LNC", "RSC"}
+
+_ETAPAS = (
+    ("requisitos", "Requisitos"),
+    ("emision", "Emisión"),
+    ("envio", "Envío"),
+    ("estado", "Estado SII"),
+    ("declaracion", "Declaración"),
+)
+
+
+def _requisitos(db, customer: Customer) -> tuple[str, str]:
+    """Certificado vigente y CAF con folios. Es lo único comprobable antes de emitir."""
+    from app.db.models import Caf, CustomerCertificate
+
+    hoy = dt.date.today()
+    certs = (
+        db.query(CustomerCertificate).filter(CustomerCertificate.customer_id == customer.id).all()
+    )
+    if not certs:
+        return "error", "sin certificado cargado: el cliente no puede firmar"
+    vigente = max(c.due_date for c in certs)
+    if vigente < hoy:
+        return "error", f"el certificado venció el {vigente:%d-%m-%Y}"
+
+    cafs = db.query(Caf).filter(Caf.customer_id == customer.id, Caf.exhausted.is_(False)).count()
+    if not cafs:
+        return "error", "sin CAF disponibles: no hay folios que asignar"
+    dias = (vigente - hoy).days
+    if dias < 30:
+        return "atencion", f"el certificado vence en {dias} días"
+    return "ok", f"certificado vigente hasta {vigente:%d-%m-%Y} · {cafs} CAF disponibles"
+
+
+def stages(db, customer: Customer, cert_set) -> list[dict]:
+    """Las cinco etapas del set, con su color y el porqué.
+
+    El verde de la última significa "no queda nada que hacer con este set". Un
+    semáforo que se pone verde al enviar mentiría: enviado no es aceptado, y
+    aceptado no es declarado.
+    """
+    envios = sorted(cert_set.submissions, key=lambda s: s.sent_at)
+    ultimo = envios[-1] if envios else None
+    estados = {e.sii_state for e in envios if e.sii_state}
+
+    req_state, req_detail = _requisitos(db, customer)
+    out = [{"key": "requisitos", "label": "Requisitos", "state": req_state, "detail": req_detail}]
+
+    if not envios:
+        out += [
+            {"key": k, "label": lbl, "state": "pendiente", "detail": ""} for k, lbl in _ETAPAS[1:]
+        ]
+        return out
+
+    docs = sum(len(e.documents) for e in envios[-1:])
+    out.append(
+        {
+            "key": "emision",
+            "label": "Emisión",
+            "state": "ok",
+            "detail": f"{docs} documento(s) en el último envío",
+        }
+    )
+    intentos = len(envios)
+    out.append(
+        {
+            "key": "envio",
+            "label": "Envío",
+            "state": "ok",
+            "detail": f"TrackID {ultimo.track_id}"
+            + (f" · {intentos} intentos" if intentos > 1 else ""),
+        }
+    )
+
+    if ultimo.sii_state is None:
+        out.append(
+            {
+                "key": "estado",
+                "label": "Estado SII",
+                "state": "pendiente",
+                "detail": "sin consultar",
+            }
+        )
+    elif ultimo.sii_state in _ACEPTADOS:
+        out.append(
+            {
+                "key": "estado",
+                "label": "Estado SII",
+                "state": "ok",
+                "detail": f"{ultimo.sii_state} · {ultimo.sii_detail or 'aceptado'}",
+            }
+        )
+    elif ultimo.sii_state in _RECHAZOS:
+        out.append(
+            {
+                "key": "estado",
+                "label": "Estado SII",
+                "state": "error",
+                "detail": f"{ultimo.sii_state} · {ultimo.sii_detail or 'rechazado'}",
+            }
+        )
+    else:
+        out.append(
+            {
+                "key": "estado",
+                "label": "Estado SII",
+                "state": "atencion",
+                "detail": f"{ultimo.sii_state} · en proceso",
+            }
+        )
+
+    if cert_set.declared_at:
+        out.append(
+            {
+                "key": "declaracion",
+                "label": "Declaración",
+                "state": "ok",
+                "detail": f"declarado el {cert_set.declared_at:%d-%m-%Y}",
+            }
+        )
+    else:
+        listo = bool(estados & _ACEPTADOS)
+        out.append(
+            {
+                "key": "declaracion",
+                "label": "Declaración",
+                "state": "atencion" if listo else "pendiente",
+                "detail": "falta declarar el avance en Mi SII" if listo else "",
+            }
+        )
+    return out
+
+
+def set_state(etapas: list[dict]) -> str:
+    """Estado resumido del set, a partir de sus etapas."""
+    por_clave = {e["key"]: e["state"] for e in etapas}
+    if por_clave.get("declaracion") == "ok":
+        return "declarado"
+    if por_clave.get("estado") == "error":
+        return "rechazado"
+    if por_clave.get("estado") == "ok":
+        return "aceptado"
+    if por_clave.get("envio") == "ok":
+        return "enviado"
+    return "pendiente"

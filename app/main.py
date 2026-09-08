@@ -22,6 +22,7 @@ from app.routers import (
     auth,
     bhe,
     books,
+    certification,
     dte,
     exchange,
     health,
@@ -156,6 +157,7 @@ def create_app() -> FastAPI:
         public.router,
         exchange.router,
         admin.router,
+        certification.router,
         machine_keys.router,
     ):
         app.include_router(router)

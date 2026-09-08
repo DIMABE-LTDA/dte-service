@@ -141,3 +141,62 @@ export interface BheResponse {
   count: number;
   documents: BheDocument[];
 }
+
+// --- Expediente de certificación ---
+
+export interface CertDocument {
+  doc_type: number;
+  folio: number;
+}
+
+export interface CertSubmission {
+  id: number;
+  set_id: number | null;
+  track_id: string;
+  sent_at: string;
+  envelope_kind: string;
+  sii_state: string | null;
+  sii_detail: string | null;
+  checked_at: string | null;
+  documents: CertDocument[];
+}
+
+/** Una etapa con su semáforo. `state` es el color; `detail`, el porqué. */
+export interface CertStage {
+  key: "requisitos" | "emision" | "envio" | "estado" | "declaracion";
+  label: string;
+  state: "ok" | "pendiente" | "atencion" | "error";
+  detail: string;
+}
+
+export interface CertSet {
+  id: number;
+  code: string;
+  kind: string;
+  state: string;
+  declared_at: string | null;
+  stages: CertStage[];
+  submissions: CertSubmission[];
+}
+
+export interface CertDossier {
+  customer_id: number;
+  sets: CertSet[];
+  /** Envíos capturados que aún no se atribuyeron a un set. */
+  unassigned: CertSubmission[];
+}
+
+export interface CertNote {
+  id: number;
+  set_id: number;
+  author: string;
+  text: string;
+  created_at: string;
+}
+
+export interface CertEnvelope {
+  submission_id: number;
+  track_id: string;
+  filename: string;
+  xml_base64: string;
+}

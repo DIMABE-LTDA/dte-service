@@ -10,6 +10,7 @@ const TITLES: Record<string, string> = {
 };
 
 function titleFor(path: string): string {
+  if (path.endsWith("/certification")) return "Certificación SII";
   if (path.startsWith("/customers/")) return "Detalle de cliente";
   return TITLES[path] ?? "Panel";
 }

@@ -258,6 +258,16 @@ export default function CustomerDetail() {
           {customer.environment}
         </span>
       </p>
+      {/* El expediente sólo existe en certificación: en producción no hay set
+          de pruebas que seguir, y ofrecer el enlace invitaría a buscarlo. */}
+      {customer.environment === "CERTIFICATION" && (
+        <p>
+          <Link className="btn-link neutral" to={`/customers/${cid}/certification`}>
+            <Icon name="audit" />
+            Expediente de certificación SII
+          </Link>
+        </p>
+      )}
       {msg && !grantedKey && <p style={{ color: "var(--ok)" }}>{msg}</p>}
       {actionError && <p className="error">{actionError}</p>}
       {grantedKey && (

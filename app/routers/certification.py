@@ -1,0 +1,274 @@
+"""Expediente de certificación: consulta y seguimiento desde el portal.
+
+Sólo de lectura y anotación. **No emite ni envía nada**: eso sigue haciéndose
+con los scripts contra el API de emisión, y así el portal mantiene su regla de
+no timbrar documentos desde el navegador.
+
+Todo cuelga de ``/admin/customers/{id}/certification`` y exige que el cliente
+sea de ambiente **certificación**. Un cliente de producción no tiene expediente
+que mirar, y dejar la puerta abierta invitaría a usarlo donde no corresponde.
+"""
+
+from __future__ import annotations
+
+import base64
+import datetime as dt
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.db.models import (
+    CertificationNote,
+    CertificationSet,
+    CertificationSubmission,
+    Customer,
+    SiiEnvironment,
+    User,
+)
+from app.db.session import get_db
+from app.schemas.certification import (
+    AssignSetRequest,
+    CertificationDossierOut,
+    CertificationSetOut,
+    CertificationSubmissionOut,
+    DeclareRequest,
+    EnvelopeOut,
+    NoteOut,
+    NoteRequest,
+)
+from app.security.auth import admin_access, admin_read_access
+from app.services import audit_service, certificate_service, certification_service
+
+router = APIRouter(prefix="/admin/customers/{customer_id}/certification", tags=["Certificación"])
+
+
+def _customer(db: Session, customer_id: int) -> Customer:
+    customer = db.get(Customer, customer_id)
+    if customer is None:
+        raise HTTPException(status_code=404, detail="cliente no encontrado")
+    if customer.environment != SiiEnvironment.CERTIFICATION:
+        raise HTTPException(
+            status_code=400,
+            detail="el expediente de certificación sólo existe en clientes de ambiente"
+            " CERTIFICATION",
+        )
+    return customer
+
+
+def _submission(db: Session, customer: Customer, submission_id: int) -> CertificationSubmission:
+    row = db.get(CertificationSubmission, submission_id)
+    # Se comprueba la pertenencia además de la existencia: sin esto, el id de un
+    # envío de otro cliente sería suficiente para leer su sobre.
+    if row is None or row.customer_id != customer.id:
+        raise HTTPException(status_code=404, detail="envío no encontrado")
+    return row
+
+
+def _set(db: Session, customer: Customer, set_id: int) -> CertificationSet:
+    row = db.get(CertificationSet, set_id)
+    if row is None or row.customer_id != customer.id:
+        raise HTTPException(status_code=404, detail="set no encontrado")
+    return row
+
+
+@router.get("", response_model=CertificationDossierOut)
+def dossier(
+    customer_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> CertificationDossierOut:
+    """El expediente entero: los sets con sus etapas y los envíos sin clasificar."""
+    customer = _customer(db, customer_id)
+    sets = (
+        db.query(CertificationSet)
+        .filter(CertificationSet.customer_id == customer.id)
+        .order_by(CertificationSet.code)
+        .all()
+    )
+    salida = []
+    for cert_set in sets:
+        etapas = certification_service.stages(db, customer, cert_set)
+        salida.append(
+            CertificationSetOut(
+                id=cert_set.id,
+                code=cert_set.code,
+                kind=cert_set.kind,
+                state=certification_service.set_state(etapas),
+                declared_at=cert_set.declared_at,
+                stages=etapas,
+                submissions=[
+                    CertificationSubmissionOut.model_validate(s)
+                    for s in sorted(cert_set.submissions, key=lambda x: x.sent_at)
+                ],
+            )
+        )
+    sueltos = (
+        db.query(CertificationSubmission)
+        .filter(
+            CertificationSubmission.customer_id == customer.id,
+            CertificationSubmission.set_id.is_(None),
+        )
+        .order_by(CertificationSubmission.sent_at)
+        .all()
+    )
+    return CertificationDossierOut(
+        customer_id=customer.id,
+        sets=salida,
+        unassigned=[CertificationSubmissionOut.model_validate(s) for s in sueltos],
+    )
+
+
+@router.post("/submissions/{submission_id}/refresh", response_model=CertificationSubmissionOut)
+def refresh_status(
+    customer_id: int,
+    submission_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationSubmission:
+    """Consulta el estado del TrackID en el SII y guarda la respuesta cruda.
+
+    El estado lo dice el Servicio, no se deduce del envío: que la subida haya
+    devuelto 200 sólo significa que el sobre se recibió.
+    """
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    cert = certificate_service.resolve_certificate(db, customer)
+    if cert is None:
+        raise HTTPException(status_code=409, detail="el cliente no tiene certificado cargado")
+    estado = certification_service.query_status(
+        customer, cert, row.track_id, get_settings().request_timeout_s
+    )
+    row.sii_state = estado.get("state")
+    row.sii_detail = estado.get("detail")
+    row.checked_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.post("/submissions/{submission_id}/assign", response_model=CertificationSubmissionOut)
+def assign_set(
+    customer_id: int,
+    submission_id: int,
+    data: AssignSetRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationSubmission:
+    """Atribuye un envío suelto a su set del SII, creándolo si hace falta."""
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    cert_set = certification_service.find_or_create_set(db, customer.id, data.code.strip())
+    if data.kind:
+        cert_set.kind = data.kind
+    row.set_id = cert_set.id
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.assign",
+        "certification_submission",
+        str(row.id),
+        f"track {row.track_id} → set {cert_set.code}",
+    )
+    db.refresh(row)
+    return row
+
+
+@router.post("/sets/{set_id}/declare", response_model=CertificationSetOut)
+def declare(
+    customer_id: int,
+    set_id: int,
+    data: DeclareRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationSetOut:
+    """Marca que el avance del set se declaró en Mi SII.
+
+    Es manual porque el SII no tiene API para declararlo. Queda en la auditoría
+    de cambios: es la afirmación de que un trámite externo se hizo.
+    """
+    customer = _customer(db, customer_id)
+    cert_set = _set(db, customer, set_id)
+    cert_set.declared_at = dt.datetime.combine(data.declared_at, dt.time.min)
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.declare",
+        "certification_set",
+        str(cert_set.id),
+        f"set {cert_set.code} declarado el {data.declared_at:%d-%m-%Y}",
+    )
+    db.refresh(cert_set)
+    etapas = certification_service.stages(db, customer, cert_set)
+    return CertificationSetOut(
+        id=cert_set.id,
+        code=cert_set.code,
+        kind=cert_set.kind,
+        state=certification_service.set_state(etapas),
+        declared_at=cert_set.declared_at,
+        stages=etapas,
+        submissions=[
+            CertificationSubmissionOut.model_validate(s)
+            for s in sorted(cert_set.submissions, key=lambda x: x.sent_at)
+        ],
+    )
+
+
+@router.get("/submissions/{submission_id}/envelope", response_model=EnvelopeOut)
+def envelope(
+    customer_id: int,
+    submission_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> EnvelopeOut:
+    """El sobre tal como se subió. Alimenta las muestras de impresión."""
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    xml = certification_service.envelope(row)
+    return EnvelopeOut(
+        submission_id=row.id,
+        track_id=row.track_id,
+        filename=f"{row.envelope_kind}_{row.track_id}.xml",
+        xml_base64=base64.b64encode(xml).decode("ascii"),
+    )
+
+
+@router.get("/notes", response_model=list[NoteOut])
+def list_notes(
+    customer_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> list[CertificationNote]:
+    customer = _customer(db, customer_id)
+    return (
+        db.query(CertificationNote)
+        .join(CertificationSet)
+        .filter(CertificationSet.customer_id == customer.id)
+        .order_by(CertificationNote.created_at.desc())
+        .all()
+    )
+
+
+@router.post("/notes", response_model=NoteOut)
+def add_note(
+    customer_id: int,
+    data: NoteRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationNote:
+    """Anota qué se probó y qué se descartó.
+
+    El Libro de Ventas llevó trece intentos; lo que evitó repetirlos fue tener
+    escrito lo ya descartado, junto al set y no en un documento aparte.
+    """
+    customer = _customer(db, customer_id)
+    cert_set = _set(db, customer, data.set_id)
+    row = CertificationNote(
+        set_id=cert_set.id,
+        author=actor.email if actor else "máquina",
+        text=data.text.strip(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row

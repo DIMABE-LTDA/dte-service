@@ -638,3 +638,67 @@ ol.steps-list {
 ol.steps-list li {
   margin-bottom: 0.8rem;
 }
+
+/* Etapas del expediente de certificación: el borde superior lleva el color, así
+   el estado se lee de un vistazo sin depender del texto del badge. */
+.etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0 1rem;
+}
+.etapa {
+  flex: 1 1 165px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--muted);
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  background: var(--panel-2);
+}
+.etapa.ok {
+  border-top-color: var(--ok);
+}
+.etapa.atencion {
+  border-top-color: var(--warn);
+}
+.etapa.error {
+  border-top-color: var(--bad);
+}
+.etapa-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.etapa-detalle {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.3rem;
+  line-height: 1.35;
+}
+/* El punto repite el color del borde para que el estado no dependa sólo de una
+   línea de 3px, que en pantallas pequeñas casi no se ve. */
+.etapa-punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+.etapa.ok .etapa-punto {
+  background: var(--ok);
+}
+.etapa.atencion .etapa-punto {
+  background: var(--warn);
+}
+.etapa.error .etapa-punto {
+  background: var(--bad);
+}
+/* Una tabla ancha debe scrollear dentro de su tarjeta, no empujar la página:
+   en pantallas angostas el desbordamiento saca la barra horizontal del body y
+   descoloca todo el panel. */
+.tabla-scroll {
+  overflow-x: auto;
+}
