@@ -3,8 +3,8 @@
 Lo que queda por hacer fuera de la certificación ante el SII, que tiene su
 propio archivo en [`certificacion-sii.md`](certificacion-sii.md).
 
-**Actualizar al avanzar.** Última revisión: **2026-09-07** (segunda auditoría,
-tras cerrar los tres primeros huecos).
+**Actualizar al avanzar.** Última revisión: **2026-09-08**, con las tres
+auditorías cerradas y el §1 completo.
 
 ---
 
@@ -113,9 +113,12 @@ Al desplegar:
   sin forma de entrar.
 - Considerar `PORTAL_ALLOWED_IPS` (lista blanca en Traefik). Vacía, la única
   barrera es el login.
-- El API sale a internet **sólo si se crea el registro DNS** de `API_DOMAIN`.
-  Si Odoo corre en el mismo servidor, es más seguro no crearlo y conectar Odoo
-  a la red interna.
+- El API **no se publica** salvo que pongas `API_PUBLIC=true`, y aun entonces
+  sale sólo su superficie de máquina. Si Odoo corre en el mismo servidor, deja
+  eso como está y conéctalo a la red interna (`http://api:8000`).
+  *(Antes esta línea decía que el API salía a internet sólo si existía el
+  registro DNS de `API_DOMAIN`. Era falso —Traefik enruta por la cabecera
+  `Host`— y de ahí salió el hallazgo de la segunda auditoría.)*
 
 **La instancia arranca con la base vacía**: sin clientes, certificados ni CAF.
 Hay que cargarlos por el portal o por la API de administración. Y si ese va a
