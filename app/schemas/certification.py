@@ -193,3 +193,23 @@ class EnvelopeOut(BaseModel):
     track_id: str | None
     filename: str
     xml_base64: str
+
+
+class PrintSampleOut(BaseModel):
+    """Un documento impreso dentro de las muestras."""
+
+    track_id: str | None = None
+    type: int | None = None
+    folio: int | None = None
+    html: str | None = None
+
+
+class PrintSamplesOut(BaseModel):
+    """Las muestras de impresión del expediente.
+
+    ``skipped`` es tan importante como ``documents``: si un sobre no se pudo
+    imprimir hay que saberlo antes de mandarle el PDF al SII, no después.
+    """
+
+    documents: list[dict]
+    skipped: list[dict]

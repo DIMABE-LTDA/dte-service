@@ -152,6 +152,44 @@ export default function Certification() {
                 {i + 1}. {p.label}
               </div>
               <div className="etapa-detalle">{p.detail}</div>
+              {/* El paso 5 se arma desde los sobres guardados: el botón va aquí,
+                  que es donde el operador lo busca. */}
+              {p.key === "impresion" && writable && (
+                <button
+                  className="btn-link"
+                  type="button"
+                  style={{ padding: 0, marginTop: "0.35rem" }}
+                  disabled={busy}
+                  onClick={() =>
+                    correr(async () => {
+                      const r = await api.certPrintSamples(cid);
+                      const partes = r.documents.map((d) => String(d.html ?? ""));
+                      const blob = new Blob(
+                        [
+                          `<!doctype html><meta charset="utf-8"><title>Muestras de impresión</title>${partes.join("<hr>")}`,
+                        ],
+                        { type: "text/html" },
+                      );
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "muestras-impresion.html";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      if (r.skipped.length) {
+                        setActionError(
+                          `Se saltaron ${r.skipped.length} sobre(s): ${r.skipped
+                            .map((x) => `${x.track_id} (${x.reason})`)
+                            .join(", ")}`,
+                        );
+                      }
+                    }, "Muestras generadas: ábrelas e imprímelas a PDF.")
+                  }
+                >
+                  <Icon name="download" />
+                  Generar muestras
+                </button>
+              )}
               {!p.automatic && writable && (
                 <button
                   className="btn-link"

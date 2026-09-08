@@ -41,6 +41,7 @@ from app.schemas.certification import (
     EnvelopeOut,
     NoteOut,
     NoteRequest,
+    PrintSamplesOut,
     SetupRequest,
     StepRequest,
 )
@@ -549,3 +550,21 @@ def send_submission(
         f"enviado con TrackID {envio.track_id}",
     )
     return _envio(envio)
+
+
+@router.post("/print-samples", response_model=PrintSamplesOut)
+def print_samples(
+    customer_id: int,
+    sii_office: str = "SANTIAGO",
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> PrintSamplesOut:
+    """Impresos de todos los documentos enviados, para el paso 5 del trámite.
+
+    Se arma desde los sobres guardados. Antes esto no se podía hacer: el
+    servicio no almacena DTE y de la tanda aceptada se habían perdido seis
+    sobres, que son justo los que el SII pide imprimir.
+    """
+    customer = _customer(db, customer_id)
+    resultado = certification_service.print_samples(db, customer, sii_office)
+    return PrintSamplesOut(**resultado)

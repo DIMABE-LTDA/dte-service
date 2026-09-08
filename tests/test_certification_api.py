@@ -580,3 +580,78 @@ def test_enviar_un_borrador_le_pone_el_trackid(client, db, fake_book_engine, mon
     assert r.json()["sent_at"] is not None
     # No se duplicó la fila: es el mismo sobre, no uno nuevo.
     assert db.query(CertificationSubmission).count() == 1
+
+
+# --- muestras de impresión (paso 5) ---------------------------------------
+
+
+def test_las_muestras_salen_de_los_sobres_guardados(client, db, monkeypatch):
+    """Sin los sobres esto no se podía hacer: el servicio no almacena DTE y de la
+    tanda aceptada se habían perdido seis."""
+    from app.services import dte_service
+
+    c = make_customer(db)
+    h = _op(client, db)
+    _con_envio(db, c, code="5038170", estado="EPR")
+    monkeypatch.setattr(
+        dte_service,
+        "print_documents",
+        lambda customer, req: {"documents": [{"type": 33, "folio": 19, "html": "<html/>"}]},
+    )
+
+    r = client.post(f"{_base(c.id)}/print-samples", headers=h)
+    assert r.status_code == 200
+    assert r.json()["documents"][0]["folio"] == 19
+    assert r.json()["documents"][0]["track_id"] == "0257259806"
+
+
+def test_un_libro_no_se_imprime_pero_se_informa(client, db):
+    """Un libro es un registro, no un documento que se entregue a nadie. Que se
+    salte tiene que verse, no ocurrir en silencio."""
+    c = make_customer(db)
+    h = _op(client, db)
+    certification_service.certification_set_var.set("5038171")
+    certification_service.capture(
+        c,
+        b'<LibroCompraVenta xmlns="http://www.sii.cl/SiiDte"><EnvioLibro>'
+        b"<Detalle><TpoDoc>33</TpoDoc><NroDoc>19</NroDoc></Detalle></EnvioLibro></LibroCompraVenta>",
+        "0257260578",
+    )
+    certification_service.certification_set_var.set(None)
+
+    body = client.post(f"{_base(c.id)}/print-samples", headers=h).json()
+    assert body["documents"] == []
+    assert body["skipped"][0]["reason"] == "LibroCompraVenta"
+
+
+def test_un_sobre_sin_enviar_no_entra_en_las_muestras(client, db, fake_book_engine):
+    """El SII pide los documentos del set de pruebas: un sobre que no se envió
+    no es parte del set."""
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+    client.put(f"{_base(c.id)}/sets/{cs.id}/definition", json=_DEFINICION, headers=h)
+    client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h)
+
+    body = client.post(f"{_base(c.id)}/print-samples", headers=h).json()
+    assert body["documents"] == []
+    assert body["skipped"] == []
+
+
+def test_de_varios_intentos_se_imprime_el_aceptado(client, db, monkeypatch):
+    """Imprimir el rechazado junto al bueno confundiría al revisor del SII."""
+    from app.services import dte_service
+
+    c = make_customer(db)
+    h = _op(client, db)
+    _con_envio(db, c, code="5038170", track="0257260576", estado="RFR")
+    _con_envio(db, c, code="5038170", track="0257264862", estado="EPR")
+    monkeypatch.setattr(
+        dte_service,
+        "print_documents",
+        lambda customer, req: {"documents": [{"type": 33, "folio": 19}]},
+    )
+
+    body = client.post(f"{_base(c.id)}/print-samples", headers=h).json()
+    assert len(body["documents"]) == 1
+    assert body["documents"][0]["track_id"] == "0257264862"

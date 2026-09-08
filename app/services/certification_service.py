@@ -472,6 +472,7 @@ def steps(db, customer: Customer, sets: list[dict]) -> list[dict]:
 #  Emisión guiada: emitir y enviar son dos actos distintos
 # --------------------------------------------------------------------------- #
 
+
 #: endpoint de la definición → (schema de la petición, función del servicio).
 #: Se resuelve tarde para no arrastrar los servicios de emisión al importar.
 def _emitters():
@@ -583,3 +584,70 @@ def send_draft(db, customer: Customer, cert, envio: CertificationSubmission, tim
     db.commit()
     db.refresh(envio)
     return envio
+
+
+# --------------------------------------------------------------------------- #
+#  Muestras de impresión (paso 5 del trámite)
+# --------------------------------------------------------------------------- #
+
+
+def printable_envelopes(db, customer: Customer) -> list[CertificationSubmission]:
+    """Los sobres que deben ir en las muestras de impresión.
+
+    Sólo los **enviados**: el SII pide la impresión de los documentos del set de
+    pruebas, y un sobre que se emitió pero no se envió no es parte del set. Y
+    sólo el último aceptado de cada set, para no imprimir los intentos
+    rechazados junto al bueno.
+    """
+    envios = (
+        db.query(CertificationSubmission)
+        .filter(
+            CertificationSubmission.customer_id == customer.id,
+            CertificationSubmission.track_id.isnot(None),
+        )
+        .order_by(CertificationSubmission.id)
+        .all()
+    )
+    por_set: dict[int | None, CertificationSubmission] = {}
+    for envio in envios:
+        # El aceptado manda; si ninguno lo está todavía, vale el último enviado.
+        actual = por_set.get(envio.set_id)
+        mejor = (
+            actual is None or envio.sii_state in _ACEPTADOS or actual.sii_state not in _ACEPTADOS
+        )
+        if mejor:
+            por_set[envio.set_id] = envio
+    return list(por_set.values())
+
+
+def print_samples(db, customer: Customer, sii_office: str = "SANTIAGO") -> dict:
+    """Genera los impresos de todos los sobres del expediente.
+
+    El paso 5 exige la representación impresa de **todos** los documentos del
+    set, con su timbre PDF417. Sin los sobres guardados esto no se podía hacer:
+    el servicio no almacena DTE y de la tanda aceptada se habían perdido seis.
+    """
+    from app.schemas.dte import PrintRequest
+    from app.services import dte_service
+
+    documentos = []
+    saltados = []
+    for envio in printable_envelopes(db, customer):
+        # Los libros no tienen representación impresa: son un registro, no un
+        # documento tributario que se entregue a nadie.
+        if envio.envelope_kind not in ("EnvioDTE", "EnvioBOLETA"):
+            saltados.append({"track_id": envio.track_id, "reason": envio.envelope_kind})
+            continue
+        req = PrintRequest(
+            xml_base64=base64.b64encode(envelope(envio)).decode("ascii"),
+            copies="both",
+            sii_office=sii_office,
+        )
+        try:
+            resultado = dte_service.print_documents(customer, req)
+        except Exception as ex:  # noqa: BLE001 - se informa, no se interrumpe
+            saltados.append({"track_id": envio.track_id, "reason": str(ex)[:200]})
+            continue
+        for doc in resultado["documents"]:
+            documentos.append({**doc, "track_id": envio.track_id})
+    return {"documents": documentos, "skipped": saltados}

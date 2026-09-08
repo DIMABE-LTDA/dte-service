@@ -124,6 +124,11 @@ export const api = {
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
       method: "POST",
     }),
+  certPrintSamples: (cid: number) =>
+    req<{ documents: Record<string, unknown>[]; skipped: Record<string, string>[] }>(
+      `/admin/customers/${cid}/certification/print-samples`,
+      { method: "POST" },
+    ),
   certNotes: (cid: number) => req<CertNote[]>(`/admin/customers/${cid}/certification/notes`),
   certAddNote: (cid: number, set_id: number, text: string) =>
     req<CertNote>(`/admin/customers/${cid}/certification/notes`, body({ set_id, text })),
