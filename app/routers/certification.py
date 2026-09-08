@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.models import (
+    CertificationDefinition,
     CertificationNote,
     CertificationSet,
     CertificationSubmission,
@@ -33,7 +34,10 @@ from app.schemas.certification import (
     CertificationDossierOut,
     CertificationSetOut,
     CertificationSubmissionOut,
+    CloneRequest,
     DeclareRequest,
+    DefinitionOut,
+    DefinitionRequest,
     EnvelopeOut,
     NoteOut,
     NoteRequest,
@@ -64,6 +68,26 @@ def _envio(row: CertificationSubmission) -> CertificationSubmissionOut:
             ok=causa.ok,
         )
     return salida
+
+
+def _cert(db: Session, customer: Customer):
+    """El certificado del cliente, o un error que se pueda leer.
+
+    Un .pfx ilegible —corrupto, o con la contraseña equivocada— reventaba con un
+    500: el operador veía "HTTP 500" sin saber que el problema estaba en el
+    certificado que él mismo cargó.
+    """
+    try:
+        cert = certificate_service.resolve_certificate(db, customer)
+    except Exception as ex:
+        raise HTTPException(
+            status_code=409,
+            detail="el certificado del cliente no se pudo abrir: revisa el archivo"
+            " .pfx y su contraseña en la ficha",
+        ) from ex
+    if cert is None:
+        raise HTTPException(status_code=409, detail="el cliente no tiene certificado cargado")
+    return cert
 
 
 def _customer(db: Session, customer_id: int) -> Customer:
@@ -123,7 +147,7 @@ def dossier(
             CertificationSubmission.customer_id == customer.id,
             CertificationSubmission.set_id.is_(None),
         )
-        .order_by(CertificationSubmission.sent_at)
+        .order_by(CertificationSubmission.id)
         .all()
     )
     return CertificationDossierOut(
@@ -149,9 +173,7 @@ def refresh_status(
     """
     customer = _customer(db, customer_id)
     row = _submission(db, customer, submission_id)
-    cert = certificate_service.resolve_certificate(db, customer)
-    if cert is None:
-        raise HTTPException(status_code=409, detail="el cliente no tiene certificado cargado")
+    cert = _cert(db, customer)
     estado = certification_service.query_status(
         customer, cert, row.track_id, get_settings().request_timeout_s
     )
@@ -223,7 +245,7 @@ def declare(
         state=certification_service.set_state(etapas),
         declared_at=cert_set.declared_at,
         stages=etapas,
-        submissions=[_envio(s) for s in sorted(cert_set.submissions, key=lambda x: x.sent_at)],
+        submissions=[_envio(s) for s in sorted(cert_set.submissions, key=lambda x: x.id)],
     )
 
 
@@ -359,3 +381,171 @@ def set_step(
         f"paso {step}: {f'cumplido el {data.done_at}' if data.done_at else 'pendiente'}",
     )
     return dossier(customer_id, actor, db)
+
+
+@router.put("/sets/{set_id}/definition", response_model=DefinitionOut)
+def save_definition(
+    customer_id: int,
+    set_id: int,
+    data: DefinitionRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDefinition:
+    """Guarda qué hay que emitir para este set.
+
+    El cuerpo se guarda literal, tal como lo espera el endpoint de emisión: lo
+    que se revisa aquí es exactamente lo que se enviará.
+    """
+    customer = _customer(db, customer_id)
+    cert_set = _set(db, customer, set_id)
+    row = (
+        db.query(CertificationDefinition)
+        .filter(CertificationDefinition.set_id == cert_set.id)
+        .one_or_none()
+    )
+    if row is None:
+        row = CertificationDefinition(set_id=cert_set.id)
+        db.add(row)
+    row.endpoint = data.endpoint
+    row.payload = data.payload
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.definition",
+        "certification_set",
+        str(cert_set.id),
+        f"definición del set {cert_set.code} ({data.endpoint})",
+    )
+    db.refresh(row)
+    return row
+
+
+@router.post("/sets/{set_id}/definition/clone", response_model=DefinitionOut)
+def clone_definition(
+    customer_id: int,
+    set_id: int,
+    data: CloneRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDefinition:
+    """Copia la definición del mismo tipo de set desde otro cliente.
+
+    Es lo que hace barato el segundo contribuyente: partir de un set que el SII
+    ya aceptó y ajustar, en vez de transcribir códigos de Aduana desde cero.
+    """
+    customer = _customer(db, customer_id)
+    cert_set = _set(db, customer, set_id)
+    if not cert_set.kind:
+        raise HTTPException(
+            status_code=400,
+            detail="el set no tiene tipo asignado, así que no se sabe de cuál copiar",
+        )
+    origen = (
+        db.query(CertificationDefinition)
+        .join(CertificationSet)
+        .filter(
+            CertificationSet.customer_id == data.from_customer_id,
+            CertificationSet.kind == cert_set.kind,
+        )
+        .one_or_none()
+    )
+    if origen is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"ese cliente no tiene definido un set de tipo {cert_set.kind}",
+        )
+    row = (
+        db.query(CertificationDefinition)
+        .filter(CertificationDefinition.set_id == cert_set.id)
+        .one_or_none()
+    )
+    if row is None:
+        row = CertificationDefinition(set_id=cert_set.id)
+        db.add(row)
+    row.endpoint = origen.endpoint
+    row.payload = origen.payload
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.clone",
+        "certification_set",
+        str(cert_set.id),
+        f"definición copiada del cliente {data.from_customer_id}",
+    )
+    db.refresh(row)
+    return row
+
+
+@router.get("/sets/{set_id}/definition", response_model=DefinitionOut)
+def get_definition(
+    customer_id: int,
+    set_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> CertificationDefinition:
+    customer = _customer(db, customer_id)
+    cert_set = _set(db, customer, set_id)
+    row = (
+        db.query(CertificationDefinition)
+        .filter(CertificationDefinition.set_id == cert_set.id)
+        .one_or_none()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="este set todavía no tiene definición")
+    return row
+
+
+@router.post("/sets/{set_id}/emit", response_model=CertificationSubmissionOut)
+def emit_set(
+    customer_id: int,
+    set_id: int,
+    force: bool = False,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationSubmissionOut:
+    """Emite el set **sin enviarlo**: quema folios y deja el sobre para revisar.
+
+    Emitir y enviar son dos actos distintos a propósito. Si el SII rechaza, se
+    corrige y se reenvía el mismo sobre sin gastar folios nuevos.
+    """
+    customer = _customer(db, customer_id)
+    cert_set = _set(db, customer, set_id)
+    cert = _cert(db, customer)
+    try:
+        envio = certification_service.emit(db, customer, cert, cert_set, force=force)
+    except certification_service.EmissionError as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.emit",
+        "certification_set",
+        str(cert_set.id),
+        f"set {cert_set.code}: {len(envio.documents)} documento(s) emitidos",
+    )
+    return _envio(envio)
+
+
+@router.post("/submissions/{submission_id}/send", response_model=CertificationSubmissionOut)
+def send_submission(
+    customer_id: int,
+    submission_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationSubmissionOut:
+    """Sube al SII un sobre ya emitido. Reenviar no cuesta folios."""
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    cert = _cert(db, customer)
+    envio = certification_service.send_draft(
+        db, customer, cert, row, get_settings().request_timeout_s
+    )
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.send",
+        "certification_submission",
+        str(envio.id),
+        f"enviado con TrackID {envio.track_id}",
+    )
+    return _envio(envio)

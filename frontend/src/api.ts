@@ -10,6 +10,7 @@ import type {
   RequestLog,
   ServiceGrantResult,
   ServiceInfo,
+  CertDefinition,
   CertDossier,
   CertEnvelope,
   CertNote,
@@ -103,6 +104,26 @@ export const api = {
       `/admin/customers/${cid}/certification/steps/${step}`,
       body({ done_at, note }),
     ),
+  certDefinition: (cid: number, setId: number) =>
+    req<CertDefinition>(`/admin/customers/${cid}/certification/sets/${setId}/definition`),
+  certSaveDefinition: (cid: number, setId: number, endpoint: string, payload: unknown) =>
+    req<CertDefinition>(`/admin/customers/${cid}/certification/sets/${setId}/definition`, {
+      method: "PUT",
+      body: JSON.stringify({ endpoint, payload }),
+    }),
+  certCloneDefinition: (cid: number, setId: number, from_customer_id: number) =>
+    req<CertDefinition>(
+      `/admin/customers/${cid}/certification/sets/${setId}/definition/clone`,
+      body({ from_customer_id }),
+    ),
+  certEmit: (cid: number, setId: number, force = false) =>
+    req<CertSubmission>(`/admin/customers/${cid}/certification/sets/${setId}/emit?force=${force}`, {
+      method: "POST",
+    }),
+  certSend: (cid: number, sid: number) =>
+    req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
+      method: "POST",
+    }),
   certNotes: (cid: number) => req<CertNote[]>(`/admin/customers/${cid}/certification/notes`),
   certAddNote: (cid: number, set_id: number, text: string) =>
     req<CertNote>(`/admin/customers/${cid}/certification/notes`, body({ set_id, text })),

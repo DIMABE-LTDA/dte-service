@@ -311,6 +311,35 @@ class CertificationMilestone(Base):
     note: Mapped[str] = mapped_column(String, default="")
 
 
+class CertificationDefinition(Base):
+    """El contenido que hay que emitir para un set, guardado como dato.
+
+    No va en el repositorio: el SII asigna a **cada contribuyente** sus propios
+    casos, con sus montos y sus receptores. Ponerlos en código obligaría a
+    desplegar para dar de alta una certificación y convertiría el repo en un
+    vertedero en cuanto haya más de un cliente.
+
+    ``payload`` es el cuerpo tal como lo espera el endpoint de emisión, así que
+    no hay traducción entre lo que se revisa y lo que se envía: es literalmente
+    lo mismo.
+    """
+
+    __tablename__ = "certification_definition"
+    __table_args__ = (UniqueConstraint("set_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    set_id: Mapped[int] = mapped_column(
+        ForeignKey("certification_set.id", ondelete="CASCADE"), index=True
+    )
+    # Endpoint de emisión: issue-batch | issue-export-batch |
+    # issue-settlement-batch | books | books/guides
+    endpoint: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class CertificationSubmission(Base):
     """Un intento de envío. Un set puede tener varios y ninguno se borra.
 
@@ -328,8 +357,11 @@ class CertificationSubmission(Base):
         ForeignKey("certification_set.id", ondelete="CASCADE"), nullable=True, index=True
     )
     customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
-    track_id: Mapped[str] = mapped_column(String(32))
-    sent_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    # Nulos mientras el sobre está emitido pero sin enviar. Separar "emitir" de
+    # "enviar" es lo que permite reenviar un sobre rechazado sin volver a quemar
+    # folios, que es como se perdieron seis de esta certificación.
+    track_id: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
     # EnvioDTE | EnvioBOLETA | LibroCompraVenta | LibroGuia
     envelope_kind: Mapped[str] = mapped_column(String(30), default="")
     # El sobre EXACTO que se subió, Fernet-cifrado. Es la excepción deliberada a

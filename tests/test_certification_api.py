@@ -3,8 +3,10 @@
 import base64
 import datetime as dt
 
+import pytest
+
 from app.db.models import CertificationSet, CertificationSubmission, SiiEnvironment
-from app.services import certification_service
+from app.services import book_service, certificate_service, certification_service
 from tests.conftest import auth_header, make_customer, make_user
 
 _SOBRE = (
@@ -27,6 +29,19 @@ def _con_envio(db, customer, code=None, track="0257259806", estado=None):
         envio = db.query(CertificationSubmission).filter_by(track_id=track).one()
         envio.sii_state = estado
         db.commit()
+
+
+@pytest.fixture
+def fake_book_engine(monkeypatch):
+    """El motor real firma con un certificado de verdad; aquí sólo interesa el
+    flujo de emitir/enviar."""
+    monkeypatch.setattr(book_service, "build_book", lambda cover, cert, ts: "BOOK")
+    monkeypatch.setattr(
+        book_service,
+        "serialize",
+        lambda x: b'<LibroCompraVenta xmlns="http://www.sii.cl/SiiDte"><EnvioLibro>'
+        b"<Detalle><TpoDoc>33</TpoDoc><NroDoc>19</NroDoc></Detalle></EnvioLibro></LibroCompraVenta>",
+    )
 
 
 def _base(cid):
@@ -371,3 +386,197 @@ def test_el_libro_descuadrado_apunta_a_los_campos_cruzados(client, db):
         "submissions"
     ][0]
     assert any("TotOpIVARec" in paso for paso in envio["cause"]["check"])
+
+
+# --- emisión guiada --------------------------------------------------------
+
+
+_DEFINICION = {
+    "endpoint": "books",
+    "payload": {
+        "period": "2026-05",
+        "operation_type": "VENTA",
+        "validate_xsd": False,
+        "lines": [
+            {
+                "doc_type": 33,
+                "folio": 19,
+                "date": "2026-05-10",
+                "rut": "77073851-2",
+                "business_name": "CLIENTE",
+                "net_amount": 1000,
+                "vat_amount": 190,
+                "total_amount": 1190,
+            }
+        ],
+    },
+}
+
+
+def _con_set(client, db, h, code="5038171", kind="libro_ventas"):
+    client.post(f"{_base(_cid(db))}/setup", json={"codes": {kind: code}}, headers=h)
+    return db.query(CertificationSet).filter_by(code=code).one()
+
+
+def _cid(db):
+    from app.db.models import Customer
+
+    return db.query(Customer).order_by(Customer.id).first().id
+
+
+def test_guardar_y_leer_la_definicion_de_un_set(client, db):
+    """El cuerpo se guarda literal: lo que se revisa es lo que se envía."""
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+
+    r = client.put(f"{_base(c.id)}/sets/{cs.id}/definition", json=_DEFINICION, headers=h)
+    assert r.status_code == 200
+    leida = client.get(f"{_base(c.id)}/sets/{cs.id}/definition", headers=h).json()
+    assert leida["endpoint"] == "books"
+    assert leida["payload"]["lines"][0]["folio"] == 19
+
+
+def test_emitir_no_envia_y_deja_el_sobre_guardado(client, db, fake_book_engine):
+    """Emitir y enviar son dos actos: si el SII rechaza, se reenvía el mismo
+    sobre sin gastar folios nuevos."""
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+    client.put(f"{_base(c.id)}/sets/{cs.id}/definition", json=_DEFINICION, headers=h)
+
+    r = client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h)
+    assert r.status_code == 200, r.text
+    envio = r.json()
+    assert envio["track_id"] is None  # emitido, sin enviar
+    assert envio["sent_at"] is None
+    assert db.query(CertificationSubmission).one().envelope_encrypted
+
+
+def test_no_se_emite_dos_veces_sin_insistir(client, db, fake_book_engine):
+    """Emitir quema folios y no se deshace: el doble clic no puede costar un set."""
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+    client.put(f"{_base(c.id)}/sets/{cs.id}/definition", json=_DEFINICION, headers=h)
+
+    assert client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h).status_code == 200
+    r = client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h)
+    assert r.status_code == 409
+    assert "sin enviar" in r.json()["detail"]
+    assert db.query(CertificationSubmission).count() == 1
+
+    # Insistiendo sí, y el aviso dice lo que va a pasar.
+    r = client.post(f"{_base(c.id)}/sets/{cs.id}/emit?force=true", headers=h)
+    assert r.status_code == 200
+    assert db.query(CertificationSubmission).count() == 2
+
+
+def test_sin_definicion_no_se_emite(client, db):
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+    r = client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h)
+    assert r.status_code == 409
+    assert "definido qué emitir" in r.json()["detail"]
+
+
+def test_clonar_la_definicion_de_otro_cliente(client, db):
+    """Lo que hace barato el segundo contribuyente."""
+    a = make_customer(db, key="a")
+    b = make_customer(db, rut="77073851-2", key="b")
+    h = _op(client, db)
+    client.post(f"{_base(a.id)}/setup", json={"codes": {"libro_ventas": "5038171"}}, headers=h)
+    client.post(f"{_base(b.id)}/setup", json={"codes": {"libro_ventas": "6000001"}}, headers=h)
+    set_a = db.query(CertificationSet).filter_by(customer_id=a.id).one()
+    set_b = db.query(CertificationSet).filter_by(customer_id=b.id).one()
+    client.put(f"{_base(a.id)}/sets/{set_a.id}/definition", json=_DEFINICION, headers=h)
+
+    r = client.post(
+        f"{_base(b.id)}/sets/{set_b.id}/definition/clone",
+        json={"from_customer_id": a.id},
+        headers=h,
+    )
+    assert r.status_code == 200
+    assert r.json()["payload"]["lines"][0]["folio"] == 19
+
+
+def test_clonar_de_un_cliente_sin_ese_set_avisa(client, db):
+    a = make_customer(db, key="a")
+    b = make_customer(db, rut="77073851-2", key="b")
+    h = _op(client, db)
+    client.post(f"{_base(b.id)}/setup", json={"codes": {"libro_ventas": "6000001"}}, headers=h)
+    set_b = db.query(CertificationSet).filter_by(customer_id=b.id).one()
+    r = client.post(
+        f"{_base(b.id)}/sets/{set_b.id}/definition/clone",
+        json={"from_customer_id": a.id},
+        headers=h,
+    )
+    assert r.status_code == 404
+    assert "libro_ventas" in r.json()["detail"]
+
+
+def test_un_certificado_ilegible_avisa_en_vez_de_reventar(client, db, monkeypatch):
+    """El operador veía 'HTTP 500' sin saber que el problema era el .pfx que él
+    mismo cargó."""
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+    client.put(f"{_base(c.id)}/sets/{cs.id}/definition", json=_DEFINICION, headers=h)
+
+    def _revienta(*a, **k):
+        raise ValueError("Could not deserialize PKCS12 data")
+
+    monkeypatch.setattr(certificate_service, "resolve_certificate", _revienta)
+    r = client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h)
+    assert r.status_code == 409
+    assert ".pfx" in r.json()["detail"]
+
+
+def test_un_sobre_sin_enviar_no_pinta_el_envio_en_verde(client, db, fake_book_engine):
+    """Los folios ya se gastaron, pero el SII todavía no lo tiene: decir que el
+    set está entregado sería mentir."""
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+    client.put(f"{_base(c.id)}/sets/{cs.id}/definition", json=_DEFINICION, headers=h)
+    client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h)
+
+    etapas = {
+        e["key"]: e for e in _set(client.get(_base(c.id), headers=h).json(), "5038171")["stages"]
+    }
+    assert etapas["emision"]["state"] == "ok"
+    assert etapas["envio"]["state"] == "atencion"
+    assert "sin enviar" in etapas["envio"]["detail"]
+    assert etapas["estado"]["state"] == "pendiente"
+    # Y nunca "TrackID None".
+    assert "None" not in etapas["envio"]["detail"]
+
+
+def test_enviar_un_borrador_le_pone_el_trackid(client, db, fake_book_engine, monkeypatch):
+    """Reenviar el mismo sobre no cuesta folios: es la razón de separar emitir
+    de enviar."""
+    from dte_chile.sii_client import SubmissionResult
+
+    from app.services import sii_upload
+
+    c = make_customer(db)
+    h = _op(client, db)
+    cs = _con_set(client, db, h)
+    client.put(f"{_base(c.id)}/sets/{cs.id}/definition", json=_DEFINICION, headers=h)
+    sid = client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h).json()["id"]
+
+    class _FakeClient:
+        def __init__(self, *a, **k):
+            self.session = type("S", (), {"close": lambda self: None})()
+
+        def send_dte(self, xml, issuer, sender):
+            return SubmissionResult(track_id="0257299999", status="0", detail="ok")
+
+    monkeypatch.setattr(sii_upload, "SIIClient", _FakeClient)
+    r = client.post(f"{_base(c.id)}/submissions/{sid}/send", headers=h)
+    assert r.status_code == 200
+    assert r.json()["track_id"] == "0257299999"
+    assert r.json()["sent_at"] is not None
+    # No se duplicó la fila: es el mismo sobre, no uno nuevo.
+    assert db.query(CertificationSubmission).count() == 1

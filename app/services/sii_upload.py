@@ -16,7 +16,13 @@ from app.services import certification_service
 
 
 def upload(
-    customer: Customer, cert: Certificate, xml: bytes, issuer_rut: str, timeout_s: int
+    customer: Customer,
+    cert: Certificate,
+    xml: bytes,
+    issuer_rut: str,
+    timeout_s: int,
+    *,
+    capture: bool = True,
 ) -> SubmissionResult:
     """Sube el archivo al ambiente del cliente y devuelve el TrackID.
 
@@ -32,5 +38,8 @@ def upload(
         client.session.close()  # liberar la sesión HTTP (no hay caché de cliente)
     # Después del envío: el TrackID ya existe y el folio ya se gastó. La captura
     # se traga sus propios errores para no convertir un envío bueno en un fallo.
-    certification_service.capture(customer, xml, result.track_id)
+    # ``capture=False`` cuando el expediente ya tiene la fila y sólo le falta el
+    # TrackID: es el caso de reenviar un sobre guardado.
+    if capture:
+        certification_service.capture(customer, xml, result.track_id)
     return result

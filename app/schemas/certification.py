@@ -34,8 +34,9 @@ class CertificationSubmissionOut(BaseModel):
 
     id: int
     set_id: int | None
-    track_id: str
-    sent_at: dt.datetime
+    # Nulos mientras el sobre está emitido y sin enviar.
+    track_id: str | None
+    sent_at: dt.datetime | None
     envelope_kind: str
     sii_state: str | None
     sii_detail: str | None
@@ -153,10 +154,42 @@ class NoteOut(BaseModel):
     created_at: dt.datetime
 
 
+class DefinitionRequest(BaseModel):
+    """Qué emitir para este set: el cuerpo tal como lo espera el endpoint.
+
+    Se guarda literal para que lo que se revisa y lo que se envía sean lo mismo,
+    sin traducción intermedia donde perder un campo.
+    """
+
+    endpoint: Literal[
+        "issue-batch", "issue-export-batch", "issue-settlement-batch", "books", "books/guides"
+    ]
+    payload: dict
+
+
+class DefinitionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    set_id: int
+    endpoint: str
+    payload: dict
+    updated_at: dt.datetime
+
+
+class CloneRequest(BaseModel):
+    """Copia la definición del mismo tipo de set desde otro cliente ya probado.
+
+    Es lo que hace barato el segundo contribuyente: partir de un set que el SII
+    ya aceptó y ajustar montos, en vez de transcribir desde cero.
+    """
+
+    from_customer_id: int
+
+
 class EnvelopeOut(BaseModel):
     """El sobre tal como se subió, para reimprimir o reenviar."""
 
     submission_id: int
-    track_id: str
+    track_id: str | None
     filename: str
     xml_base64: str

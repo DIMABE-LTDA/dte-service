@@ -20,6 +20,7 @@ DTE por diseño; ésta es una excepción acotada a un corpus finito y temporal.
 
 from __future__ import annotations
 
+import base64
 import contextvars
 import datetime as dt
 import logging
@@ -115,6 +116,10 @@ def capture(customer: Customer, xml: bytes, track_id: str | None) -> None:
                 set_id=cert_set.id if cert_set else None,
                 customer_id=customer.id,
                 track_id=str(track_id),
+                # Se captura después de enviar, así que la fecha es ahora. El
+                # default del modelo es None porque un sobre emitido y sin
+                # enviar todavía no tiene fecha de envío.
+                sent_at=dt.datetime.now(dt.UTC).replace(tzinfo=None),
                 envelope_kind=kind,
                 envelope_encrypted=crypto.encrypt(xml),
             )
@@ -202,7 +207,7 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
     semáforo que se pone verde al enviar mentiría: enviado no es aceptado, y
     aceptado no es declarado.
     """
-    envios = sorted(cert_set.submissions, key=lambda s: s.sent_at)
+    envios = sorted(cert_set.submissions, key=lambda s: s.id)
     ultimo = envios[-1] if envios else None
     estados = {e.sii_state for e in envios if e.sii_state}
 
@@ -224,18 +229,40 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
             "detail": f"{docs} documento(s) en el último envío",
         }
     )
-    intentos = len(envios)
-    out.append(
-        {
-            "key": "envio",
-            "label": "Envío",
-            "state": "ok",
-            "detail": f"TrackID {ultimo.track_id}"
-            + (f" · {intentos} intentos" if intentos > 1 else ""),
-        }
-    )
+    intentos = len([e for e in envios if e.track_id])
+    if ultimo.track_id is None:
+        # Hay un sobre emitido esperando envío: los folios ya se gastaron pero el
+        # SII todavía no lo tiene. Pintarlo verde diría que el set está entregado.
+        out.append(
+            {
+                "key": "envio",
+                "label": "Envío",
+                "state": "atencion",
+                "detail": "hay un sobre emitido sin enviar"
+                + (f" · {intentos} enviados antes" if intentos else ""),
+            }
+        )
+    else:
+        out.append(
+            {
+                "key": "envio",
+                "label": "Envío",
+                "state": "ok",
+                "detail": f"TrackID {ultimo.track_id}"
+                + (f" · {intentos} intentos" if intentos > 1 else ""),
+            }
+        )
 
-    if ultimo.sii_state is None:
+    if ultimo.track_id is None:
+        out.append(
+            {
+                "key": "estado",
+                "label": "Estado SII",
+                "state": "pendiente",
+                "detail": "el sobre aún no se ha enviado",
+            }
+        )
+    elif ultimo.sii_state is None:
         out.append(
             {
                 "key": "estado",
@@ -355,7 +382,7 @@ def expected_sets(db, customer: Customer) -> list[dict]:
                 "state": set_state(etapas),
                 "declared_at": cert_set.declared_at,
                 "stages": etapas,
-                "submissions": sorted(cert_set.submissions, key=lambda x: x.sent_at),
+                "submissions": sorted(cert_set.submissions, key=lambda x: x.id),
             }
         )
     for cert_set in sueltos:
@@ -368,7 +395,7 @@ def expected_sets(db, customer: Customer) -> list[dict]:
                 "state": set_state(etapas),
                 "declared_at": cert_set.declared_at,
                 "stages": etapas,
-                "submissions": sorted(cert_set.submissions, key=lambda x: x.sent_at),
+                "submissions": sorted(cert_set.submissions, key=lambda x: x.id),
             }
         )
     return salida
@@ -439,3 +466,120 @@ def steps(db, customer: Customer, sets: list[dict]) -> list[dict]:
             }
         )
     return salida
+
+
+# --------------------------------------------------------------------------- #
+#  Emisión guiada: emitir y enviar son dos actos distintos
+# --------------------------------------------------------------------------- #
+
+#: endpoint de la definición → (schema de la petición, función del servicio).
+#: Se resuelve tarde para no arrastrar los servicios de emisión al importar.
+def _emitters():
+    from app.schemas.book import BookRequest, GuideBookRequest
+    from app.schemas.dte import DteBatchRequest, ExportBatchRequest, SettlementBatchRequest
+    from app.services import book_service, dte_service
+
+    return {
+        "issue-batch": (DteBatchRequest, dte_service.issue_batch, True),
+        "issue-export-batch": (ExportBatchRequest, dte_service.issue_export_batch, True),
+        "issue-settlement-batch": (
+            SettlementBatchRequest,
+            dte_service.issue_settlement_batch,
+            True,
+        ),
+        "books": (BookRequest, book_service.build, False),
+        "books/guides": (GuideBookRequest, book_service.build_guides, False),
+    }
+
+
+class EmissionError(Exception):
+    """Error de emisión guiada (se mapea a 4xx en el router)."""
+
+
+def draft_for(db, cert_set) -> CertificationSubmission | None:
+    """El sobre emitido y aún sin enviar de este set, si lo hay."""
+    return (
+        db.query(CertificationSubmission)
+        .filter(
+            CertificationSubmission.set_id == cert_set.id,
+            CertificationSubmission.track_id.is_(None),
+        )
+        .order_by(CertificationSubmission.id.desc())
+        .first()
+    )
+
+
+def emit(db, customer: Customer, cert, cert_set, *, force: bool = False) -> CertificationSubmission:
+    """Emite el set según su definición **sin enviarlo** al SII.
+
+    Emitir consume folios y no se deshace. Por eso:
+
+    - Si ya hay un sobre emitido sin enviar, no se emite otro salvo que se
+      insista: es la protección contra el doble clic y contra el reintento
+      distraído. Los registros de esta certificación muestran el tipo 33 gastado
+      hasta el folio 22 para un set que necesitaba cuatro documentos.
+    - El sobre queda guardado en el acto, antes de cualquier envío, así que
+      aunque el envío falle los folios no se pierden: se reenvía el mismo sobre.
+    """
+    from app.db.models import CertificationDefinition
+
+    definicion = (
+        db.query(CertificationDefinition)
+        .filter(CertificationDefinition.set_id == cert_set.id)
+        .one_or_none()
+    )
+    if definicion is None:
+        raise EmissionError("este set todavía no tiene definido qué emitir")
+
+    previo = draft_for(db, cert_set)
+    if previo is not None and not force:
+        raise EmissionError(
+            f"el set ya tiene un sobre emitido y sin enviar (#{previo.id});"
+            " envíalo o vuelve a emitir de forma explícita, sabiendo que gastarás"
+            " folios nuevos"
+        )
+
+    emisores = _emitters()
+    if definicion.endpoint not in emisores:
+        raise EmissionError(f"endpoint desconocido: {definicion.endpoint}")
+    schema, funcion, con_db = emisores[definicion.endpoint]
+
+    # send=False siempre: en esta ruta emitir NO envía.
+    req = schema.model_validate({**definicion.payload, "send": False})
+    resultado = funcion(db, customer, cert, req) if con_db else funcion(customer, cert, req)
+
+    xml = base64.b64decode(resultado["xml_base64"])
+    kind, docs = _contents(etree.fromstring(xml))
+    envio = CertificationSubmission(
+        set_id=cert_set.id,
+        customer_id=customer.id,
+        track_id=None,
+        sent_at=None,
+        envelope_kind=kind,
+        envelope_encrypted=crypto.encrypt(xml),
+    )
+    db.add(envio)
+    db.flush()
+    for doc_type, folio in docs:
+        db.add(CertificationDocument(submission_id=envio.id, doc_type=doc_type, folio=folio))
+    db.commit()
+    db.refresh(envio)
+    return envio
+
+
+def send_draft(db, customer: Customer, cert, envio: CertificationSubmission, timeout_s: int):
+    """Sube al SII un sobre ya emitido y guarda su TrackID.
+
+    Reenviar el mismo sobre no cuesta folios: es la razón de separar emitir de
+    enviar.
+    """
+    from app.services import sii_upload
+
+    xml = envelope(envio)
+    # capture=False: la fila ya existe, sólo le falta el TrackID.
+    resultado = sii_upload.upload(customer, cert, xml, customer.rut, timeout_s, capture=False)
+    envio.track_id = str(resultado.track_id) if resultado.track_id else None
+    envio.sent_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    db.commit()
+    db.refresh(envio)
+    return envio

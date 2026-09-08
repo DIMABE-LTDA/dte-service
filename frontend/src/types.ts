@@ -162,8 +162,9 @@ export interface CertCause {
 export interface CertSubmission {
   id: number;
   set_id: number | null;
-  track_id: string;
-  sent_at: string;
+  /** Nulos mientras el sobre está emitido y sin enviar. */
+  track_id: string | null;
+  sent_at: string | null;
   envelope_kind: string;
   sii_state: string | null;
   sii_detail: string | null;
@@ -223,6 +224,13 @@ export interface CertNote {
   author: string;
   text: string;
   created_at: string;
+}
+
+export interface CertDefinition {
+  set_id: number;
+  endpoint: string;
+  payload: Record<string, unknown>;
+  updated_at: string;
 }
 
 export interface CertEnvelope {

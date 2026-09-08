@@ -78,6 +78,10 @@ export default function Certification() {
   const [notaSet, setNotaSet] = useState<number | null>(null);
   const [nota, setNota] = useState("");
   const [altas, setAltas] = useState<Record<string, string>>({});
+  const [editando, setEditando] = useState<number | null>(null);
+  const [endpoint, setEndpoint] = useState("issue-batch");
+  const [payload, setPayload] = useState("");
+  const [clonarDe, setClonarDe] = useState("");
 
   async function correr(fn: () => Promise<unknown>, ok: string) {
     setActionError("");
@@ -272,13 +276,19 @@ export default function Certification() {
                   {s.submissions.flatMap((e) => [
                     <tr key={e.id}>
                       <td>
-                        <span className="code">{e.track_id}</span>
+                        {e.track_id ? (
+                          <span className="code">{e.track_id}</span>
+                        ) : (
+                          <span className="muted">sin enviar</span>
+                        )}
                       </td>
                       <td className="nowrap">{fecha(e.sent_at)}</td>
                       <td className="muted">{e.envelope_kind}</td>
                       <td>{e.documents.length}</td>
                       <td>
-                        {e.sii_state ? (
+                        {!e.track_id ? (
+                          <span className="badge warn">emitido, sin enviar</span>
+                        ) : e.sii_state ? (
                           <span
                             className={`badge ${e.sii_state === "EPR" || e.sii_state === "LOK" ? "ok" : "error"}`}
                           >
@@ -290,7 +300,20 @@ export default function Certification() {
                       </td>
                       <td>
                         <div className="actions">
-                          {writable && (
+                          {writable && !e.track_id && (
+                            <button
+                              className="btn-link"
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                correr(() => api.certSend(cid, e.id), "Sobre enviado al SII.")
+                              }
+                            >
+                              <Icon name="upload" />
+                              Enviar al SII
+                            </button>
+                          )}
+                          {writable && e.track_id && (
                             <button
                               className="btn-link"
                               type="button"
@@ -375,6 +398,45 @@ export default function Certification() {
                 <button
                   className="secondary"
                   type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    correr(
+                      () => api.certEmit(cid, s.id),
+                      `Set ${s.code} emitido. Revísalo y envíalo cuando esté bien.`,
+                    )
+                  }
+                >
+                  <Icon name="plus" />
+                  Emitir
+                </button>
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={async () => {
+                    if (editando === s.id) {
+                      setEditando(null);
+                      return;
+                    }
+                    setDeclarando(null);
+                    setNotaSet(null);
+                    setEditando(s.id);
+                    setPayload("");
+                    try {
+                      const d = await api.certDefinition(cid, s.id);
+                      setEndpoint(d.endpoint);
+                      setPayload(JSON.stringify(d.payload, null, 2));
+                    } catch {
+                      setEndpoint("issue-batch");
+                      setPayload("{}");
+                    }
+                  }}
+                >
+                  <Icon name="settings" />
+                  Qué emitir
+                </button>
+                <button
+                  className="secondary"
+                  type="button"
                   onClick={() => {
                     setNotaSet(notaSet === s.id ? null : s.id);
                     setDeclarando(null);
@@ -414,6 +476,85 @@ export default function Certification() {
                   <button className="secondary" type="button" onClick={() => setDeclarando(null)}>
                     <Icon name="x" />
                     Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {editando === s.id && (
+              <form
+                className="form-grid"
+                style={{ marginTop: "0.8rem" }}
+                onSubmit={(ev: FormEvent) => {
+                  ev.preventDefault();
+                  let cuerpo: unknown;
+                  try {
+                    cuerpo = JSON.parse(payload);
+                  } catch {
+                    setActionError("El contenido no es JSON válido.");
+                    return;
+                  }
+                  correr(
+                    () => api.certSaveDefinition(cid, s.id, endpoint, cuerpo),
+                    "Definición guardada.",
+                  ).then(() => setEditando(null));
+                }}
+              >
+                <div className="field">
+                  <label>Endpoint de emisión</label>
+                  <select value={endpoint} onChange={(ev) => setEndpoint(ev.target.value)}>
+                    <option value="issue-batch">Documentos en lote (33, 34, 52, 56, 61, 46)</option>
+                    <option value="issue-export-batch">Exportación (110, 111, 112)</option>
+                    <option value="issue-settlement-batch">Liquidación factura (43)</option>
+                    <option value="books">Libro de compras / ventas</option>
+                    <option value="books/guides">Libro de guías</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>
+                    Cuerpo de la emisión — se guarda tal cual, así que esto es exactamente lo que se
+                    enviará
+                  </label>
+                  <textarea
+                    value={payload}
+                    onChange={(ev) => setPayload(ev.target.value)}
+                    rows={12}
+                    spellCheck={false}
+                    className="json"
+                  />
+                </div>
+                <div className="actions">
+                  <button disabled={busy}>
+                    <Icon name="check" />
+                    Guardar
+                  </button>
+                  <button className="secondary" type="button" onClick={() => setEditando(null)}>
+                    <Icon name="x" />
+                    Cancelar
+                  </button>
+                  <span className="spacer" />
+                  <input
+                    value={clonarDe}
+                    onChange={(ev) => setClonarDe(ev.target.value)}
+                    placeholder="id de otro cliente"
+                    style={{ maxWidth: "11rem" }}
+                    aria-label="Cliente del que copiar la definición"
+                  />
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={busy || !clonarDe.trim()}
+                    title="Copia la definición del mismo tipo de set desde otro contribuyente ya probado"
+                    onClick={() =>
+                      correr(async () => {
+                        const d = await api.certCloneDefinition(cid, s.id, Number(clonarDe));
+                        setEndpoint(d.endpoint);
+                        setPayload(JSON.stringify(d.payload, null, 2));
+                      }, "Definición copiada. Revísala antes de emitir.")
+                    }
+                  >
+                    <Icon name="copy" />
+                    Clonar
                   </button>
                 </div>
               </form>

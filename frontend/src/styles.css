@@ -781,3 +781,12 @@ tr.guia td {
   margin-bottom: 0.25rem;
   color: var(--muted);
 }
+/* El cuerpo de la emisión es JSON: monoespaciada y sin corrector, porque aquí
+   se pegan códigos de Aduana y RUT, no prosa. */
+textarea.json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  min-height: 12rem;
+  resize: vertical;
+}
