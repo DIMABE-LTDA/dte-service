@@ -2,7 +2,9 @@ import base64
 
 import pytest
 from dte_chile.sii_client import SubmissionResult
+from pydantic import ValidationError
 
+from app.schemas.book import BookLineIn
 from app.security.service_codes import SERVICE_BOOK
 from app.services import book_service, sii_upload
 from tests.conftest import grant, headers, make_customer
@@ -321,3 +323,96 @@ def test_a_malformed_book_is_caught_before_reaching_the_sii(client, db, monkeypa
 
     assert r.status_code == 422, r.text
     assert fake_sii["uploads"] == []  # no llegó a subirse
+
+
+# --------------------------------------------------------------------------- #
+#  Moneda extranjera: el IECV va en pesos
+# --------------------------------------------------------------------------- #
+def _linea(**extra):
+    base = {
+        "doc_type": 110,
+        "folio": 7,
+        "date": "2026-05-10",
+        "rut": "55555555-5",
+        "business_name": "COMPRADOR EXTRANJERO",
+    }
+    return {**base, **extra}
+
+
+def test_exportacion_se_convierte_a_pesos():
+    """Una factura de USD 15,40 entraba al libro como 15 pesos: el monto del
+    documento leído como si fuera nacional."""
+    linea = book_service._book_line(
+        BookLineIn(
+            **_linea(
+                exempt_amount="15.40",
+                total_amount="15.40",
+                currency="DOLAR USA",
+                exchange_rate="950.25",
+            )
+        )
+    )
+    # 15,40 × 950,25 = 14.633,85 → 14.634
+    assert linea.exempt_amount == 14634
+    assert linea.total_amount == 14634
+    assert isinstance(linea.exempt_amount, int)
+
+
+def test_el_redondeo_es_medio_hacia_arriba():
+    """round() redondea al par: 0,5 caería unas veces arriba y otras abajo, y no
+    es lo que hace el SII ni quien cuadra el libro a mano."""
+    linea = book_service._book_line(
+        BookLineIn(**_linea(exempt_amount="1.5", total_amount="1.5", currency="X", exchange_rate=1))
+    )
+    assert linea.exempt_amount == 2
+    linea = book_service._book_line(
+        BookLineIn(**_linea(exempt_amount="2.5", total_amount="2.5", currency="X", exchange_rate=1))
+    )
+    assert linea.exempt_amount == 3
+
+
+def test_la_linea_sigue_cerrando_despues_de_redondear():
+    """El SII cuadra el libro sumando: si el total queda a un peso de la suma de
+    sus partes, el libro sale descuadrado."""
+    linea = book_service._book_line(
+        BookLineIn(
+            **_linea(
+                doc_type=33,
+                net_amount="10.005",
+                vat_amount="1.901",
+                total_amount="11.906",
+                currency="DOLAR USA",
+                exchange_rate=1,
+            )
+        )
+    )
+    assert linea.net_amount + linea.vat_amount == linea.total_amount
+
+
+def test_sin_moneda_los_montos_siguen_siendo_pesos_enteros():
+    linea = book_service._book_line(
+        BookLineIn(**_linea(doc_type=33, net_amount=1000, vat_amount=190, total_amount=1190))
+    )
+    assert (linea.net_amount, linea.vat_amount, linea.total_amount) == (1000, 190, 1190)
+
+
+def test_decimales_sin_moneda_se_rechazan():
+    """Es justo el error que se busca evitar: emitir '15.40' en un campo que el
+    XSD quiere entero."""
+    with pytest.raises(ValidationError, match="decimales"):
+        BookLineIn(**_linea(exempt_amount="15.40", total_amount="15.40"))
+
+
+def test_moneda_sin_tipo_de_cambio_se_rechaza():
+    with pytest.raises(ValidationError, match="tipo de cambio"):
+        BookLineIn(**_linea(exempt_amount=15, total_amount=15, currency="DOLAR USA"))
+
+
+def test_tipo_de_cambio_sin_moneda_se_rechaza():
+    with pytest.raises(ValidationError, match="de qué moneda"):
+        BookLineIn(**_linea(exempt_amount=15, total_amount=15, exchange_rate="950.25"))
+
+
+def test_el_tipo_de_cambio_debe_ser_positivo():
+    with pytest.raises(ValidationError):
+        BookLineIn(**_linea(currency="DOLAR USA", exchange_rate=0))

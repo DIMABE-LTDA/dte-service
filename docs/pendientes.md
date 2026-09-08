@@ -155,11 +155,17 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
 
 ## 4. Deuda del propio servicio
 
-- **Exportaciones en el Libro de Ventas**: entran en moneda extranjera tratadas
-  como si fueran pesos (una factura de USD 15,40 va como `MntExe=15`). No es lo
-  que bloquea la certificación —se descartó como causa—, pero está mal y hay
-  que resolverlo antes de producción. El IECV es en pesos y espera la
-  conversión al tipo de cambio observado.
+- ~~**Exportaciones en el Libro de Ventas**~~ — **resuelto el 2026-09-08.** La
+  línea del libro acepta ahora `currency` y `exchange_rate`, y el servicio
+  convierte a pesos con redondeo medio hacia arriba. Antes los montos eran
+  enteros: una factura de USD 15,40 sólo podía declararse como `15` y entraba al
+  libro como 15 pesos, el monto del documento leído como si fuera nacional.
+  Cada línea se convierte al tipo de cambio de **su** fecha, porque el del
+  documento es el que corresponde. Si la línea cerraba antes de convertir
+  (`total = exento + neto + IVA`) se fuerza a que siga cerrando después: el SII
+  cuadra el libro sumando, y redondear cada parte por su cuenta puede dejar el
+  total a un peso de la suma. Y un decimal sin moneda declarada se rechaza, que
+  es justo el error que se buscaba evitar.
 - **Las tres ramas están empujadas pero sin mergear** a la principal:
   `feat/certificacion-sii` en el motor y en el servicio, `feat/guia-despacho`
   en el conector. Son fast-forward limpios.

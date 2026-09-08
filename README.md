@@ -155,6 +155,23 @@ clientes que no es revocable ni deja identidad en la auditoría. Si se apaga sin
 haber creado ninguna clave de máquina, `/admin` queda solo con el JWT del
 portal y el servicio lo avisa en el log al arrancar.
 
+## Libros (IECV) en moneda extranjera
+
+El IECV se declara **siempre en pesos**. Un documento de exportación se emite en
+su moneda, así que su línea del libro lleva `currency` y `exchange_rate` (el
+observado del día del documento) y el servicio hace la conversión:
+
+```json
+{ "doc_type": 110, "folio": 7, "date": "2026-05-10",
+  "rut": "55555555-5", "business_name": "COMPRADOR EXTRANJERO",
+  "exempt_amount": "15.40", "total_amount": "15.40",
+  "currency": "DOLAR USA", "exchange_rate": "950.25" }
+```
+
+→ `<MntExe>14634</MntExe>`. Sin `currency` los montos son pesos y deben ser
+enteros; un decimal ahí se rechaza al validar, en vez de acabar como un `15.40`
+en un campo que el XSD quiere entero.
+
 ## Endurecimiento
 
 Pensado para que el servicio pueda quedar expuesto a internet:
