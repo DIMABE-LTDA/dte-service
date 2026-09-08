@@ -750,3 +750,34 @@ ol.steps-list li {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+/* Guía de la respuesta del SII bajo el envío. Va dentro de la tabla y no en un
+   modal: es lo que hay que leer justo cuando se ve el rechazo, no un clic
+   después. */
+tr.guia td {
+  padding-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+.guia-caja {
+  border-left: 3px solid var(--bad);
+  background: rgba(239, 68, 68, 0.07);
+  border-radius: 0 6px 6px 0;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+.guia-caja.ok {
+  border-left-color: var(--ok);
+  background: rgba(34, 197, 94, 0.07);
+}
+.guia-caja em {
+  color: var(--warn);
+  font-style: normal;
+}
+.guia-pasos {
+  margin: 0.45rem 0 0;
+  padding-left: 1.15rem;
+}
+.guia-pasos li {
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+}

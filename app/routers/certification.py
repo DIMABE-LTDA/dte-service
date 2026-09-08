@@ -29,6 +29,7 @@ from app.db.models import (
 from app.db.session import get_db
 from app.schemas.certification import (
     AssignSetRequest,
+    CauseOut,
     CertificationDossierOut,
     CertificationSetOut,
     CertificationSubmissionOut,
@@ -40,9 +41,29 @@ from app.schemas.certification import (
     StepRequest,
 )
 from app.security.auth import admin_access, admin_read_access
-from app.services import audit_service, certificate_service, certification_service
+from app.services import (
+    audit_service,
+    certificate_service,
+    certification_causes,
+    certification_service,
+)
 
 router = APIRouter(prefix="/admin/customers/{customer_id}/certification", tags=["Certificación"])
+
+
+def _envio(row: CertificationSubmission) -> CertificationSubmissionOut:
+    """Un envío con la guía de su respuesta, si el código es conocido."""
+    salida = CertificationSubmissionOut.model_validate(row)
+    causa = certification_causes.for_state(row.sii_state)
+    if causa is not None:
+        salida.cause = CauseOut(
+            label=causa.label,
+            meaning=causa.meaning,
+            usually=causa.usually,
+            check=list(causa.check),
+            ok=causa.ok,
+        )
+    return salida
 
 
 def _customer(db: Session, customer_id: int) -> Customer:
@@ -92,7 +113,7 @@ def dossier(
             state=c["state"],
             declared_at=c["declared_at"],
             stages=c["stages"],
-            submissions=[CertificationSubmissionOut.model_validate(s) for s in c["submissions"]],
+            submissions=[_envio(s) for s in c["submissions"]],
         )
         for c in crudos
     ]
@@ -110,7 +131,7 @@ def dossier(
         progress=certification_service.progress(crudos),
         steps=certification_service.steps(db, customer, crudos),
         sets=salida,
-        unassigned=[CertificationSubmissionOut.model_validate(s) for s in sueltos],
+        unassigned=[_envio(s) for s in sueltos],
     )
 
 
@@ -202,10 +223,7 @@ def declare(
         state=certification_service.set_state(etapas),
         declared_at=cert_set.declared_at,
         stages=etapas,
-        submissions=[
-            CertificationSubmissionOut.model_validate(s)
-            for s in sorted(cert_set.submissions, key=lambda x: x.sent_at)
-        ],
+        submissions=[_envio(s) for s in sorted(cert_set.submissions, key=lambda x: x.sent_at)],
     )
 
 

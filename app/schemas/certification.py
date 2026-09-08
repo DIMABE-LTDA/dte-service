@@ -15,6 +15,20 @@ class CertificationDocumentOut(BaseModel):
     folio: int
 
 
+class CauseOut(BaseModel):
+    """Qué significa la respuesta del SII y qué revisar.
+
+    Sale de un catálogo del repositorio, no de la base: es conocimiento del
+    dominio y no depende del cliente.
+    """
+
+    label: str
+    meaning: str
+    usually: str = ""
+    check: list[str] = []
+    ok: bool = False
+
+
 class CertificationSubmissionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -27,6 +41,7 @@ class CertificationSubmissionOut(BaseModel):
     sii_detail: str | None
     checked_at: dt.datetime | None
     documents: list[CertificationDocumentOut] = []
+    cause: CauseOut | None = None
 
 
 class StageOut(BaseModel):

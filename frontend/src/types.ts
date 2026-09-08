@@ -149,6 +149,16 @@ export interface CertDocument {
   folio: number;
 }
 
+/** Qué significa la respuesta del SII y qué revisar. Sale del catálogo del
+ *  servicio, no de la base: es conocimiento del dominio. */
+export interface CertCause {
+  label: string;
+  meaning: string;
+  usually: string;
+  check: string[];
+  ok: boolean;
+}
+
 export interface CertSubmission {
   id: number;
   set_id: number | null;
@@ -159,6 +169,7 @@ export interface CertSubmission {
   sii_detail: string | null;
   checked_at: string | null;
   documents: CertDocument[];
+  cause: CertCause | null;
 }
 
 /** Una etapa con su semáforo. `state` es el color; `detail`, el porqué. */

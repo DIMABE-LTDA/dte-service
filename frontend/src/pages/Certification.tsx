@@ -269,7 +269,7 @@ export default function Certification() {
                   </tr>
                 </thead>
                 <tbody>
-                  {s.submissions.map((e) => (
+                  {s.submissions.flatMap((e) => [
                     <tr key={e.id}>
                       <td>
                         <span className="code">{e.track_id}</span>
@@ -318,8 +318,32 @@ export default function Certification() {
                           </button>
                         </div>
                       </td>
-                    </tr>
-                  ))}
+                    </tr>,
+                    // La guía aparece sólo cuando aporta: un aceptado sin nada
+                    // que revisar no necesita una fila que empuje la tabla.
+                    e.cause && (e.cause.usually || e.cause.check.length) ? (
+                      <tr key={`${e.id}-guia`} className="guia">
+                        <td colSpan={6}>
+                          <div className={`guia-caja ${e.cause.ok ? "ok" : "error"}`}>
+                            <strong>{e.cause.label}.</strong> {e.cause.meaning}
+                            {e.cause.usually && (
+                              <>
+                                {" "}
+                                <em>{e.cause.usually}</em>
+                              </>
+                            )}
+                            {e.cause.check.length > 0 && (
+                              <ol className="guia-pasos">
+                                {e.cause.check.map((paso) => (
+                                  <li key={paso}>{paso}</li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null,
+                  ])}
                 </tbody>
               </table>
             </div>

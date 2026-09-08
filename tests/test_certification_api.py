@@ -322,3 +322,52 @@ def test_el_avance_del_paso_1_sale_de_los_sets(client, db):
     paso = next(p for p in body["steps"] if p["key"] == "sets")
     assert paso["state"] == "atencion"  # uno declarado, faltan nueve
     assert "1 de 10 declarados" in paso["detail"]
+
+
+# --- catálogo de causas ----------------------------------------------------
+
+
+def test_un_rechazo_trae_que_revisar(client, db):
+    """Diez envíos se perdieron persiguiendo una firma que estaba bien. Eso no
+    puede vivir sólo en un documento que hay que acordarse de leer."""
+    c = make_customer(db)
+    _con_envio(db, c, code="5038170", estado="RFR")
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")[
+        "submissions"
+    ][0]
+
+    assert envio["cause"]["label"] == "Rechazado por error en firma"
+    assert "casi nunca es la firma" in envio["cause"]["usually"].lower()
+    assert any("Enviar Doctos" in paso for paso in envio["cause"]["check"])
+    assert envio["cause"]["ok"] is False
+
+
+def test_un_aceptado_tambien_avisa_de_lo_que_falta_mirar(client, db):
+    """EPR es 'sobre procesado', no 'todo bien': puede traer reparos dentro."""
+    c = make_customer(db)
+    _con_envio(db, c, code="5038170", estado="EPR")
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")[
+        "submissions"
+    ][0]
+
+    assert envio["cause"]["ok"] is True
+    assert "reparos" in envio["cause"]["meaning"]
+
+
+def test_un_codigo_desconocido_no_inventa_guia(client, db):
+    """Preferimos no decir nada a decir algo que no sabemos."""
+    c = make_customer(db)
+    _con_envio(db, c, code="5038170", estado="XXX")
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")[
+        "submissions"
+    ][0]
+    assert envio["cause"] is None
+
+
+def test_el_libro_descuadrado_apunta_a_los_campos_cruzados(client, db):
+    c = make_customer(db)
+    _con_envio(db, c, code="5038171", estado="LRH")
+    envio = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038171")[
+        "submissions"
+    ][0]
+    assert any("TotOpIVARec" in paso for paso in envio["cause"]["check"])
