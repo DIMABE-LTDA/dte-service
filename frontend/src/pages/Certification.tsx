@@ -4,7 +4,7 @@ import { api } from "../api";
 import { canWrite, useAuth } from "../auth";
 import Icon from "../components/Icon";
 import { useApi } from "../hooks/useApi";
-import type { CertSet, CertSubmission } from "../types";
+import type { CertPreview, CertSet, CertSubmission } from "../types";
 
 /** Expediente de certificación de un cliente.
  *
@@ -47,6 +47,14 @@ function fecha(iso: string | null) {
     : "—";
 }
 
+/** Pesos: sin decimales y con separador de miles, que es como se leen. */
+function money(v: unknown) {
+  const n = Number(v ?? 0);
+  // Sin decimales: el peso no los tiene. El descuento por línea puede dar una
+  // fracción, pero el monto que el SII ve siempre es entero.
+  return Number.isFinite(n) ? n.toLocaleString("es-CL", { maximumFractionDigits: 0 }) : "—";
+}
+
 function descargar(nombre: string, xmlBase64: string) {
   const bytes = Uint8Array.from(atob(xmlBase64), (ch) => ch.charCodeAt(0));
   const url = URL.createObjectURL(new Blob([bytes], { type: "application/xml" }));
@@ -82,6 +90,7 @@ export default function Certification() {
   const [endpoint, setEndpoint] = useState("issue-batch");
   const [payload, setPayload] = useState("");
   const [clonarDe, setClonarDe] = useState("");
+  const [vista, setVista] = useState<{ setId: number; datos: CertPreview } | null>(null);
 
   async function correr(fn: () => Promise<unknown>, ok: string) {
     setActionError("");
@@ -438,6 +447,23 @@ export default function Certification() {
                   type="button"
                   disabled={busy}
                   onClick={() =>
+                    correr(async () => {
+                      if (vista?.setId === s.id) {
+                        setVista(null);
+                        return;
+                      }
+                      setVista({ setId: s.id, datos: await api.certPreview(cid, s.id) });
+                    }, "")
+                  }
+                >
+                  <Icon name="search" />
+                  Ver qué se emite
+                </button>
+                <button
+                  className="secondary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
                     correr(
                       () => api.certEmit(cid, s.id),
                       `Set ${s.code} emitido. Revísalo y envíalo cuando esté bien.`,
@@ -517,6 +543,96 @@ export default function Certification() {
                   </button>
                 </div>
               </form>
+            )}
+
+            {vista?.setId === s.id && (
+              <div className="previa">
+                <div className="previa-cabecera">
+                  <strong>{vista.datos.summary}</strong>
+                  <span className="muted">{vista.datos.detail}</span>
+                </div>
+                <div className="tabla-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Documento</th>
+                        <th>Receptor</th>
+                        <th>{vista.datos.kind === "libro" ? "Folio" : "Ítems"}</th>
+                        <th>Afecto</th>
+                        <th>Exento</th>
+                        {vista.datos.kind === "libro" && <th>Total</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vista.datos.documents.map((doc, i) => {
+                        const d = doc as Record<string, unknown>;
+                        const items = (d.items ?? []) as {
+                          name: string;
+                          quantity: number | null;
+                          unit_price: number | null;
+                          discount_pct: number | null;
+                          exempt: boolean;
+                        }[];
+                        const refs = (d.references ?? []) as string[];
+                        const globales = (d.global_discounts ?? []) as string[];
+                        const libro = vista.datos.kind === "libro";
+                        return (
+                          <tr key={i}>
+                            <td className="num">{String(d.position ?? i + 1)}</td>
+                            <td>
+                              {String(d.doc_label)}
+                              {refs.map((r) => (
+                                <div className="previa-ref" key={r}>
+                                  ↳ {r}
+                                </div>
+                              ))}
+                              {globales.map((g) => (
+                                <div className="previa-ref" key={g}>
+                                  ◆ {g}
+                                </div>
+                              ))}
+                            </td>
+                            <td>
+                              {String(d.receiver ?? "")}
+                              {d.receiver_rut ? (
+                                <div className="muted">{String(d.receiver_rut)}</div>
+                              ) : null}
+                            </td>
+                            <td>
+                              {libro ? (
+                                String(d.folio ?? "—")
+                              ) : (
+                                <div className="previa-items">
+                                  {items.map((it) => (
+                                    <div key={it.name}>
+                                      {it.name}
+                                      {it.quantity != null ? (
+                                        <span className="muted">
+                                          {" · "}
+                                          {it.quantity} × {money(it.unit_price)}
+                                          {it.discount_pct ? " −" + it.discount_pct + "%" : ""}
+                                        </span>
+                                      ) : null}
+                                      {it.exempt ? (
+                                        <span className="badge neutral"> exento</span>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td className="num">{money(libro ? d.net : d.lines_affect)}</td>
+                            <td className="num">{money(libro ? d.exempt : d.lines_exempt)}</td>
+                            {libro ? <td className="num">{money(d.total)}</td> : null}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {vista.datos.note ? <p className="muted previa-nota">{vista.datos.note}</p> : null}
+              </div>
             )}
 
             {editando === s.id && (

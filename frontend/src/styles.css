@@ -790,3 +790,32 @@ textarea.json {
   min-height: 12rem;
   resize: vertical;
 }
+/* Vista previa de lo que se va a emitir. Va en la propia tarjeta del set y no
+   en un modal: es lo que hay que mirar justo antes de gastar folios. */
+.previa {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--panel-2);
+  padding: 0.7rem 0.9rem;
+  margin-top: 0.8rem;
+}
+.previa-cabecera {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.previa-items div {
+  margin-bottom: 0.15rem;
+}
+.previa-ref {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+.previa-nota {
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0;
+}

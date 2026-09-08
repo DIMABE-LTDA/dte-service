@@ -239,3 +239,20 @@ export interface CertEnvelope {
   filename: string;
   xml_base64: string;
 }
+
+/** Qué se va a emitir, legible. `note` avisa de que la suma de líneas no es el
+ *  total del documento: ese lo calcula el motor y se ve tras emitir. */
+export interface CertPreview {
+  kind: string;
+  summary: string;
+  detail: string;
+  note: string;
+  documents: Record<string, unknown>[];
+}
+
+/** Qué contiene de verdad un sobre emitido, leído de su XML firmado. */
+export interface CertContents {
+  submission_id: number;
+  track_id: string | null;
+  documents: Record<string, string | number | null>[];
+}

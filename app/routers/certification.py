@@ -35,12 +35,15 @@ from app.schemas.certification import (
     CertificationSetOut,
     CertificationSubmissionOut,
     CloneRequest,
+    ContentsOut,
     DeclareRequest,
     DefinitionOut,
     DefinitionRequest,
     EnvelopeOut,
+    ImportRequest,
     NoteOut,
     NoteRequest,
+    PreviewOut,
     PrintSamplesOut,
     SetupRequest,
     StepRequest,
@@ -50,6 +53,7 @@ from app.services import (
     audit_service,
     certificate_service,
     certification_causes,
+    certification_preview,
     certification_service,
 )
 
@@ -568,3 +572,86 @@ def print_samples(
     customer = _customer(db, customer_id)
     resultado = certification_service.print_samples(db, customer, sii_office)
     return PrintSamplesOut(**resultado)
+
+
+@router.get("/sets/{set_id}/preview", response_model=PreviewOut)
+def preview(
+    customer_id: int,
+    set_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> PreviewOut:
+    """Qué se emitirá si se pulsa Emitir, legible sin abrir el JSON.
+
+    Emitir consume folios y no se deshace: revisar tiene que ser posible sin
+    leer XML.
+    """
+    customer = _customer(db, customer_id)
+    cert_set = _set(db, customer, set_id)
+    definicion = (
+        db.query(CertificationDefinition)
+        .filter(CertificationDefinition.set_id == cert_set.id)
+        .one_or_none()
+    )
+    if definicion is None:
+        raise HTTPException(status_code=404, detail="este set todavía no tiene definición")
+    return PreviewOut(**certification_preview.definition(definicion.endpoint, definicion.payload))
+
+
+@router.get("/submissions/{submission_id}/contents", response_model=ContentsOut)
+def contents(
+    customer_id: int,
+    submission_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> ContentsOut:
+    """Qué contiene de verdad el sobre: folio y totales del XML firmado."""
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    return ContentsOut(
+        submission_id=row.id,
+        track_id=row.track_id,
+        documents=certification_preview.envelope(certification_service.envelope(row)),
+    )
+
+
+@router.post("/import", response_model=CertificationDossierOut)
+def import_definitions(
+    customer_id: int,
+    data: ImportRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDossierOut:
+    """Carga en bloque los sets de un contribuyente con su definición.
+
+    Da de alta el set si hace falta y guarda qué emitir, en una sola operación:
+    es como se pone en marcha una certificación nueva.
+    """
+    customer = _customer(db, customer_id)
+    cargados = 0
+    for kind, entrada in data.sets.items():
+        code = str(entrada.get("code") or "").strip()
+        if not code:
+            continue  # sin número de atención el set no se puede identificar
+        cert_set = certification_service.find_or_create_set(db, customer.id, code)
+        cert_set.kind = kind
+        row = (
+            db.query(CertificationDefinition)
+            .filter(CertificationDefinition.set_id == cert_set.id)
+            .one_or_none()
+        )
+        if row is None:
+            row = CertificationDefinition(set_id=cert_set.id)
+            db.add(row)
+        row.endpoint = entrada["endpoint"]
+        row.payload = entrada["payload"]
+        cargados += 1
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.import",
+        "customer",
+        str(customer.id),
+        f"{cargados} set(s) cargados con su definición",
+    )
+    return dossier(customer_id, actor, db)

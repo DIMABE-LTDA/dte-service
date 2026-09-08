@@ -478,7 +478,8 @@ def steps(db, customer: Customer, sets: list[dict]) -> list[dict]:
 def _emitters():
     from app.schemas.book import BookRequest, GuideBookRequest
     from app.schemas.dte import DteBatchRequest, ExportBatchRequest, SettlementBatchRequest
-    from app.services import book_service, dte_service
+    from app.schemas.receipt import ReceiptBatchRequest
+    from app.services import book_service, dte_service, receipt_service
 
     return {
         "issue-batch": (DteBatchRequest, dte_service.issue_batch, True),
@@ -490,6 +491,7 @@ def _emitters():
         ),
         "books": (BookRequest, book_service.build, False),
         "books/guides": (GuideBookRequest, book_service.build_guides, False),
+        "boletas": (ReceiptBatchRequest, receipt_service.issue_batch, True),
     }
 
 

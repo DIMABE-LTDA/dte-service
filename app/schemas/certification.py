@@ -213,3 +213,32 @@ class PrintSamplesOut(BaseModel):
 
     documents: list[dict]
     skipped: list[dict]
+
+
+class PreviewOut(BaseModel):
+    """Qué se va a emitir, en cristiano.
+
+    ``note`` existe para que nadie lea la suma de las líneas como el total del
+    documento: ese lo calcula el motor y sólo se conoce tras emitir.
+    """
+
+    kind: str
+    summary: str
+    detail: str
+    note: str
+    documents: list[dict]
+
+
+class ContentsOut(BaseModel):
+    """Qué contiene de verdad un sobre ya emitido, leído de su XML firmado."""
+
+    submission_id: int
+    track_id: str | None
+    documents: list[dict]
+
+
+class ImportRequest(BaseModel):
+    """Carga en bloque las definiciones de los sets de un contribuyente."""
+
+    # kind → {code, endpoint, payload}
+    sets: dict[str, dict]

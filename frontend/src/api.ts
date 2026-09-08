@@ -10,10 +10,12 @@ import type {
   RequestLog,
   ServiceGrantResult,
   ServiceInfo,
+  CertContents,
   CertDefinition,
   CertDossier,
   CertEnvelope,
   CertNote,
+  CertPreview,
   CertSet,
   CertSubmission,
   Token,
@@ -124,6 +126,10 @@ export const api = {
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
       method: "POST",
     }),
+  certPreview: (cid: number, setId: number) =>
+    req<CertPreview>(`/admin/customers/${cid}/certification/sets/${setId}/preview`),
+  certContents: (cid: number, sid: number) =>
+    req<CertContents>(`/admin/customers/${cid}/certification/submissions/${sid}/contents`),
   certPrintSamples: (cid: number) =>
     req<{ documents: Record<string, unknown>[]; skipped: Record<string, string>[] }>(
       `/admin/customers/${cid}/certification/print-samples`,

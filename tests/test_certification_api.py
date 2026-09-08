@@ -655,3 +655,143 @@ def test_de_varios_intentos_se_imprime_el_aceptado(client, db, monkeypatch):
     body = client.post(f"{_base(c.id)}/print-samples", headers=h).json()
     assert len(body["documents"]) == 1
     assert body["documents"][0]["track_id"] == "0257264862"
+
+
+# --- ver qué se emite ------------------------------------------------------
+
+
+def test_la_vista_previa_se_entiende_sin_abrir_el_json(client, db):
+    """Emitir consume folios: revisar tiene que ser posible sin leer XML."""
+    c = make_customer(db)
+    h = _op(client, db)
+    client.post(f"{_base(c.id)}/setup", json={"codes": {"basico": "5038170"}}, headers=h)
+    cs = db.query(CertificationSet).filter_by(code="5038170").one()
+    client.put(
+        f"{_base(c.id)}/sets/{cs.id}/definition",
+        json={
+            "endpoint": "issue-batch",
+            "payload": {
+                "documents": [
+                    {
+                        "type": 33,
+                        "issue_date": "2026-09-02",
+                        "issuer": {"rut": "76158145-7"},
+                        "receiver": {
+                            "rut": "60803000-K",
+                            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+                        },
+                        "items": [
+                            {"name": "Cajon AFECTO", "quantity": 161, "unit_price": 3071},
+                            {"name": "Servicio EXENTO", "quantity": 1, "unit_price": 1000,
+                             "exempt": True},
+                        ],
+                        "references": [
+                            {"batch_index": 1, "code": 2, "reason": "CORRIGE GIRO"}
+                        ],
+                    }
+                ]
+            },
+        },
+        headers=h,
+    )
+
+    v = client.get(f"{_base(c.id)}/sets/{cs.id}/preview", headers=h).json()
+    assert v["summary"] == "1 documento(s) en un solo sobre"
+    doc = v["documents"][0]
+    assert doc["doc_label"] == "Factura electrónica"
+    assert doc["receiver"] == "SERVICIO DE IMPUESTOS INTERNOS"
+    # 161 × 3071 = 494.431, y la línea exenta va aparte.
+    assert doc["lines_affect"] == 494431
+    assert doc["lines_exempt"] == 1000
+    assert "Corrige texto n.º 1 de este mismo envío" in doc["references"][0]
+    # Y se dice que esa suma NO es el total del documento.
+    assert "no" in v["note"].lower() or "total del documento" in v["note"]
+
+
+def test_el_descuento_de_linea_se_refleja_en_el_monto(client, db):
+    from app.services import certification_preview
+
+    doc = certification_preview.definition(
+        "issue-batch",
+        {
+            "documents": [
+                {
+                    "type": 33,
+                    "items": [{"name": "X", "quantity": 100, "unit_price": 1000,
+                               "discount_pct": 20}],
+                }
+            ]
+        },
+    )["documents"][0]
+    assert doc["items"][0]["amount"] == 80000
+
+
+def test_la_vista_previa_de_un_libro_muestra_sus_lineas(client, db):
+    from app.services import certification_preview
+
+    v = certification_preview.definition(
+        "books",
+        {
+            "period": "2026-05",
+            "book_type": "ESPECIAL",
+            "notification_folio": 5038171,
+            "lines": [
+                {"doc_type": 33, "folio": 19, "rut": "77073851-2",
+                 "business_name": "CLIENTE", "net_amount": 1000, "vat_amount": 190,
+                 "total_amount": 1190}
+            ],
+        },
+    )
+    assert v["kind"] == "libro"
+    assert "2026-05" in v["summary"]
+    assert "ESPECIAL" in v["detail"]
+    assert v["documents"][0]["total"] == 1190
+
+
+def test_el_contenido_del_sobre_sale_del_xml_firmado(client, db):
+    """Ahí sí están el folio y los totales reales: es lo que se va a enviar."""
+    c = make_customer(db)
+    h = _op(client, db)
+    certification_service.certification_set_var.set("5038170")
+    certification_service.capture(
+        c,
+        b'<EnvioDTE xmlns="http://www.sii.cl/SiiDte"><SetDTE><DTE><Documento>'
+        b"<Encabezado><IdDoc><TipoDTE>33</TipoDTE><Folio>19</Folio></IdDoc>"
+        b"<Receptor><RUTRecep>60803000-K</RUTRecep>"
+        b"<RznSocRecep>SERVICIO DE IMPUESTOS INTERNOS</RznSocRecep></Receptor>"
+        b"<Totales><MntNeto>494431</MntNeto><IVA>93942</IVA>"
+        b"<MntTotal>588373</MntTotal></Totales></Encabezado>"
+        b"</Documento></DTE></SetDTE></EnvioDTE>",
+        "0257259806",
+    )
+    certification_service.certification_set_var.set(None)
+    sid = db.query(CertificationSubmission).one().id
+
+    v = client.get(f"{_base(c.id)}/submissions/{sid}/contents", headers=h).json()
+    doc = v["documents"][0]
+    assert doc["folio"] == "19"
+    assert doc["doc_label"] == "Factura electrónica"
+    assert doc["receiver"] == "SERVICIO DE IMPUESTOS INTERNOS"
+    assert doc["total"] == "588373"
+
+
+def test_importar_carga_los_sets_con_su_definicion(client, db):
+    c = make_customer(db)
+    h = _op(client, db)
+    r = client.post(
+        f"{_base(c.id)}/import",
+        json={
+            "sets": {
+                "basico": {
+                    "code": "5038170",
+                    "endpoint": "issue-batch",
+                    "payload": {"documents": [{"type": 33, "items": []}]},
+                }
+            }
+        },
+        headers=h,
+    )
+    assert r.status_code == 200
+    assert _set(r.json(), "5038170")["kind"] == "basico"
+    cs = db.query(CertificationSet).filter_by(code="5038170").one()
+    assert client.get(f"{_base(c.id)}/sets/{cs.id}/definition", headers=h).status_code == 200
