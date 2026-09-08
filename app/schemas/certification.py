@@ -44,7 +44,9 @@ class StageOut(BaseModel):
 
 
 class CertificationSetOut(BaseModel):
-    id: int
+    # None en un set esperado que todavía no existe en la base: se da de alta
+    # solo cuando llega su primer envío o cuando el operador le pone su número.
+    id: int | None = None
     code: str
     kind: str
     state: str
@@ -53,10 +55,33 @@ class CertificationSetOut(BaseModel):
     submissions: list[CertificationSubmissionOut]
 
 
+class StepOut(BaseModel):
+    """Un paso del trámite. El primero lo lleva el sistema; el resto, el operador."""
+
+    key: str
+    label: str
+    detail: str
+    automatic: bool
+    state: Literal["ok", "pendiente", "atencion"]
+    done_at: dt.date | None = None
+    note: str = ""
+
+
+class ProgressOut(BaseModel):
+    """Cuántos sets van, de los que el trámite pide."""
+
+    sets_total: int
+    sets_declared: int
+    sets_accepted: int
+    sets_pending: int
+
+
 class CertificationDossierOut(BaseModel):
     """Todo el expediente de un cliente."""
 
     customer_id: int
+    progress: ProgressOut
+    steps: list[StepOut]
     sets: list[CertificationSetOut]
     # Envíos capturados que todavía no se atribuyeron a ningún set. Existen
     # porque la captura no exige declarar el set: preferimos guardar el envío
@@ -69,6 +94,23 @@ class AssignSetRequest(BaseModel):
 
     code: str = Field(min_length=1, max_length=20, examples=["5038170"])
     kind: str = Field("", max_length=30)
+
+
+class SetupRequest(BaseModel):
+    """Da de alta los sets que el SII asignó a este contribuyente.
+
+    El número de atención lo asigna el Servicio y se copia una vez desde Mi SII.
+    Los que se dejen vacíos quedan sin dar de alta y siguen apareciendo como
+    pendientes: es preferible verlos que ocultarlos.
+    """
+
+    # kind del catálogo → número de atención.
+    codes: dict[str, str]
+
+
+class StepRequest(BaseModel):
+    done_at: dt.date | None = None
+    note: str = ""
 
 
 class DeclareRequest(BaseModel):

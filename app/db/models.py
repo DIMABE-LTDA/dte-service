@@ -290,6 +290,27 @@ class CertificationSet(Base):
     )
 
 
+class CertificationMilestone(Base):
+    """Un paso de la postulación que ocurre FUERA del servicio.
+
+    De los seis pasos del trámite, el sistema sólo puede saber por sí mismo cómo
+    va el primero —los sets—. Los otros cinco pasan en el sitio del SII o por
+    correo, así que los confirma el operador y quedan aquí con su fecha. Sin
+    esto el portal contaría medio trámite y habría que llevar el resto aparte,
+    que es exactamente el problema que se quiere resolver.
+    """
+
+    __tablename__ = "certification_milestone"
+    __table_args__ = (UniqueConstraint("customer_id", "step"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
+    # Clave del paso en certification_catalog.STEPS.
+    step: Mapped[str] = mapped_column(String(30))
+    done_at: Mapped[dt.date | None] = mapped_column(Date, nullable=True, default=None)
+    note: Mapped[str] = mapped_column(String, default="")
+
+
 class CertificationSubmission(Base):
     """Un intento de envío. Un set puede tener varios y ninguno se borra.
 

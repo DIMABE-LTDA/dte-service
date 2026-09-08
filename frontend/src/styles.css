@@ -702,3 +702,51 @@ ol.steps-list li {
 .tabla-scroll {
   overflow-x: auto;
 }
+/* Barra de avance del expediente. Da de un vistazo lo que la tabla cuenta en
+   detalle; sin ella hay que sumar filas para saber cómo va el trámite. */
+.barra {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.barra-relleno {
+  height: 100%;
+  background: var(--ok);
+  transition: width 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-relleno {
+    transition: none;
+  }
+}
+/* Las etapas en rejilla y no en flex libre: con seis pasos, el flex dejaba el
+   último estirado a todo el ancho en una segunda fila. Y los botones alineados
+   abajo, para que no bailen según el largo del texto de cada uno. */
+.etapas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.etapa {
+  display: flex;
+  flex-direction: column;
+}
+.etapa .btn-link {
+  margin-top: auto;
+  align-self: flex-start;
+}
+/* Los seis pasos del trámite en 3+3: con auto-fit quedaban 5+1 y el último
+   huérfano. Además el texto de cada paso es largo y agradece el ancho. */
+.etapas.pasos {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .etapas.pasos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1000px) {
+  .etapas.pasos {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

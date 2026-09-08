@@ -36,6 +36,8 @@ from app.schemas.certification import (
     EnvelopeOut,
     NoteOut,
     NoteRequest,
+    SetupRequest,
+    StepRequest,
 )
 from app.security.auth import admin_access, admin_read_access
 from app.services import audit_service, certificate_service, certification_service
@@ -80,29 +82,20 @@ def dossier(
 ) -> CertificationDossierOut:
     """El expediente entero: los sets con sus etapas y los envíos sin clasificar."""
     customer = _customer(db, customer_id)
-    sets = (
-        db.query(CertificationSet)
-        .filter(CertificationSet.customer_id == customer.id)
-        .order_by(CertificationSet.code)
-        .all()
-    )
-    salida = []
-    for cert_set in sets:
-        etapas = certification_service.stages(db, customer, cert_set)
-        salida.append(
-            CertificationSetOut(
-                id=cert_set.id,
-                code=cert_set.code,
-                kind=cert_set.kind,
-                state=certification_service.set_state(etapas),
-                declared_at=cert_set.declared_at,
-                stages=etapas,
-                submissions=[
-                    CertificationSubmissionOut.model_validate(s)
-                    for s in sorted(cert_set.submissions, key=lambda x: x.sent_at)
-                ],
-            )
+    # Salen los diez del catálogo, existan o no: el que falta es el que importa.
+    crudos = certification_service.expected_sets(db, customer)
+    salida = [
+        CertificationSetOut(
+            id=c["id"],
+            code=c["code"],
+            kind=c["kind"],
+            state=c["state"],
+            declared_at=c["declared_at"],
+            stages=c["stages"],
+            submissions=[CertificationSubmissionOut.model_validate(s) for s in c["submissions"]],
         )
+        for c in crudos
+    ]
     sueltos = (
         db.query(CertificationSubmission)
         .filter(
@@ -114,6 +107,8 @@ def dossier(
     )
     return CertificationDossierOut(
         customer_id=customer.id,
+        progress=certification_service.progress(crudos),
+        steps=certification_service.steps(db, customer, crudos),
         sets=salida,
         unassigned=[CertificationSubmissionOut.model_validate(s) for s in sueltos],
     )
@@ -272,3 +267,77 @@ def add_note(
     db.commit()
     db.refresh(row)
     return row
+
+
+@router.post("/setup", response_model=CertificationDossierOut)
+def setup(
+    customer_id: int,
+    data: SetupRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDossierOut:
+    """Da de alta los sets que el SII asignó a este contribuyente.
+
+    Se hace una vez por cliente, copiando de Mi SII el número de atención de
+    cada set. A partir de ahí el expediente sabe qué falta, y los envíos que
+    lleguen con la cabecera ``X-Certification-Set`` caen solos en su sitio.
+    """
+    customer = _customer(db, customer_id)
+    for kind, code in data.codes.items():
+        code = (code or "").strip()
+        if not code:
+            continue  # sin número, el set sigue apareciendo como pendiente
+        cert_set = certification_service.find_or_create_set(db, customer.id, code)
+        cert_set.kind = kind
+        if not cert_set.submissions:
+            cert_set.state = "pendiente"
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.setup",
+        "customer",
+        str(customer.id),
+        f"{sum(1 for v in data.codes.values() if v.strip())} sets dados de alta",
+    )
+    return dossier(customer_id, actor, db)
+
+
+@router.post("/steps/{step}", response_model=CertificationDossierOut)
+def set_step(
+    customer_id: int,
+    step: str,
+    data: StepRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDossierOut:
+    """Marca (o desmarca) un paso del trámite que ocurre fuera del servicio."""
+    from app.db.models import CertificationMilestone
+    from app.services.certification_catalog import STEP_KEYS
+
+    customer = _customer(db, customer_id)
+    if step not in STEP_KEYS or step == "sets":
+        # El paso de los sets lo deduce el sistema: marcarlo a mano lo haría
+        # mentir, que es lo único que un semáforo no puede permitirse.
+        raise HTTPException(status_code=400, detail=f"paso no marcable: {step}")
+    hito = (
+        db.query(CertificationMilestone)
+        .filter(
+            CertificationMilestone.customer_id == customer.id,
+            CertificationMilestone.step == step,
+        )
+        .one_or_none()
+    )
+    if hito is None:
+        hito = CertificationMilestone(customer_id=customer.id, step=step)
+        db.add(hito)
+    hito.done_at = data.done_at
+    hito.note = data.note.strip()
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.step",
+        "customer",
+        str(customer.id),
+        f"paso {step}: {f'cumplido el {data.done_at}' if data.done_at else 'pendiente'}",
+    )
+    return dossier(customer_id, actor, db)

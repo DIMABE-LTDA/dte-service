@@ -170,7 +170,8 @@ export interface CertStage {
 }
 
 export interface CertSet {
-  id: number;
+  /** null en un set que el trámite pide pero que aún no se dio de alta. */
+  id: number | null;
   code: string;
   kind: string;
   state: string;
@@ -179,8 +180,27 @@ export interface CertSet {
   submissions: CertSubmission[];
 }
 
+export interface CertStep {
+  key: string;
+  label: string;
+  detail: string;
+  automatic: boolean;
+  state: "ok" | "pendiente" | "atencion";
+  done_at: string | null;
+  note: string;
+}
+
+export interface CertProgress {
+  sets_total: number;
+  sets_declared: number;
+  sets_accepted: number;
+  sets_pending: number;
+}
+
 export interface CertDossier {
   customer_id: number;
+  progress: CertProgress;
+  steps: CertStep[];
   sets: CertSet[];
   /** Envíos capturados que aún no se atribuyeron a un set. */
   unassigned: CertSubmission[];

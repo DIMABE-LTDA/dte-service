@@ -306,3 +306,136 @@ def set_state(etapas: list[dict]) -> str:
     if por_clave.get("envio") == "ok":
         return "enviado"
     return "pendiente"
+
+
+# --------------------------------------------------------------------------- #
+#  El trámite completo: qué sets pide el SII y en qué paso va la postulación
+# --------------------------------------------------------------------------- #
+
+
+def expected_sets(db, customer: Customer) -> list[dict]:
+    """Los diez sets del trámite, existan o no todavía en la base.
+
+    Es la diferencia entre un expediente que muestra lo que llegó y uno que
+    muestra lo que falta. Un set sin enviar tiene que verse: es el que hay que
+    hacer.
+    """
+    from app.services.certification_catalog import BY_KIND, SET_TYPES
+
+    existentes = {
+        s.kind: s
+        for s in db.query(CertificationSet).filter(CertificationSet.customer_id == customer.id)
+    }
+    # Un set con número de atención pero sin kind reconocido (se dio de alta al
+    # vuelo desde la cabecera) se muestra igual, al final: perderlo sería peor.
+    sueltos = [s for k, s in existentes.items() if k not in BY_KIND]
+
+    salida = []
+    for tipo in SET_TYPES:
+        cert_set = existentes.get(tipo.kind)
+        if cert_set is None:
+            salida.append(
+                {
+                    "id": None,
+                    "code": "",
+                    "kind": tipo.kind,
+                    "state": "sin_dar_de_alta",
+                    "declared_at": None,
+                    "stages": [],
+                    "submissions": [],
+                }
+            )
+            continue
+        etapas = stages(db, customer, cert_set)
+        salida.append(
+            {
+                "id": cert_set.id,
+                "code": cert_set.code,
+                "kind": cert_set.kind,
+                "state": set_state(etapas),
+                "declared_at": cert_set.declared_at,
+                "stages": etapas,
+                "submissions": sorted(cert_set.submissions, key=lambda x: x.sent_at),
+            }
+        )
+    for cert_set in sueltos:
+        etapas = stages(db, customer, cert_set)
+        salida.append(
+            {
+                "id": cert_set.id,
+                "code": cert_set.code,
+                "kind": cert_set.kind,
+                "state": set_state(etapas),
+                "declared_at": cert_set.declared_at,
+                "stages": etapas,
+                "submissions": sorted(cert_set.submissions, key=lambda x: x.sent_at),
+            }
+        )
+    return salida
+
+
+def progress(sets: list[dict]) -> dict:
+    """Cuántos sets van.
+
+    ``sets_total`` sale del **catálogo**, no de las filas: un envío que se dio de
+    alta al vuelo sin clasificar se muestra, pero no infla el denominador. El
+    trámite pide diez sets y el contador tiene que decir diez.
+    """
+    from app.services.certification_catalog import BY_KIND
+
+    del_tramite = [s for s in sets if s["kind"] in BY_KIND]
+    return {
+        "sets_total": len(del_tramite),
+        "sets_declared": sum(1 for s in del_tramite if s["state"] == "declarado"),
+        "sets_accepted": sum(1 for s in del_tramite if s["state"] in ("aceptado", "declarado")),
+        "sets_pending": sum(
+            1 for s in del_tramite if s["state"] in ("sin_dar_de_alta", "pendiente", "enviado")
+        ),
+    }
+
+
+def steps(db, customer: Customer, sets: list[dict]) -> list[dict]:
+    """Los seis pasos del trámite.
+
+    El primero lo deduce el sistema de los sets; los otros cinco ocurren fuera
+    —en el sitio del SII o por correo— y los confirma el operador.
+    """
+    from app.db.models import CertificationMilestone
+    from app.services.certification_catalog import STEPS
+
+    hitos = {
+        m.step: m
+        for m in db.query(CertificationMilestone).filter(
+            CertificationMilestone.customer_id == customer.id
+        )
+    }
+    p = progress(sets)
+    salida = []
+    for paso in STEPS:
+        hito = hitos.get(paso.key)
+        if paso.key == "sets":
+            if p["sets_declared"] == p["sets_total"] and p["sets_total"]:
+                estado = "ok"
+            elif p["sets_accepted"]:
+                estado = "atencion"
+            else:
+                estado = "pendiente"
+            detalle = (
+                f"{p['sets_declared']} de {p['sets_total']} declarados"
+                f" · {p['sets_accepted']} aceptados por el SII"
+            )
+        else:
+            estado = "ok" if hito and hito.done_at else "pendiente"
+            detalle = paso.detail
+        salida.append(
+            {
+                "key": paso.key,
+                "label": paso.label,
+                "detail": detalle,
+                "automatic": paso.automatic,
+                "state": estado,
+                "done_at": hito.done_at if hito else None,
+                "note": hito.note if hito else "",
+            }
+        )
+    return salida

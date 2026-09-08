@@ -96,6 +96,13 @@ export const api = {
     ),
   certEnvelope: (cid: number, sid: number) =>
     req<CertEnvelope>(`/admin/customers/${cid}/certification/submissions/${sid}/envelope`),
+  certSetup: (cid: number, codes: Record<string, string>) =>
+    req<CertDossier>(`/admin/customers/${cid}/certification/setup`, body({ codes })),
+  certStep: (cid: number, step: string, done_at: string | null, note: string) =>
+    req<CertDossier>(
+      `/admin/customers/${cid}/certification/steps/${step}`,
+      body({ done_at, note }),
+    ),
   certNotes: (cid: number) => req<CertNote[]>(`/admin/customers/${cid}/certification/notes`),
   certAddNote: (cid: number, set_id: number, text: string) =>
     req<CertNote>(`/admin/customers/${cid}/certification/notes`, body({ set_id, text })),

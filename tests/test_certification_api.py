@@ -33,14 +33,37 @@ def _base(cid):
     return f"/admin/customers/{cid}/certification"
 
 
+def _set(body, code):
+    """El set con ese número de atención. El expediente devuelve SIEMPRE los diez
+    del catálogo, incluidos los que aún no se dieron de alta."""
+    return next(s for s in body["sets"] if s["code"] == code)
+
+
 # --- lectura ---------------------------------------------------------------
 
 
-def test_expediente_vacio(client, db):
+def test_expediente_vacio_muestra_los_sets_que_faltan(client, db):
+    """Un expediente que sólo mostrara lo enviado escondería justo lo que hay
+    que hacer."""
     c = make_customer(db)
-    r = client.get(_base(c.id), headers=_op(client, db))
-    assert r.status_code == 200
-    assert r.json() == {"customer_id": c.id, "sets": [], "unassigned": []}
+    body = client.get(_base(c.id), headers=_op(client, db)).json()
+    assert body["unassigned"] == []
+    assert len(body["sets"]) == 10
+    assert {s["state"] for s in body["sets"]} == {"sin_dar_de_alta"}
+    assert body["progress"] == {
+        "sets_total": 10,
+        "sets_declared": 0,
+        "sets_accepted": 0,
+        "sets_pending": 10,
+    }
+    assert [p["key"] for p in body["steps"]] == [
+        "sets",
+        "boletas",
+        "simulacion",
+        "intercambio",
+        "impresion",
+        "cumplimiento",
+    ]
 
 
 def test_un_envio_sin_set_sale_como_sin_clasificar(client, db):
@@ -48,7 +71,7 @@ def test_un_envio_sin_set_sale_como_sin_clasificar(client, db):
     c = make_customer(db)
     _con_envio(db, c)
     body = client.get(_base(c.id), headers=_op(client, db)).json()
-    assert body["sets"] == []
+    assert {s["state"] for s in body["sets"]} == {"sin_dar_de_alta"}
     assert len(body["unassigned"]) == 1
     assert body["unassigned"][0]["track_id"] == "0257259806"
 
@@ -56,7 +79,7 @@ def test_un_envio_sin_set_sale_como_sin_clasificar(client, db):
 def test_las_cinco_etapas_con_su_semaforo(client, db):
     c = make_customer(db)
     _con_envio(db, c, code="5038170")
-    cert_set = client.get(_base(c.id), headers=_op(client, db)).json()["sets"][0]
+    cert_set = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")
 
     etapas = {e["key"]: e["state"] for e in cert_set["stages"]}
     assert list(etapas) == ["requisitos", "emision", "envio", "estado", "declaracion"]
@@ -74,7 +97,7 @@ def test_enviado_no_es_aceptado_y_aceptado_no_es_declarado(client, db):
     _con_envio(db, c, code="5038170", estado="EPR")
     h = _op(client, db)
 
-    cert_set = client.get(_base(c.id), headers=h).json()["sets"][0]
+    cert_set = _set(client.get(_base(c.id), headers=h).json(), "5038170")
     etapas = {e["key"]: e["state"] for e in cert_set["stages"]}
     assert etapas["estado"] == "ok"
     # Aceptado por el SII, pero falta el trámite manual: ámbar, no verde.
@@ -96,7 +119,7 @@ def test_un_rechazo_pinta_rojo_y_no_borra_el_intento(client, db):
     _con_envio(db, c, code="5038171", track="0257260576", estado="LRH")
     _con_envio(db, c, code="5038171", track="0257264862", estado="LOK")
 
-    cert_set = client.get(_base(c.id), headers=_op(client, db)).json()["sets"][0]
+    cert_set = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038171")
     # Los dos intentos siguen ahí: la bitácora es el activo.
     assert [s["track_id"] for s in cert_set["submissions"]] == ["0257260576", "0257264862"]
     # El semáforo mira el último.
@@ -110,7 +133,7 @@ def test_sin_certificado_los_requisitos_estan_en_rojo(client, db):
     db.query(CustomerCertificate).filter_by(customer_id=c.id).delete()
     db.commit()
     _con_envio(db, c, code="5038170")
-    etapas = client.get(_base(c.id), headers=_op(client, db)).json()["sets"][0]["stages"]
+    etapas = _set(client.get(_base(c.id), headers=_op(client, db)).json(), "5038170")["stages"]
     requisitos = next(e for e in etapas if e["key"] == "requisitos")
     assert requisitos["state"] == "error"
     assert "certificado" in requisitos["detail"]
@@ -133,8 +156,7 @@ def test_asignar_un_envio_suelto_a_su_set(client, db):
     assert r.status_code == 200
     body = client.get(_base(c.id), headers=h).json()
     assert body["unassigned"] == []
-    assert body["sets"][0]["code"] == "5038170"
-    assert body["sets"][0]["kind"] == "basico"
+    assert _set(body, "5038170")["kind"] == "basico"
 
 
 def test_descargar_el_sobre_devuelve_el_xml_original(client, db):
@@ -154,7 +176,7 @@ def test_la_bitacora_guarda_lo_que_se_descarto(client, db):
     c = make_customer(db)
     _con_envio(db, c, code="5038171")
     h = _op(client, db)
-    sid = client.get(_base(c.id), headers=h).json()["sets"][0]["id"]
+    sid = _set(client.get(_base(c.id), headers=h).json(), "5038171")["id"]
 
     r = client.post(
         f"{_base(c.id)}/notes",
@@ -234,3 +256,69 @@ def test_consultar_el_estado_guarda_la_respuesta_del_sii(client, db, monkeypatch
     assert r.json()["sii_state"] == "EPR"
     assert r.json()["sii_detail"] == "Envio Procesado"
     assert dt.datetime.fromisoformat(r.json()["checked_at"])
+
+
+# --- el trámite completo --------------------------------------------------
+
+
+def test_dar_de_alta_los_sets_que_asigno_el_sii(client, db):
+    """Se copia una vez el número de atención de cada set y el expediente ya
+    sabe qué falta."""
+    c = make_customer(db)
+    h = _op(client, db)
+    r = client.post(
+        f"{_base(c.id)}/setup",
+        json={"codes": {"basico": "5038170", "guias": "5038173", "libro_ventas": ""}},
+        headers=h,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert _set(body, "5038170")["kind"] == "basico"
+    assert _set(body, "5038173")["kind"] == "guias"
+    # El que se dejó vacío sigue visible como pendiente, no desaparece.
+    libro = next(s for s in body["sets"] if s["kind"] == "libro_ventas")
+    assert libro["state"] == "sin_dar_de_alta"
+    assert body["progress"]["sets_total"] == 10
+
+
+def test_los_pasos_del_tramite_se_marcan_a_mano(client, db):
+    """Ocurren en el sitio del SII o por correo: el servicio no puede saberlo."""
+    c = make_customer(db)
+    h = _op(client, db)
+    r = client.post(
+        f"{_base(c.id)}/steps/impresion",
+        json={"done_at": "2026-09-10", "note": "Enviado a sii_dte_impresos@sii.cl"},
+        headers=h,
+    )
+    assert r.status_code == 200
+    paso = next(p for p in r.json()["steps"] if p["key"] == "impresion")
+    assert paso["state"] == "ok"
+    assert paso["done_at"] == "2026-09-10"
+
+
+def test_el_paso_de_los_sets_no_se_puede_marcar_a_mano(client, db):
+    """Lo deduce el sistema. Marcarlo haría mentir al semáforo, que es lo único
+    que un semáforo no puede permitirse."""
+    c = make_customer(db)
+    r = client.post(
+        f"{_base(c.id)}/steps/sets", json={"done_at": "2026-09-10"}, headers=_op(client, db)
+    )
+    assert r.status_code == 400
+    assert "no marcable" in r.json()["detail"]
+
+
+def test_el_avance_del_paso_1_sale_de_los_sets(client, db):
+    c = make_customer(db)
+    h = _op(client, db)
+    # El flujo real: primero se dan de alta los sets con su número de atención,
+    # y después los envíos caen en el suyo.
+    client.post(f"{_base(c.id)}/setup", json={"codes": {"basico": "5038170"}}, headers=h)
+    _con_envio(db, c, code="5038170", estado="EPR")
+    sid = _set(client.get(_base(c.id), headers=h).json(), "5038170")["id"]
+    client.post(f"{_base(c.id)}/sets/{sid}/declare", json={"declared_at": "2026-09-02"}, headers=h)
+
+    body = client.get(_base(c.id), headers=h).json()
+    assert body["progress"]["sets_declared"] == 1
+    paso = next(p for p in body["steps"] if p["key"] == "sets")
+    assert paso["state"] == "atencion"  # uno declarado, faltan nueve
+    assert "1 de 10 declarados" in paso["detail"]

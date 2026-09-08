@@ -14,6 +14,8 @@ vi.mock("../api", () => ({
     certAssign: vi.fn(),
     certEnvelope: vi.fn(),
     certAddNote: vi.fn(),
+    certSetup: vi.fn(),
+    certStep: vi.fn(),
   },
 }));
 vi.mock("../auth", async (orig) => {
@@ -60,6 +62,38 @@ function set(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const PASOS = [
+  {
+    key: "sets",
+    label: "Set de pruebas",
+    detail: "0 de 10 declarados",
+    automatic: true,
+    state: "pendiente",
+    done_at: null,
+    note: "",
+  },
+  {
+    key: "impresion",
+    label: "Muestras de impresión",
+    detail: "PDF con timbre",
+    automatic: false,
+    state: "pendiente",
+    done_at: null,
+    note: "",
+  },
+];
+
+function dossier(extra: Record<string, unknown> = {}) {
+  return {
+    customer_id: 1,
+    progress: { sets_total: 10, sets_declared: 0, sets_accepted: 0, sets_pending: 10 },
+    steps: PASOS,
+    sets: [],
+    unassigned: [],
+    ...extra,
+  };
+}
+
 function mount() {
   return render(
     <MemoryRouter initialEntries={["/customers/1/certification"]}>
@@ -80,11 +114,11 @@ describe("Expediente de certificación", () => {
     // Declarar un avance que no ocurrió es informarle al SII algo falso, y no
     // se deshace desde aquí.
     (api.certDossier as Mock).mockResolvedValue({
-      customer_id: 1,
-      sets: [
-        set({ state: "enviado", stages: etapas(["ok", "ok", "ok", "pendiente", "pendiente"]) }),
-      ],
-      unassigned: [],
+      ...dossier({
+        sets: [
+          set({ state: "enviado", stages: etapas(["ok", "ok", "ok", "pendiente", "pendiente"]) }),
+        ],
+      }),
     });
     mount();
 
@@ -95,9 +129,11 @@ describe("Expediente de certificación", () => {
 
   it("avisa de otra forma cuando el SII rechazó el envío", async () => {
     (api.certDossier as Mock).mockResolvedValue({
-      customer_id: 1,
-      sets: [set({ state: "rechazado", stages: etapas(["ok", "ok", "ok", "error", "pendiente"]) })],
-      unassigned: [],
+      ...dossier({
+        sets: [
+          set({ state: "rechazado", stages: etapas(["ok", "ok", "ok", "error", "pendiente"]) }),
+        ],
+      }),
     });
     mount();
     expect(await screen.findByText(/corrige y reenvía antes de declarar/)).toBeInTheDocument();
@@ -105,9 +141,7 @@ describe("Expediente de certificación", () => {
 
   it("sí lo ofrece cuando está aceptado, y declara con la fecha elegida", async () => {
     (api.certDossier as Mock).mockResolvedValue({
-      customer_id: 1,
-      sets: [set()],
-      unassigned: [],
+      ...dossier({ sets: [set()] }),
     });
     (api.certDeclare as Mock).mockResolvedValue(set({ state: "declarado" }));
     const user = userEvent.setup();
@@ -124,9 +158,7 @@ describe("Expediente de certificación", () => {
 
   it("traduce los valores internos del API a algo legible", async () => {
     (api.certDossier as Mock).mockResolvedValue({
-      customer_id: 1,
-      sets: [set({ kind: "libro_ventas" })],
-      unassigned: [],
+      ...dossier({ sets: [set({ kind: "libro_ventas" })] }),
     });
     mount();
     // Ni 'libro_ventas' ni 'aceptado' a secas: son valores del modelo.
@@ -136,21 +168,21 @@ describe("Expediente de certificación", () => {
 
   it("muestra los envíos sin clasificar y deja asignarlos", async () => {
     (api.certDossier as Mock).mockResolvedValue({
-      customer_id: 1,
-      sets: [],
-      unassigned: [
-        {
-          id: 20,
-          set_id: null,
-          track_id: "0257259812",
-          sent_at: "2026-09-02T15:43:00",
-          envelope_kind: "EnvioDTE",
-          sii_state: null,
-          sii_detail: null,
-          checked_at: null,
-          documents: [],
-        },
-      ],
+      ...dossier({
+        unassigned: [
+          {
+            id: 20,
+            set_id: null,
+            track_id: "0257259812",
+            sent_at: "2026-09-02T15:43:00",
+            envelope_kind: "EnvioDTE",
+            sii_state: null,
+            sii_detail: null,
+            checked_at: null,
+            documents: [],
+          },
+        ],
+      }),
     });
     (api.certAssign as Mock).mockResolvedValue({});
     const user = userEvent.setup();
@@ -163,9 +195,61 @@ describe("Expediente de certificación", () => {
     await waitFor(() => expect(api.certAssign).toHaveBeenCalledWith(1, 20, "5038173", ""));
   });
 
-  it("dice qué hacer cuando no hay nada todavía", async () => {
-    (api.certDossier as Mock).mockResolvedValue({ customer_id: 1, sets: [], unassigned: [] });
+  it("muestra los sets que faltan por dar de alta, no sólo los enviados", async () => {
+    // Un expediente que sólo mostrara lo enviado escondería justo lo que hay
+    // que hacer.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          {
+            id: null,
+            code: "",
+            kind: "basico",
+            state: "sin_dar_de_alta",
+            declared_at: null,
+            stages: [],
+            submissions: [],
+          },
+          {
+            id: null,
+            code: "",
+            kind: "libro_ventas",
+            state: "sin_dar_de_alta",
+            declared_at: null,
+            stages: [],
+            submissions: [],
+          },
+        ],
+      }),
+    );
     mount();
-    expect(await screen.findByText(/Todavía no hay envíos registrados/)).toBeInTheDocument();
+    expect(await screen.findByText("Sets sin dar de alta")).toBeInTheDocument();
+    expect(screen.getByText("Set básico")).toBeInTheDocument();
+    expect(screen.getByText("Libro de ventas")).toBeInTheDocument();
+  });
+
+  it("deja cerrar y reabrir los pasos que ocurren fuera del servicio", async () => {
+    (api.certDossier as Mock).mockResolvedValue(dossier());
+    (api.certStep as Mock).mockResolvedValue(dossier());
+    const user = userEvent.setup();
+    mount();
+
+    // El paso 1 lo lleva el sistema: no debe ofrecer marcarlo a mano.
+    const botones = await screen.findAllByRole("button", { name: /Marcar cumplido/ });
+    expect(botones).toHaveLength(1);
+    await user.click(botones[0]);
+    await waitFor(() =>
+      expect(api.certStep).toHaveBeenCalledWith(1, "impresion", expect.any(String), ""),
+    );
+  });
+
+  it("muestra el avance en sets declarados", async () => {
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        progress: { sets_total: 10, sets_declared: 3, sets_accepted: 5, sets_pending: 5 },
+      }),
+    );
+    mount();
+    expect(await screen.findByText("3 de 10 sets declarados")).toBeInTheDocument();
   });
 });
