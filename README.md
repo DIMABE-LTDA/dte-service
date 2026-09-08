@@ -172,6 +172,28 @@ observado del día del documento) y el servicio hace la conversión:
 enteros; un decimal ahí se rechaza al validar, en vez de acabar como un `15.40`
 en un campo que el XSD quiere entero.
 
+## Expediente de certificación
+
+De cada envío al SII de un cliente en ambiente **certificación** se guarda solo
+el TrackID, el sobre exacto que se subió (cifrado) y qué venía dentro. Antes no
+se persistía nada: el TrackID llegaba en la respuesta y se perdía si nadie lo
+copiaba, y el sobre no se guardaba en absoluto.
+
+El enganche está en `sii_upload.upload()`, el paso obligado de documentos,
+boletas y libros, así que no hay que acordarse de nada al emitir. Si quien emite
+quiere atribuir el envío a un set del SII, manda la cabecera opcional:
+
+```
+X-Certification-Set: 5038170
+```
+
+Sin ella el envío se guarda igual, con `set_id` nulo, y se asocia después: la
+captura no depende de recordar ponerla. Un reintento crea un envío nuevo sin
+borrar el anterior — el Libro de Ventas llevó trece.
+
+En producción no se captura nada: el servicio no guarda DTE, y ésta es una
+excepción acotada a un corpus finito y temporal.
+
 ## Endurecimiento
 
 Pensado para que el servicio pueda quedar expuesto a internet:

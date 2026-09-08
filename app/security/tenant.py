@@ -19,6 +19,7 @@ from app.db.session import get_db
 from app.security.apikeys import dummy_verify, verify_apikey
 from app.security.ratelimit import make_limiter
 from app.security.roles import Role
+from app.services.certification_service import certification_set_var
 
 # Solo cuenta FALLOS de autenticación por IP: una IP que acumula fallos queda
 # bloqueada (429) sin penalizar el tráfico legítimo de alto volumen.
@@ -41,6 +42,7 @@ def tenant_for(service_code: str) -> Callable[..., Customer]:
         request: Request,
         api_key: str = Header(alias="apiKey"),
         customer_code: str = Header(alias="customerCode"),
+        certification_set: str = Header(default="", alias="X-Certification-Set"),
         db: Session = Depends(get_db),
     ) -> Customer:
         request.state.service_code = service_code
@@ -74,6 +76,11 @@ def tenant_for(service_code: str) -> Callable[..., Customer]:
                 status_code=429,
                 detail="cuota por minuto excedida para este cliente; reintenta en un momento",
             )
+
+        # Set de certificación al que pertenece este envío, si quien emite lo
+        # declara. Es opcional: sin la cabecera el envío se guarda igual y se
+        # asocia después, para que la captura no dependa de recordar ponerla.
+        certification_set_var.set((certification_set or "").strip() or None)
 
         request.state.principal = ("customer", cs.customer_id, str(Role.CLIENT))
         return cs.customer

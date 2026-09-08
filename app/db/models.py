@@ -255,6 +255,113 @@ class RecoveryCode(Base):
     user: Mapped[User] = relationship(back_populates="recovery_codes")
 
 
+class CertificationSet(Base):
+    """Un set del SII dentro de la postulación de un cliente.
+
+    Existe porque el TrackID y el sobre enviado **no se guardaban en ninguna
+    parte**: venían en la respuesta del Servicio y se perdían si nadie los
+    copiaba a mano. Eso produjo dos juegos de identificadores contradictorios y
+    seis sobres irrecuperables, justo los que hacen falta para las muestras de
+    impresión.
+    """
+
+    __tablename__ = "certification_set"
+    __table_args__ = (UniqueConstraint("customer_id", "code"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
+    # Número de atención con que el SII identifica el set: '5038170'.
+    code: Mapped[str] = mapped_column(String(20), index=True)
+    # basico | exenta | guias | exportacion | liquidacion | factura_compra |
+    # libro_ventas | libro_compras | libro_guias | boletas
+    kind: Mapped[str] = mapped_column(String(30), default="")
+    # pendiente | enviado | aceptado | rechazado | declarado
+    state: Mapped[str] = mapped_column(String(20), default="pendiente")
+    # Cuándo se declaró el avance en Mi SII. Es un trámite manual: el SII no
+    # tiene API para declararlo, así que lo marca el operador.
+    declared_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    submissions: Mapped[list[CertificationSubmission]] = relationship(
+        back_populates="cert_set", cascade="all, delete-orphan"
+    )
+    notes: Mapped[list[CertificationNote]] = relationship(
+        back_populates="cert_set", cascade="all, delete-orphan"
+    )
+
+
+class CertificationSubmission(Base):
+    """Un intento de envío. Un set puede tener varios y ninguno se borra.
+
+    El Libro de Ventas llevó trece intentos, y lo que evitó repetirlos fue
+    saber qué se había probado ya. Reintentar crea una fila nueva.
+    """
+
+    __tablename__ = "certification_submission"
+    __table_args__ = (Index("ix_cert_submission_track", "track_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # NULL = capturado automáticamente sin saber a qué set pertenece; se asocia
+    # después. Así la captura no depende de que quien emite lo declare.
+    set_id: Mapped[int | None] = mapped_column(
+        ForeignKey("certification_set.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
+    track_id: Mapped[str] = mapped_column(String(32))
+    sent_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    # EnvioDTE | EnvioBOLETA | LibroCompraVenta | LibroGuia
+    envelope_kind: Mapped[str] = mapped_column(String(30), default="")
+    # El sobre EXACTO que se subió, Fernet-cifrado. Es la excepción deliberada a
+    # que el servicio no guarde DTE: sin él no hay muestras de impresión ni
+    # forma de reenviar sin volver a quemar folios.
+    envelope_encrypted: Mapped[str] = mapped_column(String)
+    # Respuesta del SII a la consulta de estado (EPR/LOK/LRH/RFR...), tal cual.
+    sii_state: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
+    sii_detail: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    checked_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+    cert_set: Mapped[CertificationSet | None] = relationship(back_populates="submissions")
+    documents: Mapped[list[CertificationDocument]] = relationship(
+        back_populates="submission", cascade="all, delete-orphan"
+    )
+
+
+class CertificationDocument(Base):
+    """Qué venía dentro del sobre. En un libro, sus líneas."""
+
+    __tablename__ = "certification_document"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    submission_id: Mapped[int] = mapped_column(
+        ForeignKey("certification_submission.id", ondelete="CASCADE"), index=True
+    )
+    doc_type: Mapped[int] = mapped_column(Integer)
+    folio: Mapped[int] = mapped_column(Integer)
+
+    submission: Mapped[CertificationSubmission] = relationship(back_populates="documents")
+
+
+class CertificationNote(Base):
+    """Bitácora del set: qué se probó y qué se descartó.
+
+    Parece un adorno y no lo es. Lo que evitó repetir experimentos contra el
+    SII fue anotar lo ya descartado; tenerlo junto al set es la diferencia
+    entre consultarlo y reconstruirlo.
+    """
+
+    __tablename__ = "certification_note"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    set_id: Mapped[int] = mapped_column(
+        ForeignKey("certification_set.id", ondelete="CASCADE"), index=True
+    )
+    author: Mapped[str] = mapped_column(String(200), default="")
+    text: Mapped[str] = mapped_column(String)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    cert_set: Mapped[CertificationSet] = relationship(back_populates="notes")
+
+
 class RequestLog(Base):
     """Access-log de TODA petición (lo escribe el middleware). Sin secretos."""
 
