@@ -573,6 +573,19 @@ def emit_set(
         envio = certification_service.emit(db, customer, cert, cert_set, force=force)
     except certification_service.EmissionError as ex:
         raise HTTPException(status_code=409, detail=str(ex)) from ex
+    except ValueError as ex:
+        # El timbre se firma con la clave privada que viene DENTRO del CAF, no
+        # con el certificado. Si ese bloque está corrupto, cryptography levanta
+        # un ValueError genérico y el operador veía "HTTP 500", sin ninguna
+        # pista de que el problema era un archivo que él mismo cargó.
+        if "deserialize key" not in str(ex) and "PEM" not in str(ex):
+            raise
+        raise HTTPException(
+            status_code=409,
+            detail="el CAF de alguno de los tipos de documento de este set tiene la"
+            " clave privada ilegible: vuelve a descargarlo desde el SII y súbelo de"
+            " nuevo en la ficha del cliente",
+        ) from ex
     audit_service.record_change(
         db,
         actor.id if actor else None,

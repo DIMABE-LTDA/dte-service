@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { canWrite, useAuth } from "../auth";
 import Icon from "../components/Icon";
+import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import type { CertPreview, CertSet, CertSubmission } from "../types";
 
@@ -92,7 +93,14 @@ export default function Certification() {
   const [clonarDe, setClonarDe] = useState("");
   const [vista, setVista] = useState<{ setId: number; datos: CertPreview } | null>(null);
 
-  async function correr(fn: () => Promise<unknown>, ok: string) {
+  /** Ejecuta la acción y dice si salió bien.
+   *
+   * Devuelve un booleano en vez de propagar la excepción porque quien la llama
+   * cierra un modal al terminar, y cerrarlo cuando la acción falló se lleva por
+   * delante el mensaje de error: el operador ve desaparecer el diálogo y
+   * concluye que no pasó nada.
+   */
+  async function correr(fn: () => Promise<unknown>, ok: string): Promise<boolean> {
     setActionError("");
     setMsg("");
     setBusy(true);
@@ -100,8 +108,10 @@ export default function Certification() {
       await fn();
       setMsg(ok);
       await reload();
+      return true;
     } catch (err) {
       setActionError((err as Error).message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -125,8 +135,20 @@ export default function Certification() {
       <p>
         <Link to={`/customers/${cid}`}>← Volver a la ficha</Link>
       </p>
-      {msg && <p style={{ color: "var(--ok)" }}>{msg}</p>}
-      {actionError && <p className="error">{actionError}</p>}
+      {msg && (
+        <div className="aviso" role="status">
+          <Icon name="check" />
+          <span>{msg}</span>
+          <button className="close" type="button" aria-label="Cerrar" onClick={() => setMsg("")}>
+            ×
+          </button>
+        </div>
+      )}
+      {/* El error sí se queda en el flujo de la página: es lo que hay que leer
+          entero, y un aviso que se cierra invita a perderlo. */}
+      {actionError && !vista && !editando && !notaSet && !declarando && (
+        <p className="error">{actionError}</p>
+      )}
 
       <div className="card">
         <div className="card-head">
@@ -442,47 +464,26 @@ export default function Certification() {
                         : "Consulta el estado en el SII antes de declarar el avance."}
                     </span>
                   ))}
+                {/* Un solo camino a emitir, y pasa por revisar. Emitir quema
+                    folios y no se deshace, así que el botón que lo dispara está
+                    dentro de la previa, junto a lo que se va a emitir. */}
                 <button
                   className="secondary"
                   type="button"
                   disabled={busy}
                   onClick={() =>
                     correr(async () => {
-                      if (vista?.setId === s.id) {
-                        setVista(null);
-                        return;
-                      }
                       setVista({ setId: s.id, datos: await api.certPreview(cid, s.id) });
                     }, "")
                   }
                 >
                   <Icon name="search" />
-                  Ver qué se emite
-                </button>
-                <button
-                  className="secondary"
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    correr(
-                      () => api.certEmit(cid, s.id),
-                      `Set ${s.code} emitido. Revísalo y envíalo cuando esté bien.`,
-                    )
-                  }
-                >
-                  <Icon name="plus" />
-                  Emitir
+                  Revisar y emitir
                 </button>
                 <button
                   className="secondary"
                   type="button"
                   onClick={async () => {
-                    if (editando === s.id) {
-                      setEditando(null);
-                      return;
-                    }
-                    setDeclarando(null);
-                    setNotaSet(null);
                     setEditando(s.id);
                     setPayload("");
                     try {
@@ -496,16 +497,9 @@ export default function Certification() {
                   }}
                 >
                   <Icon name="settings" />
-                  Qué emitir
+                  Editar definición
                 </button>
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => {
-                    setNotaSet(notaSet === s.id ? null : s.id);
-                    setDeclarando(null);
-                  }}
-                >
+                <button className="secondary" type="button" onClick={() => setNotaSet(s.id)}>
                   <Icon name="edit" />
                   Anotar
                 </button>
@@ -513,40 +507,97 @@ export default function Certification() {
             )}
 
             {declarando?.id === s.id && (
-              <form
-                className="form-grid"
-                style={{ marginTop: "0.8rem" }}
-                onSubmit={(ev: FormEvent) => {
-                  ev.preventDefault();
-                  correr(
-                    () => api.certDeclare(cid, s.id, fechaDecl),
-                    `Set ${s.code} marcado como declarado.`,
-                  ).then(() => setDeclarando(null));
-                }}
+              <Modal
+                title={`Declarar el avance del set ${s.code}`}
+                onClose={() => setDeclarando(null)}
+                footer={
+                  <>
+                    <button className="secondary" type="button" onClick={() => setDeclarando(null)}>
+                      <Icon name="x" />
+                      Cancelar
+                    </button>
+                    <button type="submit" form="declarar-form" disabled={busy}>
+                      <Icon name="check" />
+                      Confirmar
+                    </button>
+                  </>
+                }
               >
-                <div className="field">
-                  <label>Fecha en que se declaró el avance</label>
-                  <input
-                    type="date"
-                    value={fechaDecl}
-                    onChange={(ev) => setFechaDecl(ev.target.value)}
-                  />
-                </div>
-                <div className="actions">
-                  <button disabled={busy}>
-                    <Icon name="check" />
-                    Confirmar
-                  </button>
-                  <button className="secondary" type="button" onClick={() => setDeclarando(null)}>
-                    <Icon name="x" />
-                    Cancelar
-                  </button>
-                </div>
-              </form>
+                {actionError && <p className="error">{actionError}</p>}
+                <form
+                  id="declarar-form"
+                  className="form-grid"
+                  onSubmit={(ev: FormEvent) => {
+                    ev.preventDefault();
+                    correr(
+                      () => api.certDeclare(cid, s.id, fechaDecl),
+                      `Set ${s.code} marcado como declarado.`,
+                    ).then((ok) => ok && setDeclarando(null));
+                  }}
+                >
+                  <div className="field">
+                    <label>Fecha en que se declaró el avance</label>
+                    <input
+                      type="date"
+                      value={fechaDecl}
+                      onChange={(ev) => setFechaDecl(ev.target.value)}
+                    />
+                  </div>
+                </form>
+              </Modal>
             )}
 
             {vista?.setId === s.id && (
-              <div className="previa">
+              <Modal
+                wide
+                title={`Qué se emite — Set ${s.code} · ${s.kind}`}
+                onClose={() => setVista(null)}
+                footer={
+                  <>
+                    <button className="secondary" type="button" onClick={() => setVista(null)}>
+                      <Icon name="x" />
+                      Cerrar
+                    </button>
+                    {/* Reemitir gasta folios nuevos: sólo se ofrece cuando el
+                        API ya dijo que hay un sobre sin enviar, y dice el
+                        precio en el propio botón. */}
+                    {actionError.includes("sin enviar") && (
+                      <button
+                        className="secondary"
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          correr(
+                            () => api.certEmit(cid, s.id, true),
+                            `Set ${s.code} emitido de nuevo.`,
+                          ).then((ok) => ok && setVista(null))
+                        }
+                      >
+                        <Icon name="plus" />
+                        Emitir de nuevo (gasta folios)
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        correr(
+                          () => api.certEmit(cid, s.id),
+                          `Set ${s.code} emitido. Revísalo y envíalo cuando esté bien.`,
+                        ).then((ok) => ok && setVista(null))
+                      }
+                    >
+                      <Icon name="plus" />
+                      Emitir{" "}
+                      {vista.datos.kind === "libro"
+                        ? "el libro"
+                        : `los ${vista.datos.documents.length} documentos`}
+                    </button>
+                  </>
+                }
+              >
+                {actionError && <p className="error">{actionError}</p>}
+
                 <div className="previa-cabecera">
                   <strong>{vista.datos.summary}</strong>
                   <span className="muted">{vista.datos.detail}</span>
@@ -573,6 +624,7 @@ export default function Certification() {
                           unit_price: number | null;
                           discount_pct: number | null;
                           exempt: boolean;
+                          amount: number | null;
                         }[];
                         const refs = (d.references ?? []) as string[];
                         const globales = (d.global_discounts ?? []) as string[];
@@ -607,11 +659,22 @@ export default function Certification() {
                                   {items.map((it) => (
                                     <div key={it.name}>
                                       {it.name}
-                                      {it.quantity != null ? (
+                                      {/* Una liquidación factura no tiene precio
+                                          unitario: sus líneas traen la cantidad de
+                                          documentos liquidados y el monto. Pintarlas
+                                          con el molde de "cantidad × precio" daba
+                                          "4 × 0", que no significa nada. */}
+                                      {it.unit_price != null ? (
                                         <span className="muted">
                                           {" · "}
                                           {it.quantity} × {money(it.unit_price)}
                                           {it.discount_pct ? " −" + it.discount_pct + "%" : ""}
+                                        </span>
+                                      ) : it.amount != null ? (
+                                        <span className="muted">
+                                          {" · "}
+                                          {it.quantity != null ? `${it.quantity} doc · ` : ""}
+                                          {money(it.amount)}
                                         </span>
                                       ) : null}
                                       {it.exempt ? (
@@ -632,115 +695,139 @@ export default function Certification() {
                   </table>
                 </div>
                 {vista.datos.note ? <p className="muted previa-nota">{vista.datos.note}</p> : null}
-              </div>
+              </Modal>
             )}
 
             {editando === s.id && (
-              <form
-                className="form-grid"
-                style={{ marginTop: "0.8rem" }}
-                onSubmit={(ev: FormEvent) => {
-                  ev.preventDefault();
-                  let cuerpo: unknown;
-                  try {
-                    cuerpo = JSON.parse(payload);
-                  } catch {
-                    setActionError("El contenido no es JSON válido.");
-                    return;
-                  }
-                  correr(
-                    () => api.certSaveDefinition(cid, s.id, endpoint, cuerpo),
-                    "Definición guardada.",
-                  ).then(() => setEditando(null));
-                }}
+              <Modal
+                wide
+                title={`Qué emite el set ${s.code}`}
+                onClose={() => setEditando(null)}
+                footer={
+                  <>
+                    <input
+                      value={clonarDe}
+                      onChange={(ev) => setClonarDe(ev.target.value)}
+                      placeholder="id de otro cliente"
+                      style={{ maxWidth: "11rem" }}
+                      aria-label="Cliente del que copiar la definición"
+                    />
+                    <button
+                      className="secondary"
+                      type="button"
+                      disabled={busy || !clonarDe.trim()}
+                      title="Copia la definición del mismo tipo de set desde otro contribuyente ya probado"
+                      onClick={() =>
+                        correr(async () => {
+                          const d = await api.certCloneDefinition(cid, s.id, Number(clonarDe));
+                          setEndpoint(d.endpoint);
+                          setPayload(JSON.stringify(d.payload, null, 2));
+                        }, "Definición copiada. Revísala antes de emitir.")
+                      }
+                    >
+                      <Icon name="copy" />
+                      Clonar
+                    </button>
+                    <span className="spacer" />
+                    <button className="secondary" type="button" onClick={() => setEditando(null)}>
+                      <Icon name="x" />
+                      Cancelar
+                    </button>
+                    <button type="submit" form="definicion-form" disabled={busy}>
+                      <Icon name="check" />
+                      Guardar
+                    </button>
+                  </>
+                }
               >
-                <div className="field">
-                  <label>Endpoint de emisión</label>
-                  <select value={endpoint} onChange={(ev) => setEndpoint(ev.target.value)}>
-                    <option value="issue-batch">Documentos en lote (33, 34, 52, 56, 61, 46)</option>
-                    <option value="issue-export-batch">Exportación (110, 111, 112)</option>
-                    <option value="issue-settlement-batch">Liquidación factura (43)</option>
-                    <option value="books">Libro de compras / ventas</option>
-                    <option value="books/guides">Libro de guías</option>
-                  </select>
-                </div>
-                <div className="field">
-                  <label>
-                    Cuerpo de la emisión — se guarda tal cual, así que esto es exactamente lo que se
-                    enviará
-                  </label>
-                  <textarea
-                    value={payload}
-                    onChange={(ev) => setPayload(ev.target.value)}
-                    rows={12}
-                    spellCheck={false}
-                    className="json"
-                  />
-                </div>
-                <div className="actions">
-                  <button disabled={busy}>
-                    <Icon name="check" />
-                    Guardar
-                  </button>
-                  <button className="secondary" type="button" onClick={() => setEditando(null)}>
-                    <Icon name="x" />
-                    Cancelar
-                  </button>
-                  <span className="spacer" />
-                  <input
-                    value={clonarDe}
-                    onChange={(ev) => setClonarDe(ev.target.value)}
-                    placeholder="id de otro cliente"
-                    style={{ maxWidth: "11rem" }}
-                    aria-label="Cliente del que copiar la definición"
-                  />
-                  <button
-                    className="secondary"
-                    type="button"
-                    disabled={busy || !clonarDe.trim()}
-                    title="Copia la definición del mismo tipo de set desde otro contribuyente ya probado"
-                    onClick={() =>
-                      correr(async () => {
-                        const d = await api.certCloneDefinition(cid, s.id, Number(clonarDe));
-                        setEndpoint(d.endpoint);
-                        setPayload(JSON.stringify(d.payload, null, 2));
-                      }, "Definición copiada. Revísala antes de emitir.")
+                {actionError && <p className="error">{actionError}</p>}
+                <form
+                  id="definicion-form"
+                  className="form-grid"
+                  onSubmit={(ev: FormEvent) => {
+                    ev.preventDefault();
+                    let cuerpo: unknown;
+                    try {
+                      cuerpo = JSON.parse(payload);
+                    } catch {
+                      setActionError("El contenido no es JSON válido.");
+                      return;
                     }
-                  >
-                    <Icon name="copy" />
-                    Clonar
-                  </button>
-                </div>
-              </form>
+                    correr(
+                      () => api.certSaveDefinition(cid, s.id, endpoint, cuerpo),
+                      "Definición guardada.",
+                    ).then((ok) => ok && setEditando(null));
+                  }}
+                >
+                  <div className="field">
+                    <label>Endpoint de emisión</label>
+                    <select value={endpoint} onChange={(ev) => setEndpoint(ev.target.value)}>
+                      <option value="issue-batch">
+                        Documentos en lote (33, 34, 52, 56, 61, 46)
+                      </option>
+                      <option value="issue-export-batch">Exportación (110, 111, 112)</option>
+                      <option value="issue-settlement-batch">Liquidación factura (43)</option>
+                      <option value="books">Libro de compras / ventas</option>
+                      <option value="books/guides">Libro de guías</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>
+                      Cuerpo de la emisión — se guarda tal cual, así que esto es exactamente lo que
+                      se enviará
+                    </label>
+                    <textarea
+                      value={payload}
+                      onChange={(ev) => setPayload(ev.target.value)}
+                      rows={12}
+                      spellCheck={false}
+                      className="json"
+                    />
+                  </div>
+                </form>
+              </Modal>
             )}
 
             {notaSet === s.id && (
-              <form
-                className="form-grid"
-                style={{ marginTop: "0.8rem" }}
-                onSubmit={(ev: FormEvent) => {
-                  ev.preventDefault();
-                  correr(() => api.certAddNote(cid, s.id, nota), "Anotado.").then(() => {
-                    setNota("");
-                    setNotaSet(null);
-                  });
-                }}
+              <Modal
+                title={`Anotar en el set ${s.code}`}
+                onClose={() => setNotaSet(null)}
+                footer={
+                  <>
+                    <button className="secondary" type="button" onClick={() => setNotaSet(null)}>
+                      <Icon name="x" />
+                      Cancelar
+                    </button>
+                    <button type="submit" form="nota-form" disabled={busy || !nota.trim()}>
+                      <Icon name="check" />
+                      Guardar
+                    </button>
+                  </>
+                }
               >
-                <div className="field">
-                  <label>Qué se probó o se descartó</label>
-                  <input
-                    value={nota}
-                    onChange={(ev) => setNota(ev.target.value)}
-                    placeholder="No es la firma: xmlsec valida los sobres enviados"
-                  />
-                </div>
-                <div className="actions">
-                  <button disabled={busy || !nota.trim()}>
-                    <Icon name="check" />
-                    Guardar
-                  </button>
-                </div>
-              </form>
+                {actionError && <p className="error">{actionError}</p>}
+                <form
+                  id="nota-form"
+                  className="form-grid"
+                  onSubmit={(ev: FormEvent) => {
+                    ev.preventDefault();
+                    correr(() => api.certAddNote(cid, s.id, nota), "Anotado.").then((ok) => {
+                      if (!ok) return;
+                      setNota("");
+                      setNotaSet(null);
+                    });
+                  }}
+                >
+                  <div className="field">
+                    <label>Qué se probó o se descartó</label>
+                    <input
+                      value={nota}
+                      onChange={(ev) => setNota(ev.target.value)}
+                      placeholder="No es la firma: xmlsec valida los sobres enviados"
+                    />
+                  </div>
+                </form>
+              </Modal>
             )}
 
             {(data?.notes ?? [])
@@ -814,7 +901,7 @@ export default function Certification() {
                 correr(
                   () => api.certAssign(cid, asignando.id, codigo, ""),
                   `Envío ${asignando.track_id} asignado al set ${codigo}.`,
-                ).then(() => setAsignando(null));
+                ).then((ok) => ok && setAsignando(null));
               }}
             >
               <div className="field">

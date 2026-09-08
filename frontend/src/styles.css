@@ -895,3 +895,50 @@ textarea.json {
   height: 16px;
   flex: none;
 }
+
+/* Aviso de resultado. Va fijo sobre la ventana y no en el flujo de la página:
+   las acciones del expediente se disparan desde tarjetas que están muy por
+   debajo del primer scroll, y un mensaje pintado arriba del todo quedaba fuera
+   de la vista de quien acababa de pulsar el botón — parecía que no pasaba
+   nada. */
+.aviso {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: min(28rem, calc(100vw - 2.4rem));
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--ok);
+  background: var(--panel);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.aviso svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--ok);
+}
+.aviso .close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+}
+.aviso .close:hover:not(:disabled) {
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+}
+/* La previa dentro del modal ya no necesita su marco: el modal es el marco. */
+.modal .previa {
+  border: none;
+  padding: 0;
+  margin: 0;
+}

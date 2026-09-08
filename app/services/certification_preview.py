@@ -105,6 +105,50 @@ def _reference(ref: dict) -> str:
     return (REF_CODES.get(ref.get("code"), "Referencia") + razon).strip()
 
 
+def _settlement(doc: dict, position: int) -> dict:
+    """Una liquidación factura, que no tiene la forma de los demás documentos.
+
+    Sus montos vienen en ``lines`` y no en ``items``, nunca llevan ``type``
+    —siempre son un 43— y las comisiones cuelgan aparte. Leído con el molde
+    genérico, el set salía con cuatro documentos «—» y todo en cero: una previa
+    que miente por omisión es peor que no tenerla, porque invita a emitir.
+    """
+    receptor = doc.get("receiver") or {}
+    lineas = []
+    for linea in doc.get("lines", []):
+        monto = linea.get("amount")
+        lineas.append(
+            {
+                "name": linea.get("name", ""),
+                "quantity": linea.get("quantity"),
+                "unit_price": None,
+                "discount_pct": None,
+                "exempt": bool(linea.get("exempt")),
+                "amount": float(monto) if monto is not None else None,
+            }
+        )
+    afectos = sum(i["amount"] or 0 for i in lineas if not i["exempt"])
+    exentos = sum(i["amount"] or 0 for i in lineas if i["exempt"])
+    return {
+        "position": position,
+        "doc_type": 43,
+        "doc_label": DOC_LABELS[43],
+        "receiver": receptor.get("business_name", ""),
+        "receiver_rut": receptor.get("rut", ""),
+        "currency": doc.get("currency", ""),
+        "items": lineas,
+        "lines_affect": afectos,
+        "lines_exempt": exentos,
+        "references": [_reference(r) for r in doc.get("references", [])],
+        # Las comisiones van dentro de <Liquidaciones>; sin ellas la línea del
+        # libro no cierra, así que tienen que verse antes de emitir.
+        "global_discounts": [
+            f"Comisión: {c.get('description', '')} {c.get('net_amount')}"
+            for c in doc.get("commissions", [])
+        ],
+    }
+
+
 def _document(doc: dict, position: int) -> dict:
     receptor = doc.get("receiver") or {}
     items = []
@@ -173,6 +217,15 @@ def definition(endpoint: str, payload: dict) -> dict:
             "note": "",
         }
     documentos = payload.get("documents", [])
+    if endpoint == "issue-settlement-batch":
+        return {
+            "kind": "documentos",
+            "summary": f"{len(documentos)} liquidación(es) factura en un solo sobre",
+            "detail": "Las comisiones van dentro de <Liquidaciones>.",
+            "documents": [_settlement(d, i) for i, d in enumerate(documentos, start=1)],
+            "note": "Los montos son la suma de las líneas liquidadas. El total del"
+            " documento lo calcula el motor y se ve tras emitir.",
+        }
     return {
         "kind": "documentos",
         "summary": f"{len(documentos)} documento(s) en un solo sobre",

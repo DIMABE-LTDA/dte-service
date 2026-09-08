@@ -873,3 +873,34 @@ def test_el_indice_lista_solo_los_de_certificacion(client, db):
     # El denominador sale del catálogo: diez sets, se hayan dado de alta o no.
     assert filas[0]["progress"]["sets_total"] == 10
     assert filas[0]["last_activity"] is None
+
+
+def test_la_previa_entiende_la_liquidacion_factura():
+    """La liquidación factura no tiene la forma de los demás documentos.
+
+    Sus montos van en ``lines``, nunca lleva ``type`` y las comisiones cuelgan
+    aparte. Leída con el molde genérico, la previa mostraba cuatro documentos
+    «—» con todo en cero: eso invita a emitir un set que no se ha revisado.
+    """
+    previa = certification_preview.definition(
+        "issue-settlement-batch",
+        {
+            "documents": [
+                {
+                    "receiver": {"business_name": "MANDANTE EJEMPLO LIMITADA", "rut": "17099910-K"},
+                    "lines": [
+                        {"name": "NETO FACTURAS", "amount": 180269, "quantity": 4},
+                        {"name": "EXENTO FACTURAS", "amount": 50865, "quantity": 3, "exempt": True},
+                    ],
+                    "commissions": [{"description": "NETO COMISION FIJA", "net_amount": 866}],
+                }
+            ]
+        },
+    )
+    doc = previa["documents"][0]
+    assert doc["doc_label"] == "Liquidación factura"
+    assert doc["receiver"] == "MANDANTE EJEMPLO LIMITADA"
+    assert doc["lines_affect"] == 180269
+    assert doc["lines_exempt"] == 50865
+    # Las comisiones tienen que verse: sin ellas la línea del libro no cierra.
+    assert doc["global_discounts"] == ["Comisión: NETO COMISION FIJA 866"]
