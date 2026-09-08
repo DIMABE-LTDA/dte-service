@@ -853,3 +853,23 @@ def test_la_previa_nombra_los_documentos_externos_de_exportacion():
     assert previa["documents"][1]["references"] == [
         "Corrige montos n.º 1 de este mismo envío — DEVOLUCION"
     ]
+
+
+def test_el_indice_lista_solo_los_de_certificacion(client, db):
+    """La portada del módulo no debe ofrecer expedientes que no existen.
+
+    Un cliente de producción no tiene set de pruebas que seguir, y el propio
+    expediente responde 400 si se le pide. Listarlo aquí sería un enlace roto.
+    """
+    make_customer(db, key="acme-cert")
+    produccion = make_customer(db, rut="77262159-0", key="acme-prod")
+    produccion.environment = SiiEnvironment.PRODUCTION
+    db.commit()
+
+    r = client.get("/admin/certification", headers=_op(client, db))
+    assert r.status_code == 200
+    filas = r.json()
+    assert [f["key"] for f in filas] == ["acme-cert"]
+    # El denominador sale del catálogo: diez sets, se hayan dado de alta o no.
+    assert filas[0]["progress"]["sets_total"] == 10
+    assert filas[0]["last_activity"] is None

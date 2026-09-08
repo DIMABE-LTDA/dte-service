@@ -3,6 +3,7 @@ import Layout from "./components/Layout";
 import Protected from "./components/Protected";
 import Audit from "./pages/Audit";
 import Certification from "./pages/Certification";
+import CertificationIndex from "./pages/CertificationIndex";
 import CustomerDetail from "./pages/CustomerDetail";
 import Customers from "./pages/Customers";
 import Login from "./pages/Login";
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/customers" element={<Customers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
         <Route path="/customers/:id/certification" element={<Certification />} />
+        <Route path="/certification" element={<CertificationIndex />} />
         <Route path="/users" element={<Users />} />
         <Route path="/security" element={<Security />} />
         <Route path="/audit" element={<Audit />} />

@@ -228,6 +228,12 @@ export default function Customers() {
                               <Icon name="settings" />
                               Gestionar
                             </Link>
+                            {c.environment === "CERTIFICATION" && !archived && (
+                              <Link className="btn-link" to={`/customers/${c.id}/certification`}>
+                                <Icon name="audit" />
+                                Certificar
+                              </Link>
+                            )}
                             {writable && !archived && (
                               <>
                                 <button

@@ -5,6 +5,7 @@ import Icon from "./Icon";
 const TITLES: Record<string, string> = {
   "/customers": "Clientes",
   "/users": "Usuarios",
+  "/certification": "Certificación SII",
   "/audit": "Auditoría",
   "/security": "Mi cuenta",
 };
@@ -39,6 +40,10 @@ export default function Layout() {
               <span>Usuarios</span>
             </NavLink>
           )}
+          <NavLink to="/certification">
+            <Icon name="audit" width={18} height={18} />
+            <span>Certificación</span>
+          </NavLink>
           <NavLink to="/audit">
             <Icon name="audit" width={18} height={18} />
             <span>Auditoría</span>

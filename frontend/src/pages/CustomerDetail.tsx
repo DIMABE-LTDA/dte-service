@@ -246,6 +246,46 @@ export default function CustomerDetail() {
   }
   const { customer, granted, certs, cafs, services, siiKey } = data;
 
+  // Lo que la ficha tiene que responder antes que nada: ¿este cliente puede
+  // emitir, y si no, qué le falta? Antes había que leer las cinco tarjetas y
+  // cruzarlas mentalmente.
+  const certVigente = certs.find((c) => !c.expired);
+  const cafLibres = cafs.filter((c) => !c.exhausted);
+  const resumen = [
+    {
+      titulo: "Certificado de firma",
+      estado: certVigente ? "ok" : certs.length ? "error" : "pendiente",
+      detalle: certVigente
+        ? `vigente hasta ${certVigente.due_date}`
+        : certs.length
+          ? "todos vencidos — no se puede firmar"
+          : "sin certificado — no se puede firmar",
+    },
+    {
+      titulo: "CAF / folios",
+      estado: cafLibres.length ? "ok" : cafs.length ? "atencion" : "pendiente",
+      detalle: cafLibres.length
+        ? `${cafLibres.length} con folios disponibles`
+        : cafs.length
+          ? "todos agotados — pide un CAF nuevo al SII"
+          : "sin CAF — no hay folios que timbrar",
+    },
+    {
+      titulo: "Servicios",
+      estado: granted.length ? "ok" : "pendiente",
+      detalle: granted.length
+        ? `${granted.length} habilitado(s)`
+        : "sin servicios — nadie puede autenticar",
+    },
+    {
+      // No se pinta como problema: sólo hace falta para consultar BHE, y
+      // marcarla en rojo daría una alarma que no corresponde.
+      titulo: "Clave tributaria SII",
+      estado: siiKey.configured ? "ok" : "pendiente",
+      detalle: siiKey.configured ? "configurada" : "opcional — sólo para consultar BHE",
+    },
+  ];
+
   return (
     <>
       <p>
@@ -258,15 +298,38 @@ export default function CustomerDetail() {
           {customer.environment}
         </span>
       </p>
+      {/* Estado de la ficha: la respuesta a "¿puede emitir?" antes del detalle. */}
+      <div className="etapas ficha-estado">
+        {resumen.map((r) => (
+          <div className={`etapa ${r.estado}`} key={r.titulo}>
+            <div className="etapa-titulo">
+              <span className="etapa-punto" />
+              {r.titulo}
+            </div>
+            <div className="etapa-detalle">{r.detalle}</div>
+          </div>
+        ))}
+      </div>
+
       {/* El expediente sólo existe en certificación: en producción no hay set
-          de pruebas que seguir, y ofrecer el enlace invitaría a buscarlo. */}
+          de pruebas que seguir, y ofrecer el enlace invitaría a buscarlo.
+          Va como tarjeta y no como enlace de texto porque en un cliente de
+          certificación es el trabajo entero, no un dato más de la ficha. */}
       {customer.environment === "CERTIFICATION" && (
-        <p>
-          <Link className="btn-link neutral" to={`/customers/${cid}/certification`}>
-            <Icon name="audit" />
-            Expediente de certificación SII
-          </Link>
-        </p>
+        <div className="card destacada">
+          <div className="card-head">
+            <h2>Certificación ante el SII</h2>
+            <span className="spacer" />
+            <Link className="boton-enlace" to={`/customers/${cid}/certification`}>
+              <Icon name="audit" />
+              Abrir expediente
+            </Link>
+          </div>
+          <p className="muted" style={{ margin: 0 }}>
+            Los sets de prueba con su avance, lo que emite cada uno antes de emitirlo, y cada envío
+            guardado con su TrackID y su sobre para subirlo al SII.
+          </p>
+        </div>
       )}
       {msg && !grantedKey && <p style={{ color: "var(--ok)" }}>{msg}</p>}
       {actionError && <p className="error">{actionError}</p>}
@@ -291,134 +354,158 @@ export default function CustomerDetail() {
         </div>
       )}
 
-      {/* Servicios habilitados */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Servicios habilitados</h2>
-          <span className="spacer" />
-          {writable && (
-            <button onClick={openGrant}>
-              <Icon name="plus" />
-              Habilitar servicio
-            </button>
-          )}
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Servicio</th>
-              <th>Código</th>
-              {writable && <th />}
-            </tr>
-          </thead>
-          <tbody>
-            {granted.map((s) => (
-              <tr key={s.service_code}>
-                <td>{s.name}</td>
-                <td className="muted">{s.service_code}</td>
-                {writable && (
-                  <td>
-                    <button
-                      className="btn-link danger"
-                      type="button"
-                      onClick={() => setConfirmRevoke(s)}
-                    >
-                      <Icon name="revoke" />
-                      Revocar
-                    </button>
+      <div className="ficha-bloques">
+        {/* Servicios habilitados */}
+        <div className="card">
+          <div className="card-head">
+            <h2>Servicios habilitados</h2>
+            <span className="spacer" />
+            {writable && (
+              <button onClick={openGrant}>
+                <Icon name="plus" />
+                Habilitar servicio
+              </button>
+            )}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Servicio</th>
+                <th>Código</th>
+                {writable && <th />}
+              </tr>
+            </thead>
+            <tbody>
+              {granted.map((s) => (
+                <tr key={s.service_code}>
+                  <td>{s.name}</td>
+                  <td className="muted">{s.service_code}</td>
+                  {writable && (
+                    <td>
+                      <button
+                        className="btn-link danger"
+                        type="button"
+                        onClick={() => setConfirmRevoke(s)}
+                      >
+                        <Icon name="revoke" />
+                        Revocar
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {granted.length === 0 && (
+                <tr>
+                  <td colSpan={writable ? 3 : 2} className="muted">
+                    Sin servicios habilitados.
                   </td>
-                )}
-              </tr>
-            ))}
-            {granted.length === 0 && (
-              <tr>
-                <td colSpan={writable ? 3 : 2} className="muted">
-                  Sin servicios habilitados.
-                </td>
-              </tr>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Certificados */}
+        <div className="card">
+          <div className="card-head">
+            <h2>Certificados</h2>
+            <span className="spacer" />
+            {writable && (
+              <button onClick={openCert}>
+                <Icon name="upload" />
+                Subir certificado
+              </button>
             )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Certificados */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Certificados</h2>
-          <span className="spacer" />
-          {writable && (
-            <button onClick={openCert}>
-              <Icon name="upload" />
-              Subir certificado
-            </button>
-          )}
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Vence</th>
-              <th>Cargado</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {certs.map((c) => (
-              <tr key={c.id}>
-                <td>{c.id}</td>
-                <td>{c.due_date}</td>
-                <td>{c.created_at.slice(0, 10)}</td>
-                <td>
-                  <span className={`badge ${c.expired ? "error" : "ok"}`}>
-                    {c.expired ? "vencido" : "vigente"}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {certs.length === 0 && (
+          </div>
+          <table>
+            <thead>
               <tr>
-                <td colSpan={4} className="muted">
-                  Sin certificados.
-                </td>
+                <th>ID</th>
+                <th>Vence</th>
+                <th>Cargado</th>
+                <th>Estado</th>
               </tr>
+            </thead>
+            <tbody>
+              {certs.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.id}</td>
+                  <td>{c.due_date}</td>
+                  <td>{c.created_at.slice(0, 10)}</td>
+                  <td>
+                    <span className={`badge ${c.expired ? "error" : "ok"}`}>
+                      {c.expired ? "vencido" : "vigente"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {certs.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    Sin certificados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Clave tributaria SII (para BHE) */}
+        <div className="card">
+          <div className="card-head">
+            <h2>Clave tributaria SII (BHE)</h2>
+            <span className="spacer" />
+            {writable && (
+              <button onClick={openSii}>
+                <Icon name="key" />
+                {siiKey.configured ? "Actualizar clave" : "Configurar clave"}
+              </button>
             )}
-          </tbody>
-        </table>
+          </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Clave del portal del SII (login web) para consultar las Boletas de Honorarios recibidas.
+          </p>
+          <div className="actions">
+            <span className={`badge ${siiKey.configured ? "ok" : "neutral"}`}>
+              {siiKey.configured ? "configurada" : "no configurada"}
+            </span>
+            {writable && siiKey.configured && (
+              <button
+                className="btn-link danger"
+                type="button"
+                onClick={() => setConfirmSiiKey(true)}
+              >
+                <Icon name="trash" />
+                Eliminar clave
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Consultas SII (operador) */}
+        {writable && (
+          <div className="card">
+            <div className="card-head">
+              <h2>Consultas SII (operador)</h2>
+            </div>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Consulta directa al SII con las credenciales guardadas del cliente.
+            </p>
+            <div className="actions">
+              <button className="secondary" onClick={openRcv}>
+                <Icon name="search" />
+                Consultar RCV
+              </button>
+              <button className="secondary" onClick={openBhe}>
+                <Icon name="search" />
+                Consultar BHE recibidas
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Clave tributaria SII (para BHE) */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Clave tributaria SII (BHE)</h2>
-          <span className="spacer" />
-          {writable && (
-            <button onClick={openSii}>
-              <Icon name="key" />
-              {siiKey.configured ? "Actualizar clave" : "Configurar clave"}
-            </button>
-          )}
-        </div>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Clave del portal del SII (login web) para consultar las Boletas de Honorarios recibidas.
-        </p>
-        <div className="actions">
-          <span className={`badge ${siiKey.configured ? "ok" : "neutral"}`}>
-            {siiKey.configured ? "configurada" : "no configurada"}
-          </span>
-          {writable && siiKey.configured && (
-            <button
-              className="btn-link danger"
-              type="button"
-              onClick={() => setConfirmSiiKey(true)}
-            >
-              <Icon name="trash" />
-              Eliminar clave
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* CAF / folios */}
+      {/* CAF / folios — a todo el ancho: es la única tabla larga. */}
       <div className="card">
         <div className="card-head">
           <h2>CAF / folios</h2>
@@ -474,28 +561,6 @@ export default function CustomerDetail() {
           </tbody>
         </table>
       </div>
-
-      {/* Consultas SII (operador) */}
-      {writable && (
-        <div className="card">
-          <div className="card-head">
-            <h2>Consultas SII (operador)</h2>
-          </div>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Consulta directa al SII con las credenciales guardadas del cliente.
-          </p>
-          <div className="actions">
-            <button className="secondary" onClick={openRcv}>
-              <Icon name="search" />
-              Consultar RCV
-            </button>
-            <button className="secondary" onClick={openBhe}>
-              <Icon name="search" />
-              Consultar BHE recibidas
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ---- Modales ---- */}
       {modal === "grant" && (

@@ -819,3 +819,79 @@ textarea.json {
   font-size: 0.82rem;
   margin: 0.5rem 0 0;
 }
+
+/* ----------------------------------------------------------------- */
+/*  Ficha de cliente                                                  */
+/* ----------------------------------------------------------------- */
+/* El estado va arriba y en el mismo lenguaje visual que las etapas del
+   expediente —punto de color y borde superior—, para que el operador no tenga
+   que aprender dos vocabularios para leer la misma idea. */
+.ficha-estado {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  margin-top: 0.9rem;
+}
+
+/* Los bloques cortos en dos columnas. Apilados a todo el ancho, cada tabla de
+   dos filas ocupaba una pantalla y empujaba los CAF —que es la tabla que de
+   verdad se consulta— fuera de la vista. */
+.ficha-bloques {
+  display: grid;
+  /* Dos columnas fijas y no auto-fit: con cuatro bloques, auto-fit metía tres
+     arriba y dejaba el cuarto huérfano al lado de un hueco. Es el mismo caso
+     que los seis pasos del trámite. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .ficha-bloques {
+    grid-template-columns: 1fr;
+  }
+}
+.ficha-bloques .card {
+  margin-bottom: 0;
+}
+/* En una columna estrecha el flex de la cabecera aprieta el botón hasta
+   partirle el texto ("Habilitar / servicio"). El que cede es el título. */
+.card-head h2 {
+  min-width: 0;
+}
+.card-head button,
+.card-head .boton-enlace {
+  white-space: nowrap;
+  flex: none;
+}
+
+/* La tarjeta del expediente. Es el trabajo entero en un cliente de
+   certificación, así que se distingue del resto de la configuración. */
+.card.destacada {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.07), transparent 60%), var(--panel);
+}
+
+/* Un <Link> que tiene que verse como un botón: el selector de elemento
+   `button` no lo alcanza. */
+.boton-enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #04293b;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 0.13s ease,
+    box-shadow 0.13s ease;
+}
+.boton-enlace:hover {
+  background: var(--accent-strong);
+  box-shadow: 0 3px 12px rgba(56, 189, 248, 0.28);
+  text-decoration: none;
+}
+.boton-enlace svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}

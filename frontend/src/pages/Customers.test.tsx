@@ -68,4 +68,22 @@ describe("Customers", () => {
     // Sin agrupar, el RUT se sigue viendo en su columna.
     expect(screen.getByText("76158145-7")).toBeInTheDocument();
   });
+
+  it("ofrece «Certificar» sólo en certificación, no en producción", async () => {
+    // En producción el expediente no existe y el endpoint responde 400: el
+    // enlace llevaría a un error, así que no debe estar.
+    (api.customers as Mock).mockResolvedValue([
+      { id: 1, name: "ACME", key: "acme-cert", rut: "76158145-7", environment: "CERTIFICATION" },
+      { id: 2, name: "OTRA", key: "otra-prod", rut: "77262159-0", environment: "PRODUCTION" },
+    ]);
+    render(
+      <MemoryRouter>
+        <Customers />
+      </MemoryRouter>,
+    );
+
+    const certificar = await screen.findAllByRole("link", { name: /Certificar/ });
+    expect(certificar).toHaveLength(1);
+    expect(certificar[0]).toHaveAttribute("href", "/customers/1/certification");
+  });
 });

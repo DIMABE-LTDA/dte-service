@@ -158,6 +158,7 @@ def create_app() -> FastAPI:
         exchange.router,
         admin.router,
         certification.router,
+        certification.index_router,
         machine_keys.router,
     ):
         app.include_router(router)

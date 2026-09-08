@@ -209,6 +209,16 @@ export interface CertProgress {
   sets_pending: number;
 }
 
+/** Un contribuyente en certificación tal como lo lista el índice. */
+export interface CertCustomer {
+  customer_id: number;
+  name: string;
+  rut: string;
+  key: string;
+  progress: CertProgress;
+  last_activity: string | null;
+}
+
 export interface CertDossier {
   customer_id: number;
   progress: CertProgress;

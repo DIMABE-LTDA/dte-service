@@ -12,6 +12,7 @@ import type {
   ServiceInfo,
   CertContents,
   CertDefinition,
+  CertCustomer,
   CertDossier,
   CertEnvelope,
   CertNote,
@@ -82,6 +83,7 @@ export const api = {
   resetUserTotp: (id: number) => req<User>(`/users/${id}/totp/reset`, { method: "POST" }),
 
   // --- Expediente de certificación ---
+  certIndex: () => req<CertCustomer[]>("/admin/certification"),
   certDossier: (cid: number) => req<CertDossier>(`/admin/customers/${cid}/certification`),
   certRefresh: (cid: number, sid: number) =>
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/refresh`, {

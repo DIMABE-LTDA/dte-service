@@ -1,12 +1,16 @@
-"""Expediente de certificación: consulta y seguimiento desde el portal.
+"""Expediente de certificación: llevar el trámite del SII desde el portal.
 
-Sólo de lectura y anotación. **No emite ni envía nada**: eso sigue haciéndose
-con los scripts contra el API de emisión, y así el portal mantiene su regla de
-no timbrar documentos desde el navegador.
+Emite los sets, los envía, consulta su estado y guarda cada sobre con su
+TrackID. La regla de no timbrar desde el navegador se levantó sólo aquí y sólo
+en certificación: son documentos de prueba contra Maullín, y hacerlo por
+scripts era justo lo que dejaba la evidencia dispersa.
 
-Todo cuelga de ``/admin/customers/{id}/certification`` y exige que el cliente
-sea de ambiente **certificación**. Un cliente de producción no tiene expediente
-que mirar, y dejar la puerta abierta invitaría a usarlo donde no corresponde.
+Casi todo cuelga de ``/admin/customers/{id}/certification`` y exige que el
+cliente sea de ambiente **certificación**. Un cliente de producción no tiene
+expediente, y dejar la puerta abierta invitaría a usarlo donde no corresponde.
+
+El índice ``/admin/certification`` es la excepción: no cuelga de un cliente
+porque su razón de ser es justamente listarlos a todos.
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ from app.db.session import get_db
 from app.schemas.certification import (
     AssignSetRequest,
     CauseOut,
+    CertificationCustomerOut,
     CertificationDossierOut,
     CertificationSetOut,
     CertificationSubmissionOut,
@@ -58,6 +63,54 @@ from app.services import (
 )
 
 router = APIRouter(prefix="/admin/customers/{customer_id}/certification", tags=["Certificación"])
+
+#: El índice va aparte porque no cuelga de un cliente: los lista.
+index_router = APIRouter(prefix="/admin/certification", tags=["Certificación"])
+
+
+@index_router.get("", response_model=list[CertificationCustomerOut])
+def index(
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> list[CertificationCustomerOut]:
+    """Los contribuyentes en certificación con su avance.
+
+    Es la portada del módulo. Sin ella, llegar al expediente exige saber de
+    memoria en qué ficha está, y quien lleva varias certificaciones a la vez no
+    tiene forma de ver cuál se quedó atrás.
+    """
+    clientes = (
+        db.query(Customer)
+        .filter(
+            Customer.environment == SiiEnvironment.CERTIFICATION,
+            Customer.deleted_at.is_(None),
+        )
+        .order_by(Customer.name)
+        .all()
+    )
+    salida = []
+    for cliente in clientes:
+        sets = certification_service.expected_sets(db, cliente)
+        ultimo = (
+            db.query(CertificationSubmission.sent_at)
+            .filter(
+                CertificationSubmission.customer_id == cliente.id,
+                CertificationSubmission.sent_at.isnot(None),
+            )
+            .order_by(CertificationSubmission.sent_at.desc())
+            .first()
+        )
+        salida.append(
+            CertificationCustomerOut(
+                customer_id=cliente.id,
+                name=cliente.name,
+                rut=cliente.rut or "",
+                key=cliente.key,
+                progress=certification_service.progress(sets),
+                last_activity=ultimo[0] if ultimo else None,
+            )
+        )
+    return salida
 
 
 def _envio(row: CertificationSubmission) -> CertificationSubmissionOut:

@@ -237,6 +237,22 @@ class ContentsOut(BaseModel):
     documents: list[dict]
 
 
+class CertificationCustomerOut(BaseModel):
+    """Un contribuyente en certificación, con su avance, para el índice.
+
+    Existe porque quien opera esto lleva varias certificaciones a la vez y
+    necesita ver cuál está atascada sin abrir las diez fichas una por una.
+    """
+
+    customer_id: int
+    name: str
+    rut: str
+    key: str
+    progress: ProgressOut
+    #: Fecha del último envío al SII. None si todavía no se ha enviado nada.
+    last_activity: dt.datetime | None = None
+
+
 class ImportRequest(BaseModel):
     """Carga en bloque las definiciones de los sets de un contribuyente."""
 
