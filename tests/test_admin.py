@@ -73,9 +73,25 @@ def test_create_grant_and_caf(client):
     assert r.json()["doc_type"] == 33 and r.json()["folio_to"] == 5
 
 
+def _describe(pfx: bytes, password: str) -> dict:
+    """`describe` parsea el .pfx de verdad; aquí los .pfx son de juguete.
+
+    La huella se deriva de los bytes para que dos .pfx distintos no parezcan el
+    mismo certificado: es justo lo que comprueba el test de duplicados.
+    """
+    import hashlib
+
+    return {
+        "due_date": dt.date(2030, 1, 1),
+        "holder": "TITULAR DE PRUEBA",
+        "issuer": "CA DE PRUEBA",
+        "thumbprint": hashlib.sha256(pfx).hexdigest(),
+    }
+
+
 def test_upload_certificate(client, monkeypatch):
     cid = _create(client, key="c2")
-    monkeypatch.setattr(certificate_service, "_expiry", lambda pfx, pw: dt.date(2030, 1, 1))
+    monkeypatch.setattr(certificate_service, "describe", _describe)
 
     r = client.post(
         f"/admin/customers/{cid}/certificate",
@@ -193,8 +209,7 @@ def test_grant_unknown_service_returns_400(client):
 def test_certificate_rut_mismatch_allowed(client, monkeypatch):
     # El certificado del SII se emite a una persona natural: su RUT puede diferir
     # del de la empresa. Por eso un cert con RUT distinto se acepta (no se valida).
-    # `_expiry` parsea el .pfx real, que aquí es de juguete → se fakea.
-    monkeypatch.setattr(certificate_service, "_expiry", lambda pfx, pw: dt.date(2030, 1, 1))
+    monkeypatch.setattr(certificate_service, "describe", _describe)
     cid = _create(client, key="rutmm", rut="11111111-1")
     r = client.post(
         f"/admin/customers/{cid}/certificate",
@@ -262,7 +277,7 @@ def test_customer_cafs_listing(client):
 
 def test_customer_certificates_listing(client, monkeypatch):
     cid = _create(client, key="certs")
-    monkeypatch.setattr(certificate_service, "_expiry", lambda pfx, pw: dt.date(2030, 1, 1))
+    monkeypatch.setattr(certificate_service, "describe", _describe)
     client.post(
         f"/admin/customers/{cid}/certificate",
         json={"file_base64": base64.b64encode(b"x").decode(), "password": "pw"},
@@ -270,3 +285,54 @@ def test_customer_certificates_listing(client, monkeypatch):
     )
     certs = client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()
     assert len(certs) == 1 and certs[0]["expired"] is False
+
+
+def test_no_deja_cargar_dos_veces_el_mismo_certificado(client, monkeypatch):
+    """Cargarlo dos veces deja la ficha con filas indistinguibles.
+
+    Y como se resuelve el más reciente, la copia tapa a la original sin que nada
+    lo diga: quien reintenta un envío cree haber cambiado algo y no cambió nada.
+    """
+    cid = _create(client, key="c-dup")
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    cuerpo = {"file_base64": base64.b64encode(b"un-pfx").decode(), "password": "pw"}
+
+    assert (
+        client.post(f"/admin/customers/{cid}/certificate", json=cuerpo, headers=ADMIN).status_code
+        == 200
+    )
+
+    r = client.post(f"/admin/customers/{cid}/certificate", json=cuerpo, headers=ADMIN)
+    assert r.status_code == 400
+    mensaje = r.json()["error"]["message"]
+    assert "ya está cargado" in mensaje
+    # Dice cuál, para no tener que adivinar cuál de las filas es.
+    assert "id 1" in mensaje
+
+    # Y uno distinto sí entra: el rechazo es por certificado, no por cliente.
+    otro = {"file_base64": base64.b64encode(b"otro-pfx").decode(), "password": "pw"}
+    assert (
+        client.post(f"/admin/customers/{cid}/certificate", json=otro, headers=ADMIN).status_code
+        == 200
+    )
+
+
+def test_la_ficha_muestra_el_rut_que_firma(client, monkeypatch):
+    """El RUT del certificado es el que necesita «Enviar Doctos» en el SII.
+
+    No es el de la empresa —el certificado se emite a una persona natural— y sin
+    verlo no hay forma de saber a qué RUT darle el permiso cuando el envío sale
+    rechazado.
+    """
+    cid = _create(client, key="c-rut")
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    client.post(
+        f"/admin/customers/{cid}/certificate",
+        json={"file_base64": base64.b64encode(b"pfx").decode(), "password": "pw"},
+        headers=ADMIN,
+    )
+
+    fila = client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()[0]
+    assert fila["rut"] == "76158145-7"  # el del stub de conftest
+    assert fila["holder"] == "TITULAR DE PRUEBA"
+    assert fila["issuer"] == "CA DE PRUEBA"

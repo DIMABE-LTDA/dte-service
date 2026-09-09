@@ -70,6 +70,20 @@ class CustomerCertificate(Base):
     file_base64: Mapped[str] = mapped_column(String)  # .pfx en base64, Fernet-cifrado
     password: Mapped[str] = mapped_column(String)  # Fernet-cifrado
     due_date: Mapped[dt.date] = mapped_column(Date)
+    # Datos del propio certificado, extraídos al cargarlo. Se guardan porque
+    # leerlos exige descifrar el .pfx y derivar su clave, y la ficha los muestra
+    # en cada visita: hacerlo en cada lectura sería pagar PBKDF2 por fila.
+    #
+    # El RUT es el del FIRMANTE (una persona), no el de la empresa: es el que
+    # necesita el atributo «Enviar Doctos» en el SII, y no tenerlo a la vista es
+    # justo lo que convierte un rechazo en una tarde perdida.
+    rut: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    holder: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    issuer: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # SHA-256 del certificado en DER. Identifica al certificado y no al archivo:
+    # el mismo .pfx reexportado con otra contraseña da otros bytes pero el mismo
+    # certificado, y cargarlo dos veces no aporta nada.
+    thumbprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
 
     customer: Mapped[Customer] = relationship(back_populates="certificates")

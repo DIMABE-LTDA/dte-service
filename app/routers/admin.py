@@ -111,7 +111,13 @@ def customer_certificates(
     today = dt.date.today()
     return [
         CertificateInfo(
-            id=c.id, due_date=c.due_date, created_at=c.created_at, expired=c.due_date < today
+            id=c.id,
+            due_date=c.due_date,
+            created_at=c.created_at,
+            expired=c.due_date < today,
+            rut=c.rut,
+            holder=c.holder,
+            issuer=c.issuer,
         )
         for c in customer_service.list_certificates(db, customer)
     ]

@@ -53,6 +53,10 @@ export interface CertificateInfo {
   due_date: string;
   created_at: string;
   expired: boolean;
+  /** RUT del FIRMANTE, no el de la empresa: es el que necesita «Enviar Doctos». */
+  rut: string | null;
+  holder: string | null;
+  issuer: string | null;
 }
 
 export interface CafInfo {

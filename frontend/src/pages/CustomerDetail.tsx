@@ -357,6 +357,68 @@ export default function CustomerDetail() {
         </div>
       )}
 
+      {/* Certificados */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Certificados</h2>
+          <span className="spacer" />
+          {writable && (
+            <button onClick={openCert}>
+              <Icon name="upload" />
+              Subir certificado
+            </button>
+          )}
+        </div>
+        <div className="tabla-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                {/* El RUT del firmante va primero: es el dato que se busca
+                    cuando el SII rechaza un envío, y no es el de la empresa. */}
+                <th>RUT que firma</th>
+                <th>Titular</th>
+                <th>Emitido por</th>
+                <th>Vence</th>
+                <th>Cargado</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {certs.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.id}</td>
+                  <td className="nowrap">
+                    <span className="code">{c.rut ?? "—"}</span>
+                  </td>
+                  <td>{c.holder ?? "—"}</td>
+                  <td className="muted">{c.issuer ?? "—"}</td>
+                  <td className="nowrap">{c.due_date}</td>
+                  <td className="nowrap">{c.created_at.slice(0, 10)}</td>
+                  <td>
+                    <span className={`badge ${c.expired ? "error" : "ok"}`}>
+                      {c.expired ? "vencido" : "vigente"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {certs.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="muted">
+                    Sin certificados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {certs.length > 1 && (
+          <p className="muted" style={{ margin: "0.6rem 0 0" }}>
+            Con varios certificados se firma con <strong>el más reciente</strong>.
+          </p>
+        )}
+      </div>
+
       <div className="ficha-bloques">
         {/* Servicios habilitados */}
         <div className="card">
@@ -408,51 +470,6 @@ export default function CustomerDetail() {
           </table>
         </div>
 
-        {/* Certificados */}
-        <div className="card">
-          <div className="card-head">
-            <h2>Certificados</h2>
-            <span className="spacer" />
-            {writable && (
-              <button onClick={openCert}>
-                <Icon name="upload" />
-                Subir certificado
-              </button>
-            )}
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Vence</th>
-                <th>Cargado</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {certs.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.id}</td>
-                  <td>{c.due_date}</td>
-                  <td>{c.created_at.slice(0, 10)}</td>
-                  <td>
-                    <span className={`badge ${c.expired ? "error" : "ok"}`}>
-                      {c.expired ? "vencido" : "vigente"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {certs.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    Sin certificados.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
         {/* Clave tributaria SII (para BHE) */}
         <div className="card">
           <div className="card-head">
@@ -468,6 +485,7 @@ export default function CustomerDetail() {
           <p className="muted" style={{ marginTop: 0 }}>
             Clave del portal del SII (login web) para consultar las Boletas de Honorarios recibidas.
           </p>
+          {/* Las consultas viven aquí porque es esta clave la que usan. */}
           <div className="actions">
             <span className={`badge ${siiKey.configured ? "ok" : "neutral"}`}>
               {siiKey.configured ? "configurada" : "no configurada"}
@@ -483,29 +501,20 @@ export default function CustomerDetail() {
               </button>
             )}
           </div>
-        </div>
-
-        {/* Consultas SII (operador) */}
-        {writable && (
-          <div className="card">
-            <div className="card-head">
-              <h2>Consultas SII (operador)</h2>
-            </div>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Consulta directa al SII con las credenciales guardadas del cliente.
-            </p>
-            <div className="actions">
-              <button className="secondary" onClick={openRcv}>
-                <Icon name="search" />
-                Consultar RCV
-              </button>
-              <button className="secondary" onClick={openBhe}>
-                <Icon name="search" />
-                Consultar BHE recibidas
-              </button>
-            </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Consulta directa al SII con las credenciales guardadas del cliente.
+          </p>
+          <div className="actions">
+            <button className="secondary" onClick={openRcv}>
+              <Icon name="search" />
+              Consultar RCV
+            </button>
+            <button className="secondary" onClick={openBhe}>
+              <Icon name="search" />
+              Consultar BHE recibidas
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* CAF / folios — a todo el ancho: es la única tabla larga. */}

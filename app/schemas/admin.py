@@ -117,6 +117,11 @@ class CertificateInfo(BaseModel):
     due_date: dt.date
     created_at: dt.datetime
     expired: bool
+    #: RUT del firmante. Es el que necesita «Enviar Doctos» en el SII, y no es
+    #: el de la empresa: el certificado se emite a una persona natural.
+    rut: str | None = None
+    holder: str | None = None
+    issuer: str | None = None
 
 
 class CafInfo(BaseModel):

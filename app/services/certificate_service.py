@@ -38,13 +38,13 @@ def resolve_certificate(db: Session, customer: Customer) -> Certificate | None:
 def store_certificate(
     db: Session, customer: Customer, file_base64: str, password: str, *, commit: bool = True
 ) -> CustomerCertificate:
-    """Valida el .pfx, extrae RUT/vencimiento y lo guarda CIFRADO."""
+    """Valida el .pfx, extrae sus datos y lo guarda CIFRADO."""
     try:
         pfx = base64.b64decode(file_base64, validate=True)
     except (binascii.Error, ValueError) as ex:
         raise DomainError("file_base64 no es base64 válido") from ex
     try:
-        Certificate.from_pfx_bytes(pfx, password)  # valida que el .pfx + password sean correctos
+        cert = Certificate.from_pfx_bytes(pfx, password)
     except ValueError as ex:
         raise DomainError("PFX inválido o contraseña incorrecta") from ex
 
@@ -53,12 +53,37 @@ def store_certificate(
     # (el representante), por lo que su RUT normalmente difiere del de la empresa.
     # El SII valida la autorización del firmante; aquí basta con un .pfx válido.
 
-    due = _expiry(pfx, password)
+    datos = describe(pfx, password)
+
+    # Cargar dos veces el mismo certificado no aporta nada y deja la ficha con
+    # filas indistinguibles: mismo vencimiento, mismo titular, distinto id. Y
+    # como se resuelve el más reciente, la duplicada tapa a la original sin que
+    # nada lo diga.
+    ya = (
+        db.query(CustomerCertificate)
+        .filter(
+            CustomerCertificate.customer_id == customer.id,
+            CustomerCertificate.thumbprint == datos["thumbprint"],
+        )
+        .first()
+    )
+    if ya is not None:
+        raise DomainError(
+            f"este certificado ya está cargado (id {ya.id}, titular"
+            f" {ya.holder or datos['holder']}, vence {ya.due_date}). Para reemplazarlo"
+            " por uno nuevo, sube el archivo nuevo; para reintentar un envío no hace"
+            " falta volver a cargarlo."
+        )
+
     row = CustomerCertificate(
         customer_id=customer.id,
         file_base64=crypto.encrypt(pfx),
         password=crypto.encrypt(password),
-        due_date=due,
+        due_date=datos["due_date"],
+        rut=getattr(cert, "rut", None),
+        holder=datos["holder"],
+        issuer=datos["issuer"],
+        thumbprint=datos["thumbprint"],
     )
     db.add(row)
     db.flush()
@@ -68,10 +93,30 @@ def store_certificate(
     return row
 
 
-def _expiry(pfx: bytes, password: str) -> dt.date:
-    from cryptography.hazmat.primitives.serialization import pkcs12
+def _nombre(nombre) -> str:
+    """El CN de un sujeto o emisor, o su forma larga si no lo tiene.
+
+    Se prefiere el CN porque es lo que una persona reconoce: «ARTURO LENIN
+    MUNOZ VERGARA» y «E-CERTCHILE CA FES 02», no la cadena RFC4514 entera.
+    """
+    from cryptography.x509.oid import NameOID
+
+    cn = nombre.get_attributes_for_oid(NameOID.COMMON_NAME)
+    return cn[0].value if cn else nombre.rfc4514_string()
+
+
+def describe(pfx: bytes, password: str) -> dict:
+    """Vencimiento, titular, emisor y huella del certificado dentro del .pfx."""
+    import hashlib
+
+    from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
 
     _, cert, _ = pkcs12.load_key_and_certificates(pfx, password.encode("utf-8"))
     if cert is None:  # no usar assert: desaparece con `python -O`
         raise DomainError("el PFX no contiene un certificado")
-    return cert.not_valid_after_utc.date()
+    return {
+        "due_date": cert.not_valid_after_utc.date(),
+        "holder": _nombre(cert.subject)[:200],
+        "issuer": _nombre(cert.issuer)[:200],
+        "thumbprint": hashlib.sha256(cert.public_bytes(Encoding.DER)).hexdigest(),
+    }
