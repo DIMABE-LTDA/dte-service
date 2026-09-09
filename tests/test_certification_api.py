@@ -904,3 +904,24 @@ def test_la_previa_entiende_la_liquidacion_factura():
     assert doc["lines_exempt"] == 50865
     # Las comisiones tienen que verse: sin ellas la línea del libro no cierra.
     assert doc["global_discounts"] == ["Comisión: NETO COMISION FIJA 866"]
+
+
+def test_el_sobre_sin_enviar_no_se_llama_none(client, db, fake_book_engine):
+    """Dos sobres emitidos y sin enviar no pueden compartir nombre de archivo.
+
+    El nombre salía del TrackID, que en un sobre emitido y sin enviar todavía no
+    existe: se descargaban los dos como «EnvioDTE_None.xml» y el segundo pisaba
+    al primero en la carpeta de descargas.
+    """
+    customer = make_customer(db, key="sobre-cert")
+    _con_envio(db, customer, code="5038170")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=customer.id).one()
+    envio.track_id = None
+    db.commit()
+
+    r = client.get(
+        f"/admin/customers/{customer.id}/certification/submissions/{envio.id}/envelope",
+        headers=_op(client, db),
+    )
+    assert r.status_code == 200
+    assert r.json()["filename"] == f"EnvioDTE_sin-enviar-{envio.id}.xml"

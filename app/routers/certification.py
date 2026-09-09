@@ -321,7 +321,10 @@ def envelope(
     return EnvelopeOut(
         submission_id=row.id,
         track_id=row.track_id,
-        filename=f"{row.envelope_kind}_{row.track_id}.xml",
+        # Un sobre emitido y sin enviar no tiene TrackID todavía: sin este
+        # respaldo se descargaba como «EnvioDTE_None.xml», y dos sobres sin
+        # enviar chocaban con el mismo nombre en la carpeta de descargas.
+        filename=f"{row.envelope_kind}_{row.track_id or f'sin-enviar-{row.id}'}.xml",
         xml_base64=base64.b64encode(xml).decode("ascii"),
     )
 
