@@ -34,6 +34,12 @@ class CustomerOut(BaseModel):
     key: str
     rut: str
     environment: str
+    #: Van en la carátula de cada DTE. Se devuelven porque el portal los
+    #: guardaba sin mostrarlos nunca: si están mal, todos los documentos del
+    #: cliente salen mal y no había dónde verlo ni forma de corregirlo sin
+    #: escribirlos de memoria.
+    resolution_number: int
+    resolution_date: dt.date
     deleted_at: dt.datetime | None = None
 
 

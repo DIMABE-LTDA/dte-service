@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.db.models import Customer, User
@@ -295,6 +295,32 @@ def upload_caf(
     return CafOut(
         id=row.id, doc_type=row.doc_type, folio_from=row.folio_from, folio_to=row.folio_to
     )
+
+
+@router.delete("/customers/{customer_id}/certificates/{cert_id}", status_code=204)
+def delete_certificate(
+    customer_id: int,
+    cert_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Retira un certificado de la ficha.
+
+    Hace falta porque se firma con el más reciente: uno de prueba cargado por
+    error queda arriba y no hay forma de quitarlo de en medio.
+    """
+    customer = _get_customer(db, customer_id)
+    row = customer_service.delete_certificate(db, customer, cert_id, commit=False)
+    audit_service.record_change(
+        db,
+        _actor_id(actor),
+        "certificate.delete",
+        "customer",
+        str(customer.id),
+        f"certificado {row.id} ({row.holder or 's/titular'}, RUT {row.rut or '—'}) eliminado",
+    )
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/customers/{customer_id}/cafs/{caf_id}/retire", response_model=CafInfo)

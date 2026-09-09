@@ -76,7 +76,17 @@ export default function Customers() {
 
   function openEdit(c: Customer) {
     setEditing(c);
-    setForm({ ...EMPTY, name: c.name, rut: c.rut, environment: c.environment });
+    // Precargados: el formulario se abría vacío, así que editar cualquier
+    // cosa obligaba a recordar de memoria el número de resolución para no
+    // dejarlo atrás.
+    setForm({
+      ...EMPTY,
+      name: c.name,
+      rut: c.rut,
+      environment: c.environment,
+      resolution_number: c.resolution_number ? String(c.resolution_number) : "",
+      resolution_date: c.resolution_date ?? "",
+    });
     setFormError("");
     setCreated(null);
     setOpen(true);

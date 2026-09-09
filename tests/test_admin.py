@@ -336,3 +336,60 @@ def test_la_ficha_muestra_el_rut_que_firma(client, monkeypatch):
     assert fila["rut"] == "76158145-7"  # el del stub de conftest
     assert fila["holder"] == "TITULAR DE PRUEBA"
     assert fila["issuer"] == "CA DE PRUEBA"
+
+
+def test_borrar_un_certificado_lo_quita_de_la_ficha(client, monkeypatch):
+    """Un certificado de prueba cargado por error deja de poder quitarse de en medio.
+
+    Importa porque se firma con el más reciente: si el equivocado es el último,
+    no hay forma de volver al bueno sin volver a subirlo.
+    """
+    cid = _create(client, key="c-borrar")
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    for pfx in (b"uno", b"dos"):
+        client.post(
+            f"/admin/customers/{cid}/certificate",
+            json={"file_base64": base64.b64encode(pfx).decode(), "password": "pw"},
+            headers=ADMIN,
+        )
+    ids = [
+        c["id"] for c in client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()
+    ]
+    assert len(ids) == 2
+
+    r = client.delete(f"/admin/customers/{cid}/certificates/{ids[-1]}", headers=ADMIN)
+    assert r.status_code == 204
+
+    quedan = client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()
+    assert [c["id"] for c in quedan] == ids[:-1]
+
+
+def test_no_se_puede_borrar_el_certificado_de_otro_cliente(client, monkeypatch):
+    """El id por sí solo no debe bastar: sería borrar material ajeno."""
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    mio = _create(client, key="c-mio")
+    ajeno = _create(client, key="c-ajeno")
+    client.post(
+        f"/admin/customers/{ajeno}/certificate",
+        json={"file_base64": base64.b64encode(b"pfx").decode(), "password": "pw"},
+        headers=ADMIN,
+    )
+    suyo = client.get(f"/admin/customers/{ajeno}/certificates", headers=ADMIN).json()[0]["id"]
+
+    r = client.delete(f"/admin/customers/{mio}/certificates/{suyo}", headers=ADMIN)
+    assert r.status_code == 400
+    assert client.get(f"/admin/customers/{ajeno}/certificates", headers=ADMIN).json()
+
+
+def test_la_ficha_devuelve_la_resolucion(client):
+    """Número y fecha de resolución van en la carátula de cada DTE.
+
+    Se guardaban al crear el cliente y no se devolvían nunca: no había dónde
+    verlos, y el formulario de edición se abría vacío, así que corregir el
+    nombre obligaba a recordar el número de memoria para no perderlo.
+    """
+    cid = _create(client, key="c-res")
+    fila = client.get("/admin/customers", headers=ADMIN).json()
+    cliente = next(c for c in fila if c["id"] == cid)
+    assert cliente["resolution_number"] == 0
+    assert cliente["resolution_date"] == "2014-08-22"

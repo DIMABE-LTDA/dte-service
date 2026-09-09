@@ -193,6 +193,8 @@ export const api = {
     req(`/admin/customers/${id}/certificate`, body({ file_base64, password })),
   uploadCaf: (id: number, xml_base64: string) =>
     req(`/admin/customers/${id}/caf`, body({ xml_base64 })),
+  deleteCertificate: (id: number, certId: number) =>
+    req<void>(`/admin/customers/${id}/certificates/${certId}`, { method: "DELETE" }),
   retireCaf: (id: number, cafId: number) =>
     req(`/admin/customers/${id}/cafs/${cafId}/retire`, { method: "POST" }),
   rcv: (id: number, period: string, operation: string) =>

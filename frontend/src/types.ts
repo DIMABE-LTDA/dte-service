@@ -29,6 +29,9 @@ export interface Customer {
   key: string;
   rut: string;
   environment: string;
+  /** Resolución del SII que autoriza a emitir. Va en la carátula de cada DTE. */
+  resolution_number: number;
+  resolution_date: string;
   deleted_at?: string | null;
 }
 

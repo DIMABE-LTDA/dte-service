@@ -203,6 +203,29 @@ def _same_rut(a: str | None, b: str | None) -> bool:
         return a.strip() == b.strip()
 
 
+def delete_certificate(
+    db: Session, customer: Customer, cert_id: int, *, commit: bool = True
+) -> CustomerCertificate:
+    """Borra un certificado del cliente.
+
+    Se borra de verdad y no se marca: guarda una clave privada cifrada, y un
+    certificado que ya no se usa es material que no hay razón para seguir
+    custodiando. Los documentos ya firmados con él siguen siendo válidos —la
+    firma viaja dentro del XML—, así que no se pierde nada emitido.
+
+    Borrar el último no se impide: dejar al cliente sin certificado es
+    reversible subiendo otro, y bloquearlo obligaría a subir uno falso para
+    poder limpiar. Quien llama avisa de lo que implica.
+    """
+    row = db.get(CustomerCertificate, cert_id)
+    if row is None or row.customer_id != customer.id:
+        raise DomainError(f"El certificado {cert_id} no existe o no pertenece a este cliente.")
+    db.delete(row)
+    if commit:
+        db.commit()
+    return row
+
+
 def retire_caf(db: Session, customer: Customer, caf_id: int, *, commit: bool = True) -> Caf:
     """Deja de usar un CAF aunque le queden folios libres.
 

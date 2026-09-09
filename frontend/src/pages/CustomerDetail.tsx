@@ -7,7 +7,7 @@ import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import { useToast } from "../toast";
-import type { BheResponse, CafInfo, GrantedService, RcvResponse } from "../types";
+import type { BheResponse, CafInfo, CertificateInfo, GrantedService, RcvResponse } from "../types";
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,6 +53,7 @@ export default function CustomerDetail() {
   const [certPass, setCertPass] = useState("");
   const [cafFile, setCafFile] = useState<File | null>(null);
   const [confirmCaf, setConfirmCaf] = useState<CafInfo | null>(null);
+  const [confirmCert, setConfirmCert] = useState<CertificateInfo | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<GrantedService | null>(null);
   const [confirmSiiKey, setConfirmSiiKey] = useState(false);
   const keyNotice = useRef<HTMLDivElement>(null);
@@ -129,6 +130,20 @@ export default function CustomerDetail() {
         return reload();
       })
       .catch((err) => setModalError((err as Error).message))
+      .finally(() => setBusy(false));
+  }
+  function deleteCert() {
+    if (!confirmCert) return;
+    setActionError("");
+    setBusy(true);
+    api
+      .deleteCertificate(cid, confirmCert.id)
+      .then(() => {
+        toast.ok(`Certificado ${confirmCert.id} eliminado.`);
+        setConfirmCert(null);
+        return reload();
+      })
+      .catch((err) => avisar(err))
       .finally(() => setBusy(false));
   }
   function retireCaf() {
@@ -301,6 +316,16 @@ export default function CustomerDetail() {
         <span className={`badge ${customer.environment === "PRODUCTION" ? "warn" : "neutral"}`}>
           {customer.environment}
         </span>
+        {/* La resolución va en la carátula de cada DTE: si está mal, salen mal
+            todos los documentos del cliente. Se guardaba sin mostrarse nunca. */}
+        {" · "}
+        Resolución{" "}
+        <span className="code">
+          {customer.resolution_number} del {customer.resolution_date}
+        </span>
+        {customer.environment === "CERTIFICATION" && customer.resolution_number === 0 && (
+          <> (la que el SII espera en certificación)</>
+        )}
       </p>
       {/* Estado de la ficha: la respuesta a "¿puede emitir?" antes del detalle. */}
       <div className="etapas ficha-estado">
@@ -382,6 +407,7 @@ export default function CustomerDetail() {
                 <th>Vence</th>
                 <th>Cargado</th>
                 <th>Estado</th>
+                {writable && <th />}
               </tr>
             </thead>
             <tbody>
@@ -400,11 +426,23 @@ export default function CustomerDetail() {
                       {c.expired ? "vencido" : "vigente"}
                     </span>
                   </td>
+                  {writable && (
+                    <td className="right">
+                      <button
+                        className="btn-link danger"
+                        type="button"
+                        onClick={() => setConfirmCert(c)}
+                      >
+                        <Icon name="trash" />
+                        Eliminar
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {certs.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="muted">
+                  <td colSpan={writable ? 8 : 7} className="muted">
                     Sin certificados.
                   </td>
                 </tr>
@@ -691,6 +729,36 @@ export default function CustomerDetail() {
               ¿Borrar la clave del portal del SII de este cliente? Se dejarán de poder consultar sus
               boletas de honorarios recibidas. La clave no queda guardada en ninguna otra parte:
               para reponerla hay que volver a pedírsela a la empresa.
+            </>
+          }
+        />
+      )}
+
+      {confirmCert && (
+        <ConfirmModal
+          title="Eliminar certificado"
+          danger
+          busy={busy}
+          confirmLabel="Eliminar"
+          onClose={() => setConfirmCert(null)}
+          onConfirm={deleteCert}
+          message={
+            <>
+              ¿Eliminar el certificado de{" "}
+              <strong>{confirmCert.holder ?? `id ${confirmCert.id}`}</strong>
+              {confirmCert.rut ? ` (RUT ${confirmCert.rut})` : ""}? Los documentos ya firmados con
+              él siguen siendo válidos —la firma viaja dentro del XML—, pero el archivo .pfx se
+              borra y habría que volver a subirlo.
+              {/* Quedarse sin certificado no se impide, pero sí se avisa: es la
+                  diferencia entre limpiar una ficha y dejarla sin poder emitir. */}
+              {certs.length === 1 && (
+                <>
+                  {" "}
+                  <strong>Es el único que tiene este cliente</strong>: sin certificado no se puede
+                  firmar ni emitir.
+                </>
+              )}{" "}
+              Esto no se puede deshacer.
             </>
           }
         />
