@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ToastProvider } from "../toast";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { api } from "../api";
 import Certification from "./Certification";
@@ -96,11 +97,13 @@ function dossier(extra: Record<string, unknown> = {}) {
 
 function mount() {
   return render(
-    <MemoryRouter initialEntries={["/customers/1/certification"]}>
-      <Routes>
-        <Route path="/customers/:id/certification" element={<Certification />} />
-      </Routes>
-    </MemoryRouter>,
+    <ToastProvider>
+      <MemoryRouter initialEntries={["/customers/1/certification"]}>
+        <Routes>
+          <Route path="/customers/:id/certification" element={<Certification />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
   );
 }
 

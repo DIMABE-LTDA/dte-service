@@ -925,3 +925,38 @@ def test_el_sobre_sin_enviar_no_se_llama_none(client, db, fake_book_engine):
     )
     assert r.status_code == 200
     assert r.json()["filename"] == f"EnvioDTE_sin-enviar-{envio.id}.xml"
+
+
+def test_el_fallo_de_autenticacion_dice_que_revisar(client, db, monkeypatch):
+    """«estado=10» es exacto y no dice nada accionable.
+
+    La causa nunca está en la semilla sino en quién la firma: un certificado no
+    acreditado, o un RUT sin «Enviar Doctos» en ESE ambiente. Es el error que
+    costó diez envíos rechazados antes de dar con el permiso, así que la guía
+    viaja con la respuesta en vez de vivir en la cabeza de quien ya lo sufrió.
+    """
+    from dte_chile.errors import SiiAuthError
+
+    customer = make_customer(db, key="auth-cert")
+    _con_envio(db, customer, code="5038170")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=customer.id).one()
+    envio.track_id = None
+    db.commit()
+
+    def revienta(*a, **k):
+        raise SiiAuthError("El SII rechazó la semilla firmada (estado=10).")
+
+    monkeypatch.setattr(certification_service, "send_draft", revienta)
+
+    r = client.post(
+        f"/admin/customers/{customer.id}/certification/submissions/{envio.id}/send",
+        headers=_op(client, db),
+    )
+    assert r.status_code == 502
+    cuerpo = r.json()["error"]
+    assert "estado=10" in cuerpo["message"]
+    guia = " ".join(cuerpo["details"])
+    assert "acreditada" in guia
+    assert "Enviar Doctos" in guia
+    # El permiso es por ambiente: omitirlo es justo lo que hizo perder el tiempo.
+    assert "SEPARADOS" in guia

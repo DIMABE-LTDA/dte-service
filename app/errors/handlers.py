@@ -77,6 +77,30 @@ async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=422, content=_body(exc, details))
 
 
+#: Qué mirar cuando el SII no entrega token. El mensaje del motor —"rechazó la
+#: semilla firmada (estado=10)"— es exacto y no dice nada accionable: la causa
+#: nunca está en la semilla, sino en quién la firma.
+_AUTH_CHECKS = (
+    "El certificado tiene que estar emitido por una entidad acreditada"
+    " (e-certchile, Acepta, Certinet…). Uno autofirmado o de pruebas no autentica"
+    " contra el SII, aunque firme bien.",
+    "El RUT del certificado necesita el atributo «Enviar Doctos» en el ambiente"
+    " al que estás enviando. Maullín y Palena tienen registros de usuarios"
+    " SEPARADOS: el permiso de producción no vale en certificación ni al revés.",
+    "Comprueba que el certificado no esté vencido ni revocado.",
+)
+
+
+async def _sii_auth_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Traduce el fallo de autenticación en algo que se pueda accionar.
+
+    Sin esto, el operador ve un número de estado y no tiene por dónde empezar.
+    Es el mismo error que costó diez envíos rechazados antes de descubrir que
+    faltaba un permiso.
+    """
+    return JSONResponse(status_code=502, content=_body(exc, list(_AUTH_CHECKS)))
+
+
 async def _cert_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=409, content=_body(exc, []))
 
@@ -104,6 +128,8 @@ async def _integrity_handler(request: Request, exc: Exception) -> JSONResponse:
 
 def register_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DocumentDataError, _document_data_handler)
+    # Antes que DteError: es una subclase y se evalúa por tipo exacto primero.
+    app.add_exception_handler(SiiAuthError, _sii_auth_handler)
     app.add_exception_handler(DteError, _dte_error_handler)
     app.add_exception_handler(IntegrityError, _integrity_handler)
     app.add_exception_handler(CertificateUnavailable, _cert_unavailable_handler)

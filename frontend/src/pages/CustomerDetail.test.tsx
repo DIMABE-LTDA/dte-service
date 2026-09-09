@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ToastProvider } from "../toast";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { api } from "../api";
 import CustomerDetail from "./CustomerDetail";
@@ -32,11 +33,13 @@ vi.mock("../auth", async (orig) => {
 
 function mount() {
   return render(
-    <MemoryRouter initialEntries={["/customers/1"]}>
-      <Routes>
-        <Route path="/customers/:id" element={<CustomerDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    <ToastProvider>
+      <MemoryRouter initialEntries={["/customers/1"]}>
+        <Routes>
+          <Route path="/customers/:id" element={<CustomerDetail />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
   );
 }
 

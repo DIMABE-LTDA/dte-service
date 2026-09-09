@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ToastProvider } from "../toast";
 import { describe, expect, it, vi, type Mock } from "vitest";
 import { api } from "../api";
 import type { CertCustomer } from "../types";
@@ -25,9 +26,11 @@ describe("Portada de certificación", () => {
   it("lista cada contribuyente con su avance y enlaza a su expediente", async () => {
     (api.certIndex as Mock).mockResolvedValue([fila()]);
     render(
-      <MemoryRouter>
-        <CertificationIndex />
-      </MemoryRouter>,
+      <ToastProvider>
+        <MemoryRouter>
+          <CertificationIndex />
+        </MemoryRouter>
+      </ToastProvider>,
     );
 
     expect(await screen.findByText("CONSTRUCTORA DIMABE SPA")).toBeInTheDocument();
@@ -43,9 +46,11 @@ describe("Portada de certificación", () => {
     // ha tocado». Sin ella, las dos se ven igual en el índice.
     (api.certIndex as Mock).mockResolvedValue([fila({ last_activity: null })]);
     render(
-      <MemoryRouter>
-        <CertificationIndex />
-      </MemoryRouter>,
+      <ToastProvider>
+        <MemoryRouter>
+          <CertificationIndex />
+        </MemoryRouter>
+      </ToastProvider>,
     );
 
     expect(await screen.findByText(/sin envíos todavía/)).toBeInTheDocument();
@@ -54,9 +59,11 @@ describe("Portada de certificación", () => {
   it("cuando no hay ninguno, dice cómo crear uno en vez de quedar en blanco", async () => {
     (api.certIndex as Mock).mockResolvedValue([]);
     render(
-      <MemoryRouter>
-        <CertificationIndex />
-      </MemoryRouter>,
+      <ToastProvider>
+        <MemoryRouter>
+          <CertificationIndex />
+        </MemoryRouter>
+      </ToastProvider>,
     );
 
     expect(await screen.findByText(/No hay clientes en ambiente de certificación/)).toBeVisible();

@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { api } from "../api";
+import { api, type ApiError } from "../api";
 import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
+import { useToast } from "../toast";
 import type { User } from "../types";
 
 const EMPTY = { email: "", password: "", role: "operator", customer_id: "" };
@@ -31,6 +32,14 @@ export default function Users() {
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const toast = useToast();
+
+  /** Muestra el fallo donde se está mirando y, además, como aviso global. */
+  function avisar(err: unknown) {
+    const e = err as ApiError;
+    setActionError(e.message);
+    toast.error(e.message, e.hints);
+  }
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
   function openCreate() {
@@ -65,7 +74,7 @@ export default function Users() {
       await api.setUserActive(u.id, !u.is_active);
       await reload();
     } catch (err) {
-      setActionError((err as Error).message);
+      avisar(err);
     }
   }
 
@@ -80,7 +89,7 @@ export default function Users() {
       setConfirm(null);
       await reload();
     } catch (err) {
-      setActionError((err as Error).message);
+      avisar(err);
     } finally {
       setBusy(false);
     }

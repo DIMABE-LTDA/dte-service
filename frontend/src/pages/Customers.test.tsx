@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ToastProvider } from "../toast";
 import { describe, expect, it, vi, type Mock } from "vitest";
 import { api } from "../api";
 import Customers from "./Customers";
@@ -26,9 +27,11 @@ describe("Customers", () => {
       { id: 1, name: "ACME", key: "acme", rut: "76158145-7", environment: "CERTIFICATION" },
     ]);
     render(
-      <MemoryRouter>
-        <Customers />
-      </MemoryRouter>,
+      <ToastProvider>
+        <MemoryRouter>
+          <Customers />
+        </MemoryRouter>
+      </ToastProvider>,
     );
     expect(await screen.findByText("ACME")).toBeInTheDocument();
     expect(screen.getByText("Nuevo cliente")).toBeInTheDocument();
@@ -40,9 +43,11 @@ describe("Customers", () => {
       { id: 2, name: "ACME", key: "acme-prod", rut: "76158145-7", environment: "PRODUCTION" },
     ]);
     render(
-      <MemoryRouter>
-        <Customers />
-      </MemoryRouter>,
+      <ToastProvider>
+        <MemoryRouter>
+          <Customers />
+        </MemoryRouter>
+      </ToastProvider>,
     );
     // El nombre aparece UNA vez, en la cabecera del grupo, no una por ficha.
     expect(await screen.findByText("2 fichas, una por ambiente")).toBeInTheDocument();
@@ -58,9 +63,11 @@ describe("Customers", () => {
       { id: 2, name: "OTRA", key: "otra", rut: "77073851-2", environment: "CERTIFICATION" },
     ]);
     render(
-      <MemoryRouter>
-        <Customers />
-      </MemoryRouter>,
+      <ToastProvider>
+        <MemoryRouter>
+          <Customers />
+        </MemoryRouter>
+      </ToastProvider>,
     );
     expect(await screen.findByText("ACME")).toBeInTheDocument();
     expect(screen.getByText("OTRA")).toBeInTheDocument();
@@ -77,9 +84,11 @@ describe("Customers", () => {
       { id: 2, name: "OTRA", key: "otra-prod", rut: "77262159-0", environment: "PRODUCTION" },
     ]);
     render(
-      <MemoryRouter>
-        <Customers />
-      </MemoryRouter>,
+      <ToastProvider>
+        <MemoryRouter>
+          <Customers />
+        </MemoryRouter>
+      </ToastProvider>,
     );
 
     const certificar = await screen.findAllByRole("link", { name: /Certificar/ });

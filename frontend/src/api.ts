@@ -32,16 +32,29 @@ const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 
 // La sesión vive en una cookie HttpOnly que pone el servidor; JS no la maneja.
 // `credentials: "include"` hace que el navegador la envíe en cada request.
-class ApiError extends Error {}
+/** Error del API, con la guía que el servidor haya adjuntado.
+ *
+ * `hints` es el `details` del cuerpo de error: qué revisar y en qué orden.
+ * Existe porque hay fallos cuyo mensaje es exacto pero inútil —"el SII rechazó
+ * la semilla firmada (estado=10)"— y la causa real está siempre en la misma
+ * lista corta de sitios. Perderla al cruzar la frontera HTTP dejaba al
+ * operador con un número.
+ */
+export class ApiError extends Error {
+  readonly hints: string[];
 
-/** Saca el mensaje del cuerpo, venga del handler de errores o de FastAPI. */
-async function mensajeDe(res: Response, porDefecto: string): Promise<string> {
+  constructor(message: string, hints: string[] = []) {
+    super(message);
+    this.hints = hints;
+  }
+}
+
+/** Saca el mensaje y la guía del cuerpo, vengan del handler o de FastAPI. */
+async function errorDe(res: Response, porDefecto: string): Promise<ApiError> {
   const body = await res.json().catch(() => ({}) as Record<string, unknown>);
-  return (
-    (body as { error?: { message?: string } }).error?.message ??
-    (body as { detail?: string }).detail ??
-    porDefecto
-  );
+  const err = (body as { error?: { message?: string; details?: string[] } }).error;
+  const mensaje = err?.message ?? (body as { detail?: string }).detail ?? porDefecto;
+  return new ApiError(mensaje, err?.details ?? []);
 }
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -56,10 +69,10 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
     // Y NECESITAN el detalle: el login distingue "falta el segundo factor"
     // ('totp_required') de una contraseña incorrecta, y con un mensaje genérico
     // nunca llegaría a pedir el código.
-    throw new ApiError(await mensajeDe(res, "no autenticado"));
+    throw await errorDe(res, "no autenticado");
   }
   if (!res.ok) {
-    throw new ApiError(await mensajeDe(res, `HTTP ${res.status}`));
+    throw await errorDe(res, `HTTP ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
+import { useToast } from "../toast";
 import type { BheResponse, CafInfo, GrantedService, RcvResponse } from "../types";
 
 function fileToBase64(file: File): Promise<string> {
@@ -42,7 +43,6 @@ export default function CustomerDetail() {
   }, [cid]);
 
   const [modal, setModal] = useState<ModalKind>(null);
-  const [msg, setMsg] = useState("");
   const [actionError, setActionError] = useState("");
   const [modalError, setModalError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,6 +56,18 @@ export default function CustomerDetail() {
   const [confirmRevoke, setConfirmRevoke] = useState<GrantedService | null>(null);
   const [confirmSiiKey, setConfirmSiiKey] = useState(false);
   const keyNotice = useRef<HTMLDivElement>(null);
+  const toast = useToast();
+
+  /** Deja el fallo donde se está mirando y, además, como aviso global.
+   *
+   * La ficha es larga: un error pintado bajo la cabecera queda fuera de la
+   * vista de quien acaba de pulsar «Retirar» en la tabla de CAF.
+   */
+  function avisar(err: unknown) {
+    const e = err as ApiError;
+    setActionError(e.message);
+    toast.error(e.message, e.hints);
+  }
   const [siiPass, setSiiPass] = useState("");
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [operation, setOperation] = useState("COMPRA");
@@ -71,7 +83,6 @@ export default function CustomerDetail() {
 
   function openModal(kind: Exclude<ModalKind, null>) {
     setActionError("");
-    setMsg("");
     setModalError("");
     setModal(kind);
   }
@@ -107,13 +118,12 @@ export default function CustomerDetail() {
   function grant(e: FormEvent) {
     e.preventDefault();
     setModalError("");
-    setMsg("");
     setGrantedKey(null);
     setBusy(true);
     api
       .grant(cid, grantSvc, grantKey || undefined)
       .then((res) => {
-        setMsg("Servicio habilitado.");
+        toast.ok("Servicio habilitado.");
         setGrantedKey(res.apikey ?? null);
         setModal(null);
         return reload();
@@ -124,43 +134,40 @@ export default function CustomerDetail() {
   function retireCaf() {
     if (!confirmCaf) return;
     setActionError("");
-    setMsg("");
     setBusy(true);
     api
       .retireCaf(cid, confirmCaf.id)
       .then(() => {
-        setMsg(`CAF tipo ${confirmCaf.doc_type} retirado.`);
+        toast.ok(`CAF tipo ${confirmCaf.doc_type} retirado.`);
         setConfirmCaf(null);
         return reload();
       })
-      .catch((err) => setActionError((err as Error).message))
+      .catch((err) => avisar(err))
       .finally(() => setBusy(false));
   }
   function revoke() {
     if (!confirmRevoke) return;
     setActionError("");
-    setMsg("");
     setBusy(true);
     api
       .revokeService(cid, confirmRevoke.service_code)
       .then(() => {
-        setMsg(`Servicio "${confirmRevoke.name}" revocado.`);
+        toast.ok(`Servicio "${confirmRevoke.name}" revocado.`);
         setConfirmRevoke(null);
         return reload();
       })
-      .catch((err) => setActionError((err as Error).message))
+      .catch((err) => avisar(err))
       .finally(() => setBusy(false));
   }
   async function uploadCert(e: FormEvent) {
     e.preventDefault();
     if (!certFile) return;
     setModalError("");
-    setMsg("");
     setBusy(true);
     try {
       const b64 = await fileToBase64(certFile);
       await api.uploadCert(cid, b64, certPass);
-      setMsg("Certificado cargado.");
+      toast.ok("Certificado cargado.");
       setModal(null);
       await reload();
     } catch (err) {
@@ -173,12 +180,11 @@ export default function CustomerDetail() {
     e.preventDefault();
     if (!cafFile) return;
     setModalError("");
-    setMsg("");
     setBusy(true);
     try {
       const b64 = await fileToBase64(cafFile);
       await api.uploadCaf(cid, b64);
-      setMsg("CAF cargado.");
+      toast.ok("CAF cargado.");
       setModal(null);
       await reload();
     } catch (err) {
@@ -191,11 +197,10 @@ export default function CustomerDetail() {
     e.preventDefault();
     if (!siiPass) return;
     setModalError("");
-    setMsg("");
     setBusy(true);
     try {
       await api.setSiiKey(cid, siiPass);
-      setMsg("Clave tributaria guardada.");
+      toast.ok("Clave tributaria guardada.");
       setModal(null);
       await reload();
     } catch (err) {
@@ -206,16 +211,15 @@ export default function CustomerDetail() {
   }
   function deleteSiiKey() {
     setActionError("");
-    setMsg("");
     setBusy(true);
     api
       .deleteSiiKey(cid)
       .then(() => {
-        setMsg("Clave tributaria eliminada.");
+        toast.ok("Clave tributaria eliminada.");
         setConfirmSiiKey(false);
         return reload();
       })
-      .catch((err) => setActionError((err as Error).message))
+      .catch((err) => avisar(err))
       .finally(() => setBusy(false));
   }
   function queryRcv(e: FormEvent) {
@@ -331,7 +335,6 @@ export default function CustomerDetail() {
           </p>
         </div>
       )}
-      {msg && !grantedKey && <p style={{ color: "var(--ok)" }}>{msg}</p>}
       {actionError && <p className="error">{actionError}</p>}
       {grantedKey && (
         <div className="notice ok" ref={keyNotice}>

@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import type { CertPreview, CertSet, CertSubmission } from "../types";
+import { useToast } from "../toast";
 
 /** Expediente de certificación de un cliente.
  *
@@ -71,6 +72,7 @@ export default function Certification() {
   const cid = Number(id);
   const { user } = useAuth();
   const writable = canWrite(user?.role);
+  const toast = useToast();
 
   const { data, loading, error, reload } = useApi(async () => {
     const [dossier, notes] = await Promise.all([api.certDossier(cid), api.certNotes(cid)]);
@@ -79,7 +81,6 @@ export default function Certification() {
 
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
-  const [msg, setMsg] = useState("");
   const [declarando, setDeclarando] = useState<CertSet | null>(null);
   const [fechaDecl, setFechaDecl] = useState(() => new Date().toISOString().slice(0, 10));
   const [asignando, setAsignando] = useState<CertSubmission | null>(null);
@@ -102,15 +103,18 @@ export default function Certification() {
    */
   async function correr(fn: () => Promise<unknown>, ok: string): Promise<boolean> {
     setActionError("");
-    setMsg("");
     setBusy(true);
     try {
       await fn();
-      setMsg(ok);
+      if (ok) toast.ok(ok);
       await reload();
       return true;
     } catch (err) {
-      setActionError((err as Error).message);
+      const e = err as ApiError;
+      // El error va al aviso Y se queda en el modal: dentro del diálogo es
+      // donde se está mirando, y el aviso lo cubre si el modal ya se cerró.
+      setActionError(e.message);
+      toast.error(e.message, e.hints);
       return false;
     } finally {
       setBusy(false);
@@ -135,20 +139,6 @@ export default function Certification() {
       <p>
         <Link to={`/customers/${cid}`}>← Volver a la ficha</Link>
       </p>
-      {msg && (
-        <div className="aviso" role="status">
-          <Icon name="check" />
-          <span>{msg}</span>
-          <button className="close" type="button" aria-label="Cerrar" onClick={() => setMsg("")}>
-            ×
-          </button>
-        </div>
-      )}
-      {/* El error sí se queda en el flujo de la página: es lo que hay que leer
-          entero, y un aviso que se cierra invita a perderlo. */}
-      {actionError && !vista && !editando && !notaSet && !declarando && (
-        <p className="error">{actionError}</p>
-      )}
 
       <div className="card">
         <div className="card-head">

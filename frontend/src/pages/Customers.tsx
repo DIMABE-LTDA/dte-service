@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
+import { useToast } from "../toast";
 import type { Customer } from "../types";
 
 const EMPTY = {
@@ -56,6 +57,14 @@ export default function Customers() {
   const [created, setCreated] = useState<Customer | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [actionError, setActionError] = useState("");
+  const toast = useToast();
+
+  /** Muestra el fallo donde se está mirando y, además, como aviso global. */
+  function avisar(err: unknown) {
+    const e = err as ApiError;
+    setActionError(e.message);
+    toast.error(e.message, e.hints);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -113,7 +122,7 @@ export default function Customers() {
       setConfirm(null);
       await reload();
     } catch (err) {
-      setActionError((err as Error).message);
+      avisar(err);
     } finally {
       setBusy(false);
     }
