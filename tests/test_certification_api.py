@@ -1013,3 +1013,66 @@ def test_un_sobre_de_antes_no_se_bloquea(client, db, monkeypatch):
     url = f"/admin/customers/{customer.id}/certification/submissions/{envio.id}/send"
     assert client.post(url, headers=_op(client, db)).status_code == 200
     assert llamado == {"si": True}
+
+
+def test_un_sobre_procesado_con_todo_rechazado_no_se_pinta_verde(client, db):
+    """`EPR` dice que el sobre se pudo leer, no que sus documentos valgan.
+
+    Es el caso real de esta certificación: siete sets con EPR y sus 28
+    documentos rechazados dentro. El expediente los mostró como aceptados
+    durante una semana, y con ellos en verde no había nada que mirar.
+    """
+    customer = make_customer(db, key="epr-cert")
+    _con_envio(db, customer, code="5038170", estado="EPR")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=customer.id).one()
+    envio.sii_stats = [
+        {"doc_type": 33, "informed": 4, "accepted": 0, "rejected": 4, "flagged": 0},
+        {"doc_type": 61, "informed": 3, "accepted": 0, "rejected": 3, "flagged": 0},
+    ]
+    db.commit()
+
+    dossier = client.get(
+        f"/admin/customers/{customer.id}/certification", headers=_op(client, db)
+    ).json()
+    cert_set = next(s for s in dossier["sets"] if s["code"] == "5038170")
+
+    etapa = next(e for e in cert_set["stages"] if e["key"] == "estado")
+    assert etapa["state"] == "error"
+    assert "ninguno de los 7" in etapa["detail"]
+    assert cert_set["state"] == "rechazado"
+
+    # Y la guía deja de decir que está todo bien.
+    assert cert_set["submissions"][0]["cause"]["ok"] is False
+    # El desglose viaja al portal, que es lo que permite ver qué tipo falló.
+    assert [s["doc_type"] for s in cert_set["submissions"][0]["stats"]] == [33, 61]
+
+
+def test_un_libro_aceptado_sigue_en_verde(client, db):
+    """El LOK de un libro sí es el veredicto entero: no trae desglose."""
+    customer = make_customer(db, key="lok-cert")
+    _con_envio(db, customer, code="5038171", estado="LOK")
+
+    dossier = client.get(
+        f"/admin/customers/{customer.id}/certification", headers=_op(client, db)
+    ).json()
+    cert_set = next(s for s in dossier["sets"] if s["code"] == "5038171")
+    etapa = next(e for e in cert_set["stages"] if e["key"] == "estado")
+    assert etapa["state"] == "ok"
+    assert cert_set["submissions"][0]["cause"]["ok"] is True
+
+
+def test_aceptados_parciales_avisan_sin_gritar(client, db):
+    """Con algunos aceptados y otros no, el set no está listo ni perdido."""
+    customer = make_customer(db, key="mixto-cert")
+    _con_envio(db, customer, code="5038170", estado="EPR")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=customer.id).one()
+    envio.sii_stats = [{"doc_type": 33, "informed": 4, "accepted": 3, "rejected": 1, "flagged": 0}]
+    db.commit()
+
+    dossier = client.get(
+        f"/admin/customers/{customer.id}/certification", headers=_op(client, db)
+    ).json()
+    cert_set = next(s for s in dossier["sets"] if s["code"] == "5038170")
+    etapa = next(e for e in cert_set["stages"] if e["key"] == "estado")
+    assert etapa["state"] == "atencion"
+    assert "3 de 4 aceptados" in etapa["detail"]

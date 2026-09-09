@@ -44,6 +44,7 @@ from app.schemas.certification import (
     DeclareRequest,
     DefinitionOut,
     DefinitionRequest,
+    DocStatsOut,
     EnvelopeOut,
     ImportRequest,
     NoteOut,
@@ -116,14 +117,18 @@ def index(
 def _envio(row: CertificationSubmission) -> CertificationSubmissionOut:
     """Un envío con la guía de su respuesta, si el código es conocido."""
     salida = CertificationSubmissionOut.model_validate(row)
+    salida.stats = [DocStatsOut(**f) for f in (row.sii_stats or [])]
     causa = certification_causes.for_state(row.sii_state)
     if causa is not None:
+        # `ok` sale del catálogo, pero el desglose manda: EPR está catalogado
+        # como aceptado y puede traer todo su contenido rechazado dentro.
+        entregado = certification_service.entregado(row)
         salida.cause = CauseOut(
             label=causa.label,
             meaning=causa.meaning,
             usually=causa.usually,
             check=list(causa.check),
-            ok=causa.ok,
+            ok=causa.ok and entregado,
         )
     return salida
 
@@ -237,6 +242,7 @@ def refresh_status(
     )
     row.sii_state = estado.get("state")
     row.sii_detail = estado.get("detail")
+    row.sii_stats = estado.get("stats") or None
     row.checked_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
     db.commit()
     db.refresh(row)

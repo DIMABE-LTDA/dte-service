@@ -49,6 +49,26 @@ function fecha(iso: string | null) {
     : "—";
 }
 
+/** Color del estado de un envío, mirando dentro del sobre.
+ *
+ * `EPR` está catalogado como aceptado y describe sólo al sobre. Un set con sus
+ * 28 documentos rechazados dentro devolvía EPR, y pintarlo verde fue lo que
+ * hizo que nadie mirara durante una semana.
+ */
+function colorEstado(e: CertSubmission): string {
+  const aceptable = e.sii_state === "EPR" || e.sii_state === "LOK";
+  if (!aceptable) return "error";
+  // `?? []` no es por el contrato —el API siempre lo manda— sino por el modo de
+  // fallo: sin esto, un despliegue contra un API anterior tumbaría el
+  // expediente entero por un campo que falta.
+  const stats = e.stats ?? [];
+  const informados = stats.reduce((n, s) => n + s.informed, 0);
+  if (!informados) return "ok";
+  const aceptados = stats.reduce((n, s) => n + s.accepted, 0);
+  if (!aceptados) return "error";
+  return aceptados < informados ? "warn" : "ok";
+}
+
 /** Pesos: sin decimales y con separador de miles, que es como se leen. */
 function money(v: unknown) {
   const n = Number(v ?? 0);
@@ -348,11 +368,25 @@ export default function Certification() {
                         {!e.track_id ? (
                           <span className="badge warn">emitido, sin enviar</span>
                         ) : e.sii_state ? (
-                          <span
-                            className={`badge ${e.sii_state === "EPR" || e.sii_state === "LOK" ? "ok" : "error"}`}
-                          >
-                            {e.sii_state}
-                          </span>
+                          <>
+                            {/* El color sale del CONTENIDO, no del estado del
+                                sobre: EPR dice que el sobre se pudo leer, y
+                                puede traer todos sus documentos rechazados. */}
+                            <span className={`badge ${colorEstado(e)}`}>{e.sii_state}</span>
+                            {(e.stats ?? []).length > 0 && (
+                              <div className="conteo">
+                                {(e.stats ?? []).reduce((n, s) => n + s.accepted, 0)} de{" "}
+                                {(e.stats ?? []).reduce((n, s) => n + s.informed, 0)} aceptados
+                                {(e.stats ?? []).map((s) => (
+                                  <div className="muted" key={s.doc_type}>
+                                    tipo {s.doc_type}: {s.accepted}/{s.informed}
+                                    {s.rejected ? ` · ${s.rejected} rechazados` : ""}
+                                    {s.flagged ? ` · ${s.flagged} con reparos` : ""}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <span className="muted">sin consultar</span>
                         )}

@@ -994,3 +994,11 @@ textarea.json {
   box-shadow: none;
   color: var(--text);
 }
+
+/* Desglose del SII bajo la insignia de estado. Pequeño pero legible: es el
+   dato que distingue un envío entregado de uno que sólo se pudo leer. */
+.conteo {
+  font-size: 0.78rem;
+  margin-top: 0.3rem;
+  line-height: 1.35;
+}

@@ -151,7 +151,23 @@ def query_status(customer: Customer, cert, track_id: str, timeout_s: int) -> dic
         res = client.query_status(track_id, customer.rut)
     finally:
         client.session.close()
-    return {"state": getattr(res, "status", None), "detail": getattr(res, "detail", None)}
+    # El desglose por tipo se guarda con el estado: sin él, un "EPR / Envío
+    # Procesado" con todos sus documentos rechazados dentro se lee como éxito.
+    stats = [
+        {
+            "doc_type": s.doc_type,
+            "informed": s.informed,
+            "accepted": s.accepted,
+            "rejected": s.rejected,
+            "flagged": s.flagged,
+        }
+        for s in getattr(res, "stats", []) or []
+    ]
+    return {
+        "state": getattr(res, "status", None),
+        "detail": getattr(res, "detail", None),
+        "stats": stats,
+    }
 
 
 def envelope(submission: CertificationSubmission) -> bytes:
@@ -167,6 +183,38 @@ def envelope(submission: CertificationSubmission) -> bytes:
 _ACEPTADOS = {"EPR", "LOK"}
 # Rechazos explícitos. El resto (vacío, DOK, SOK...) queda en "en curso".
 _RECHAZOS = {"RFR", "RCT", "RCH", "LRH", "LRS", "LRC", "LRF", "LNC", "RSC"}
+
+
+def doc_counts(envio) -> tuple[int, int, int, int]:
+    """(informados, aceptados, rechazados, con reparos) de un envío.
+
+    Todo ceros cuando no hay desglose: los libros no lo traen, y un envío que
+    aún no se ha consultado tampoco. En ese caso el estado del sobre es lo
+    único que hay, y se usa tal cual.
+    """
+    filas = getattr(envio, "sii_stats", None) or []
+    return (
+        sum(f.get("informed", 0) for f in filas),
+        sum(f.get("accepted", 0) for f in filas),
+        sum(f.get("rejected", 0) for f in filas),
+        sum(f.get("flagged", 0) for f in filas),
+    )
+
+
+def entregado(envio) -> bool:
+    """True si el envío puede darse por entregado ante el SII.
+
+    Un sobre procesado con todos sus documentos rechazados NO lo está, por
+    mucho que su estado sea EPR. Cuando no hay desglose se cree al estado: es
+    el caso de los libros, cuyo LOK sí es el veredicto entero.
+    """
+    if envio.sii_state not in _ACEPTADOS:
+        return False
+    informados, aceptados, _rechazados, _reparos = doc_counts(envio)
+    if not informados:
+        return True
+    return aceptados > 0
+
 
 _ETAPAS = (
     ("requisitos", "Requisitos"),
@@ -209,7 +257,6 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
     """
     envios = sorted(cert_set.submissions, key=lambda s: s.id)
     ultimo = envios[-1] if envios else None
-    estados = {e.sii_state for e in envios if e.sii_state}
 
     req_state, req_detail = _requisitos(db, customer)
     out = [{"key": "requisitos", "label": "Requisitos", "state": req_state, "detail": req_detail}]
@@ -272,14 +319,41 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
             }
         )
     elif ultimo.sii_state in _ACEPTADOS:
-        out.append(
-            {
-                "key": "estado",
-                "label": "Estado SII",
-                "state": "ok",
-                "detail": f"{ultimo.sii_state} · {ultimo.sii_detail or 'aceptado'}",
-            }
-        )
+        informados, aceptados, rechazados, reparos = doc_counts(ultimo)
+        if informados and not aceptados:
+            # El sobre se procesó y su contenido entero se cayó. Verde aquí
+            # sería exactamente la lectura que hizo perder una semana.
+            out.append(
+                {
+                    "key": "estado",
+                    "label": "Estado SII",
+                    "state": "error",
+                    "detail": f"{ultimo.sii_state} · ninguno de los {informados}"
+                    f" documentos fue aceptado ({rechazados} rechazados)",
+                }
+            )
+        elif rechazados or reparos:
+            out.append(
+                {
+                    "key": "estado",
+                    "label": "Estado SII",
+                    "state": "atencion",
+                    "detail": f"{ultimo.sii_state} · {aceptados} de {informados} aceptados"
+                    + (f" · {rechazados} rechazados" if rechazados else "")
+                    + (f" · {reparos} con reparos" if reparos else ""),
+                }
+            )
+        else:
+            detalle = ultimo.sii_detail or "aceptado"
+            out.append(
+                {
+                    "key": "estado",
+                    "label": "Estado SII",
+                    "state": "ok",
+                    "detail": f"{ultimo.sii_state} · {detalle}"
+                    + (f" · {aceptados} documentos aceptados" if aceptados else ""),
+                }
+            )
     elif ultimo.sii_state in _RECHAZOS:
         out.append(
             {
@@ -309,7 +383,8 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
             }
         )
     else:
-        listo = bool(estados & _ACEPTADOS)
+        # Declarar un set cuyo contenido el SII rechazó sería declarar en falso.
+        listo = any(entregado(e) for e in envios)
         out.append(
             {
                 "key": "declaracion",

@@ -166,6 +166,15 @@ export interface CertCause {
   ok: boolean;
 }
 
+/** Cuántos documentos de un tipo aceptó y rechazó el SII dentro del sobre. */
+export interface CertDocStats {
+  doc_type: number;
+  informed: number;
+  accepted: number;
+  rejected: number;
+  flagged: number;
+}
+
 export interface CertSubmission {
   id: number;
   set_id: number | null;
@@ -178,6 +187,8 @@ export interface CertSubmission {
   checked_at: string | null;
   documents: CertDocument[];
   cause: CertCause | null;
+  /** Desglose del SII. Vacío en libros y en envíos sin consultar. */
+  stats: CertDocStats[];
 }
 
 /** Una etapa con su semáforo. `state` es el color; `detail`, el porqué. */

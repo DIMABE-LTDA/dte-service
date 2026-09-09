@@ -29,6 +29,16 @@ class CauseOut(BaseModel):
     ok: bool = False
 
 
+class DocStatsOut(BaseModel):
+    """Cuántos documentos de un tipo aceptó y rechazó el SII."""
+
+    doc_type: int
+    informed: int = 0
+    accepted: int = 0
+    rejected: int = 0
+    flagged: int = 0
+
+
 class CertificationSubmissionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -43,6 +53,9 @@ class CertificationSubmissionOut(BaseModel):
     checked_at: dt.datetime | None
     documents: list[CertificationDocumentOut] = []
     cause: CauseOut | None = None
+    #: Desglose del SII por tipo de documento. Vacío en libros y en envíos que
+    #: aún no se han consultado.
+    stats: list[DocStatsOut] = []
 
 
 class StageOut(BaseModel):

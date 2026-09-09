@@ -383,6 +383,12 @@ class CertificationSubmission(Base):
     # volvía como RFR «error en firma» —que en ese caso era literalmente cierto—
     # mientras la guía decía que casi nunca es la firma.
     signed_thumbprint: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    # Desglose que devuelve el SII por tipo de documento: informados, aceptados,
+    # rechazados y con reparos. Se guarda porque es lo que de verdad dice cómo
+    # fue el envío — el estado del sobre puede ser "EPR / Envío Procesado" con
+    # sus 28 documentos rechazados dentro, y así se leyó como éxito durante una
+    # semana.
+    sii_stats: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
     # EnvioDTE | EnvioBOLETA | LibroCompraVenta | LibroGuia
     envelope_kind: Mapped[str] = mapped_column(String(30), default="")
     # El sobre EXACTO que se subió, Fernet-cifrado. Es la excepción deliberada a
