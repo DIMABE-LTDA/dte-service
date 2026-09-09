@@ -376,6 +376,13 @@ class CertificationSubmission(Base):
     # folios, que es como se perdieron seis de esta certificación.
     track_id: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
     sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    # Con qué certificado se FIRMÓ este sobre. El sobre guarda su firma dentro,
+    # así que cambiar el certificado del cliente después no la rehace: seguiría
+    # yendo al SII firmado por el anterior. Sin este dato no había forma de
+    # saberlo, y un sobre firmado con un certificado de prueba llegaba al SII y
+    # volvía como RFR «error en firma» —que en ese caso era literalmente cierto—
+    # mientras la guía decía que casi nunca es la firma.
+    signed_thumbprint: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
     # EnvioDTE | EnvioBOLETA | LibroCompraVenta | LibroGuia
     envelope_kind: Mapped[str] = mapped_column(String(30), default="")
     # El sobre EXACTO que se subió, Fernet-cifrado. Es la excepción deliberada a

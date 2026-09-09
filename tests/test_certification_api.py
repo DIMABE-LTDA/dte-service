@@ -960,3 +960,56 @@ def test_el_fallo_de_autenticacion_dice_que_revisar(client, db, monkeypatch):
     assert "Enviar Doctos" in guia
     # El permiso es por ambiente: omitirlo es justo lo que hizo perder el tiempo.
     assert "SEPARADOS" in guia
+
+
+def test_no_envia_un_sobre_firmado_con_otro_certificado(client, db, monkeypatch):
+    """Cambiar el certificado no rehace la firma del sobre ya emitido.
+
+    Enviarlo así gasta un TrackID y vuelve como RFR «error en firma» —cierto en
+    ese caso, y de los rechazos más caros de diagnosticar porque su causa
+    habitual es otra: un permiso que falta.
+    """
+    from app.db.models import CustomerCertificate
+
+    customer = make_customer(db, key="firma-cert")
+    _con_envio(db, customer, code="5038170")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=customer.id).one()
+    envio.track_id = None
+    envio.signed_thumbprint = "huella-del-certificado-viejo"
+    db.commit()
+    # El cliente tiene ahora otro certificado vigente.
+    db.query(CustomerCertificate).filter_by(customer_id=customer.id).update(
+        {"thumbprint": "huella-nueva"}
+    )
+    db.commit()
+
+    url = f"/admin/customers/{customer.id}/certification/submissions/{envio.id}/send"
+    r = client.post(url, headers=_op(client, db))
+    assert r.status_code == 409
+    assert "ya no es el vigente" in r.json()["detail"]
+    assert "Vuelve a emitir" in r.json()["detail"]
+
+
+def test_un_sobre_de_antes_no_se_bloquea(client, db, monkeypatch):
+    """Sin huella guardada no se afirma nada.
+
+    Los sobres anteriores a que se guardara no dicen con qué se firmaron;
+    bloquearlos por si acaso impediría un reenvío legítimo.
+    """
+    customer = make_customer(db, key="firma-vieja")
+    _con_envio(db, customer, code="5038170")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=customer.id).one()
+    envio.track_id = None
+    envio.signed_thumbprint = None
+    db.commit()
+
+    llamado = {}
+
+    def _envia(*a, **k):
+        llamado["si"] = True
+        return envio
+
+    monkeypatch.setattr(certification_service, "send_draft", _envia)
+    url = f"/admin/customers/{customer.id}/certification/submissions/{envio.id}/send"
+    assert client.post(url, headers=_op(client, db)).status_code == 200
+    assert llamado == {"si": True}

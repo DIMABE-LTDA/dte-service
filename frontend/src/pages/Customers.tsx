@@ -104,10 +104,12 @@ export default function Customers() {
         resolution_number?: number;
         resolution_date?: string;
       } = { name: form.name, rut: form.rut, environment: form.environment };
-      if (form.environment === "PRODUCTION" && form.resolution_number) {
+      // Sin filtrar por ambiente: en certificación el 0 es un valor legítimo
+      // —el que el SII espera—, no un campo sin rellenar.
+      if (form.resolution_number !== "") {
         payload.resolution_number = Number(form.resolution_number);
-        if (form.resolution_date) payload.resolution_date = form.resolution_date;
       }
+      if (form.resolution_date) payload.resolution_date = form.resolution_date;
       if (editing) {
         await api.updateCustomer(editing.id, payload);
       } else {
@@ -360,26 +362,31 @@ export default function Customers() {
                 <option value="PRODUCTION">Producción</option>
               </select>
             </div>
-            {form.environment === "PRODUCTION" && (
-              <>
-                <div className="field">
-                  <label>N° resolución</label>
-                  <input
-                    value={form.resolution_number}
-                    onChange={(e) => setForm({ ...form, resolution_number: e.target.value })}
-                    placeholder={editing ? "(dejar vacío = sin cambio)" : ""}
-                  />
-                </div>
-                <div className="field">
-                  <label>Fecha resolución</label>
-                  <input
-                    type="date"
-                    value={form.resolution_date}
-                    onChange={(e) => setForm({ ...form, resolution_date: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
+            {/* Siempre visibles. Ocultarlos en certificación los volvía
+                inencontrables —«no veo dónde configurar la resolución»— y el
+                dato existe en los dos ambientes: va en la carátula de todos los
+                DTE. Lo que cambia es qué valor corresponde. */}
+            <div className="field">
+              <label>N° resolución</label>
+              <input
+                value={form.resolution_number}
+                onChange={(e) => setForm({ ...form, resolution_number: e.target.value })}
+                placeholder={editing ? "(dejar vacío = sin cambio)" : "0"}
+              />
+            </div>
+            <div className="field">
+              <label>Fecha resolución</label>
+              <input
+                type="date"
+                value={form.resolution_date}
+                onChange={(e) => setForm({ ...form, resolution_date: e.target.value })}
+              />
+            </div>
+            <p className="muted" style={{ margin: 0, gridColumn: "1 / -1" }}>
+              {form.environment === "CERTIFICATION"
+                ? "En certificación el SII espera número 0 y fecha 2014-08-22."
+                : "La resolución que te asignó el SII al autorizarte a emitir. Va en la carátula de cada DTE."}
+            </p>
           </form>
         </Modal>
       )}

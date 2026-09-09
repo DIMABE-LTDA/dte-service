@@ -1,9 +1,9 @@
 import base64
 import datetime as dt
 
-from app.security.service_codes import SERVICE_RCV
+from app.security.service_codes import SERVICE_DTE, SERVICE_RCV
 from app.services import certificate_service, rcv_service
-from tests.conftest import auth_header, fake_caf_xml, make_customer, make_user
+from tests.conftest import auth_header, fake_caf_xml, grant, headers, make_customer, make_user
 from tests.test_auth_rcv import _FakeRcv
 
 ADMIN = {"X-Admin-Key": "test-admin-key-0123456789"}
@@ -393,3 +393,50 @@ def test_la_ficha_devuelve_la_resolucion(client):
     cliente = next(c for c in fila if c["id"] == cid)
     assert cliente["resolution_number"] == 0
     assert cliente["resolution_date"] == "2014-08-22"
+
+
+def test_el_cliente_maquina_ve_y_corrige_su_resolucion(client, db):
+    """El ERP necesita comprobar contra qué está emitiendo.
+
+    El número y la fecha de resolución van en la carátula de todos los DTE y
+    sólo se veían desde el portal: quien integra desde su ERP no tenía forma de
+    verificarlos ni de corregirlos sin pedírselo a otra persona.
+    """
+    customer = make_customer(db, key="me-cfg")
+    grant(db, customer, SERVICE_DTE)
+
+    r = client.get("/me", headers=headers(customer.key))
+    assert r.status_code == 200
+    assert r.json()["resolution_number"] == 0
+    assert r.json()["environment"] == "CERTIFICATION"
+
+    r = client.patch(
+        "/me",
+        json={"resolution_number": 80, "resolution_date": "2014-08-22"},
+        headers=headers(customer.key),
+    )
+    assert r.status_code == 200
+    assert r.json()["resolution_number"] == 80
+
+    # Corregir uno no borra el otro.
+    r = client.patch("/me", json={"resolution_number": 99}, headers=headers(customer.key))
+    assert r.json()["resolution_number"] == 99
+    assert r.json()["resolution_date"] == "2014-08-22"
+
+
+def test_el_cliente_maquina_no_puede_cambiarse_de_ambiente(client, db):
+    """El ambiente lo fija la credencial, no el cuerpo de la petición.
+
+    Poder cambiarlo con la propia apiKey anularía la separación entre ambientes:
+    una credencial de certificación pasaría a emitir contra Palena.
+    """
+    customer = make_customer(db, key="me-env")
+    grant(db, customer, SERVICE_DTE)
+
+    client.patch(
+        "/me",
+        json={"environment": "PRODUCTION", "resolution_number": 5},
+        headers=headers(customer.key),
+    )
+    db.refresh(customer)
+    assert customer.environment.value == "CERTIFICATION"

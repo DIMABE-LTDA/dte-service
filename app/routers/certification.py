@@ -604,6 +604,7 @@ def emit_set(
 def send_submission(
     customer_id: int,
     submission_id: int,
+    force: bool = False,
     actor: User | None = Depends(admin_access),
     db: Session = Depends(get_db),
 ) -> CertificationSubmissionOut:
@@ -611,6 +612,18 @@ def send_submission(
     customer = _customer(db, customer_id)
     row = _submission(db, customer, submission_id)
     cert = _cert(db, customer)
+    # La firma va DENTRO del sobre: cambiar el certificado del cliente no la
+    # rehace. Enviar un sobre firmado con el anterior gasta un TrackID para
+    # nada y vuelve como RFR «error en firma», que es de los rechazos más caros
+    # de diagnosticar porque su causa habitual es otra.
+    if not force and certification_service.stale_signature(db, customer, row):
+        raise HTTPException(
+            status_code=409,
+            detail="este sobre se firmó con un certificado que ya no es el vigente."
+            " La firma viaja dentro del XML, así que enviarlo ahora lo mandaría"
+            " firmado por el certificado anterior y el SII lo rechazaría con RFR."
+            " Vuelve a emitir el set para que se firme con el certificado actual.",
+        )
     envio = certification_service.send_draft(
         db, customer, cert, row, get_settings().request_timeout_s
     )

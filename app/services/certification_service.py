@@ -560,6 +560,7 @@ def emit(db, customer: Customer, cert, cert_set, *, force: bool = False) -> Cert
         sent_at=None,
         envelope_kind=kind,
         envelope_encrypted=crypto.encrypt(xml),
+        signed_thumbprint=_thumbprint(db, customer),
     )
     db.add(envio)
     db.flush()
@@ -568,6 +569,38 @@ def emit(db, customer: Customer, cert, cert_set, *, force: bool = False) -> Cert
     db.commit()
     db.refresh(envio)
     return envio
+
+
+def _thumbprint(db, customer: Customer) -> str | None:
+    """Huella del certificado con el que se está firmando ahora mismo."""
+    from app.db.models import CustomerCertificate
+
+    fila = (
+        db.query(CustomerCertificate)
+        .filter(
+            CustomerCertificate.customer_id == customer.id,
+            CustomerCertificate.due_date >= dt.date.today(),
+        )
+        .order_by(CustomerCertificate.created_at.desc())
+        .first()
+    )
+    return fila.thumbprint if fila else None
+
+
+def stale_signature(db, customer: Customer, envio: CertificationSubmission) -> bool:
+    """True si el sobre se firmó con un certificado que ya no es el vigente.
+
+    Enviarlo así gasta un TrackID para nada: la firma va dentro del XML y no se
+    rehace al cambiar el certificado. Es exactamente lo que pasó con el primer
+    envío real de esta certificación.
+
+    Si no se sabe con cuál se firmó —sobres anteriores a que se guardara— no se
+    afirma nada: un falso positivo aquí bloquearía un envío legítimo.
+    """
+    if envio.signed_thumbprint is None:
+        return False
+    actual = _thumbprint(db, customer)
+    return actual is not None and actual != envio.signed_thumbprint
 
 
 def send_draft(db, customer: Customer, cert, envio: CertificationSubmission, timeout_s: int):
