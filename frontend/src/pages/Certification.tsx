@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import Icon from "../components/Icon";
+import CertReadinessPanel from "../components/CertReadiness";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import type { CertPreview, CertSet, CertSubmission } from "../types";
@@ -99,6 +100,9 @@ export default function Certification() {
     return { dossier, notes };
   }, [cid]);
 
+  // La verificación va aparte del expediente: tarda más (firma un timbre de
+  // prueba por CAF) y no debe retrasar la carga de la página.
+  const verificacion = useApi(() => api.certChecks(cid), [cid]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [declarando, setDeclarando] = useState<CertSet | null>(null);
@@ -128,6 +132,7 @@ export default function Certification() {
       await fn();
       if (ok) toast.ok(ok);
       await reload();
+      void verificacion.reload();
       return true;
     } catch (err) {
       const e = err as ApiError;
@@ -180,6 +185,15 @@ export default function Certification() {
           queda guardado con su TrackID y su sobre.
         </p>
       </div>
+
+      <CertReadinessPanel
+        cid={cid}
+        data={verificacion.data}
+        loading={verificacion.loading}
+        error={verificacion.error}
+        reload={verificacion.reload}
+        writable={writable}
+      />
 
       <div className="card">
         <div className="card-head">
@@ -620,6 +634,15 @@ export default function Certification() {
                   </>
                 }
               >
+                {/* Donde se decide gastar folios es donde tiene que verse que la
+                    configuración no está lista, no sólo arriba en la página. */}
+                {verificacion.data && !verificacion.data.ready && (
+                  <div className="notice error">
+                    <strong>La verificación tiene {verificacion.data.errors} problema(s).</strong>{" "}
+                    Emitir ahora gastaría folios en documentos que el SII rechazaría. Resuélvelos en
+                    «Verificación antes de emitir», al principio del expediente.
+                  </div>
+                )}
                 {actionError && <p className="error">{actionError}</p>}
 
                 <div className="previa-cabecera">

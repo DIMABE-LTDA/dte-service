@@ -284,3 +284,28 @@ export interface CertContents {
   track_id: string | null;
   documents: Record<string, string | number | null>[];
 }
+
+/** Una comprobación de la verificación previa: qué pasa y qué hacer. */
+export interface CertCheck {
+  key: string;
+  label: string;
+  state: "ok" | "atencion" | "error";
+  detail: string;
+  fix: string;
+}
+
+export interface CertCheckGroup {
+  key: string;
+  label: string;
+  state: "ok" | "atencion" | "error";
+  checks: CertCheck[];
+}
+
+/** Si el cliente puede emitir sus sets, y si no, qué falta. */
+export interface CertReadiness {
+  ready: boolean;
+  errors: number;
+  warnings: number;
+  checked_at: string;
+  groups: CertCheckGroup[];
+}

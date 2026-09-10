@@ -271,3 +271,34 @@ class ImportRequest(BaseModel):
 
     # kind → {code, endpoint, payload}
     sets: dict[str, dict]
+
+
+class CheckOut(BaseModel):
+    """Una comprobación: qué pasa y qué hacer."""
+
+    key: str
+    label: str
+    state: Literal["ok", "atencion", "error"]
+    detail: str
+    fix: str = ""
+
+
+class CheckGroupOut(BaseModel):
+    key: str
+    label: str
+    state: Literal["ok", "atencion", "error"]
+    checks: list[CheckOut]
+
+
+class ReadinessOut(BaseModel):
+    """Si el cliente puede emitir los sets, y si no, qué falta.
+
+    `ready` es falso ante cualquier error. Los avisos no bloquean: dicen cosas
+    que conviene saber antes de gastar folios.
+    """
+
+    ready: bool
+    errors: int
+    warnings: int
+    checked_at: dt.datetime
+    groups: list[CheckGroupOut]

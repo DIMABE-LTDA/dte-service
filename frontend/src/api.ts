@@ -10,6 +10,7 @@ import type {
   RequestLog,
   ServiceGrantResult,
   ServiceInfo,
+  CertCheck,
   CertContents,
   CertDefinition,
   CertCustomer,
@@ -17,6 +18,7 @@ import type {
   CertEnvelope,
   CertNote,
   CertPreview,
+  CertReadiness,
   CertSet,
   CertSubmission,
   Token,
@@ -141,6 +143,9 @@ export const api = {
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
       method: "POST",
     }),
+  certChecks: (cid: number) => req<CertReadiness>(`/admin/customers/${cid}/certification/checks`),
+  certCheckSii: (cid: number) =>
+    req<CertCheck>(`/admin/customers/${cid}/certification/checks/sii`, { method: "POST" }),
   certPreview: (cid: number, setId: number) =>
     req<CertPreview>(`/admin/customers/${cid}/certification/sets/${setId}/preview`),
   certContents: (cid: number, sid: number) =>

@@ -39,6 +39,7 @@ from app.schemas.certification import (
     CertificationDossierOut,
     CertificationSetOut,
     CertificationSubmissionOut,
+    CheckOut,
     CloneRequest,
     ContentsOut,
     DeclareRequest,
@@ -51,6 +52,7 @@ from app.schemas.certification import (
     NoteRequest,
     PreviewOut,
     PrintSamplesOut,
+    ReadinessOut,
     SetupRequest,
     StepRequest,
 )
@@ -59,6 +61,7 @@ from app.services import (
     audit_service,
     certificate_service,
     certification_causes,
+    certification_checks,
     certification_preview,
     certification_service,
 )
@@ -219,6 +222,41 @@ def dossier(
         steps=certification_service.steps(db, customer, crudos),
         sets=salida,
         unassigned=[_envio(s) for s in sueltos],
+    )
+
+
+@router.get("/checks", response_model=ReadinessOut)
+def readiness(
+    customer_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> ReadinessOut:
+    """Verifica que el cliente esté listo para emitir sus sets.
+
+    Todo local: no gasta folios ni habla con el SII. Existe para que un
+    certificado autofirmado, un CAF sin firma del Servicio o un timbre inválido
+    se vean ANTES de enviar, y no como 32 documentos rechazados una semana
+    después.
+    """
+    customer = _customer(db, customer_id)
+    return ReadinessOut(**certification_checks.run(db, customer))
+
+
+@router.post("/checks/sii", response_model=CheckOut)
+def readiness_sii(
+    customer_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CheckOut:
+    """Pide un token a Maullín con el certificado del cliente.
+
+    Es la única comprobación que sale a la red, así que va aparte y la dispara
+    una persona.
+    """
+    customer = _customer(db, customer_id)
+    cert = _cert(db, customer)
+    return CheckOut(
+        **certification_checks.sii_auth(customer, cert, get_settings().request_timeout_s)
     )
 
 

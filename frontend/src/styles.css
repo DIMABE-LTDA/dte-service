@@ -1002,3 +1002,92 @@ textarea.json {
   margin-top: 0.3rem;
   line-height: 1.35;
 }
+
+/* ----------------------------------------------------------------- */
+/*  Verificación antes de emitir                                      */
+/* ----------------------------------------------------------------- */
+/* El borde dice el veredicto antes de leer nada: verde se puede emitir, rojo
+   emitir gastaría folios en documentos que el SII rechazaría. */
+.card.verificacion.lista {
+  border-left: 4px solid var(--ok);
+}
+.card.verificacion.bloqueada {
+  border-left: 4px solid var(--bad);
+}
+.verificacion-veredicto {
+  margin: 0 0 0.3rem;
+}
+.verificacion-sii {
+  margin: 0.4rem 0 0.8rem;
+}
+.notice.error {
+  border-color: var(--bad);
+  background: rgba(239, 68, 68, 0.08);
+  margin-bottom: 0.8rem;
+}
+
+details.grupo {
+  border-top: 1px solid var(--line);
+  padding: 0.55rem 0;
+}
+details.grupo summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  list-style: none;
+}
+details.grupo summary::-webkit-details-marker {
+  display: none;
+}
+/* El triángulo propio, porque el nativo no se alinea con el punto de estado. */
+details.grupo summary::after {
+  content: "▸";
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+details.grupo[open] summary::after {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  details.grupo summary::after {
+    transition: none;
+  }
+}
+.grupo-nombre {
+  font-weight: 600;
+}
+.etapa-punto.ok {
+  background: var(--ok);
+}
+.etapa-punto.atencion {
+  background: var(--warn);
+}
+.etapa-punto.error {
+  background: var(--bad);
+}
+
+ul.comprobaciones {
+  list-style: none;
+  margin: 0.5rem 0 0.2rem;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+ul.comprobaciones li {
+  display: grid;
+  grid-template-columns: 5.2rem minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  font-size: 0.9rem;
+}
+ul.comprobaciones .badge {
+  justify-self: start;
+  text-align: center;
+}
+.arreglo {
+  margin-top: 0.2rem;
+  color: var(--text);
+  font-size: 0.85rem;
+}
