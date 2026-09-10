@@ -1091,3 +1091,38 @@ ul.comprobaciones .badge {
   color: var(--text);
   font-size: 0.85rem;
 }
+
+/* Datos del emisor: pares etiqueta/valor en rejilla, que se leen de un vistazo. */
+dl.perfil {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6rem 1.2rem;
+  margin: 0.4rem 0 0;
+}
+dl.perfil dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+dl.perfil dd {
+  margin: 0.1rem 0 0;
+}
+.card.incompleta {
+  border-left: 4px solid var(--bad);
+}
+/* Formulario en dos columnas: ocho campos apilados no caben en un modal. */
+.form-grid.dos {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 640px) {
+  .form-grid.dos {
+    grid-template-columns: 1fr;
+  }
+}
+
+.notice.warn {
+  border-color: var(--warn);
+  background: rgba(245, 158, 11, 0.08);
+  margin-bottom: 0.8rem;
+}

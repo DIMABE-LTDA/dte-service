@@ -23,6 +23,18 @@ export interface TotpSetup {
   secret: string;
 }
 
+/** Datos del emisor: van en el encabezado de cada documento. */
+export interface IssuerProfile {
+  legal_name: string | null;
+  activity: string | null;
+  economic_activity: number | null;
+  address: string | null;
+  commune: string | null;
+  city: string | null;
+  branch_name: string | null;
+  branch_code: number | null;
+}
+
 export interface Customer {
   id: number;
   name: string;
@@ -32,6 +44,9 @@ export interface Customer {
   /** Resolución del SII que autoriza a emitir. Va en la carátula de cada DTE. */
   resolution_number: number;
   resolution_date: string;
+  issuer: IssuerProfile;
+  /** Lo que falta para poder emitir, en palabras. Vacío = completo. */
+  issuer_missing: string[];
   deleted_at?: string | null;
 }
 
@@ -271,6 +286,8 @@ export interface CertEnvelope {
 /** Qué se va a emitir, legible. `note` avisa de que la suma de líneas no es el
  *  total del documento: ese lo calcula el motor y se ve tras emitir. */
 export interface CertPreview {
+  /** Qué completó el sistema o qué falta para poder hacerlo. */
+  system_notes?: string[];
   kind: string;
   summary: string;
   detail: string;
@@ -308,4 +325,14 @@ export interface CertReadiness {
   warnings: number;
   checked_at: string;
   groups: CertCheckGroup[];
+}
+
+/** Un cliente real del contribuyente que recibe documentos del set de pruebas. */
+export interface CertReceiver {
+  rut: string;
+  business_name: string;
+  activity: string;
+  address: string;
+  commune: string;
+  city: string;
 }

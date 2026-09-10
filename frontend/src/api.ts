@@ -5,6 +5,7 @@ import type {
   CertificateInfo,
   Customer,
   GrantedService,
+  IssuerProfile,
   Me,
   RcvResponse,
   RequestLog,
@@ -18,6 +19,7 @@ import type {
   CertEnvelope,
   CertNote,
   CertPreview,
+  CertReceiver,
   CertReadiness,
   CertSet,
   CertSubmission,
@@ -143,6 +145,13 @@ export const api = {
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
       method: "POST",
     }),
+  certReceivers: (cid: number) =>
+    req<CertReceiver[]>(`/admin/customers/${cid}/certification/receivers`),
+  certSaveReceivers: (cid: number, receivers: CertReceiver[]) =>
+    req<CertReceiver[]>(`/admin/customers/${cid}/certification/receivers`, {
+      method: "PUT",
+      body: JSON.stringify({ receivers }),
+    }),
   certChecks: (cid: number) => req<CertReadiness>(`/admin/customers/${cid}/certification/checks`),
   certCheckSii: (cid: number) =>
     req<CertCheck>(`/admin/customers/${cid}/certification/checks/sii`, { method: "POST" }),
@@ -183,6 +192,7 @@ export const api = {
       environment?: string;
       resolution_number?: number;
       resolution_date?: string;
+      issuer?: IssuerProfile;
     },
   ) => req<Customer>(`/admin/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   services: () => req<ServiceInfo[]>("/admin/services"),

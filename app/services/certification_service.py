@@ -622,8 +622,32 @@ def emit(db, customer: Customer, cert, cert_set, *, force: bool = False) -> Cert
         raise EmissionError(f"endpoint desconocido: {definicion.endpoint}")
     schema, funcion, con_db = emisores[definicion.endpoint]
 
+    # Lo que depende del cliente o del día —emisor, fecha, referencia al caso,
+    # período y líneas de los libros— lo pone el sistema, no la definición.
+    from app.services import certification_fill
+
+    if definicion.endpoint in certification_fill.DOC_ENDPOINTS:
+        from app.services import customer_service
+
+        faltan = customer_service.issuer_missing(customer)
+        if faltan:
+            # Mejor detenerse aquí que dejar que el esquema falle con un
+            # error de validación ilegible: esto lo arregla una persona en la
+            # ficha del cliente, y hay que decirle qué.
+            raise EmissionError(
+                "faltan datos del emisor en la ficha del cliente: "
+                + ", ".join(faltan)
+                + ". Se usan en el encabezado de cada documento."
+            )
+    cuerpo, _notas = certification_fill.fill(
+        db, customer, cert_set, definicion.endpoint, definicion.payload
+    )
+    if definicion.endpoint in certification_fill.BOOK_ENDPOINTS and not cuerpo.get("lines"):
+        raise EmissionError(
+            "el libro no tiene líneas: " + ("; ".join(_notas) or "no hay documentos que declarar")
+        )
     # send=False siempre: en esta ruta emitir NO envía.
-    req = schema.model_validate({**definicion.payload, "send": False})
+    req = schema.model_validate({**cuerpo, "send": False})
     resultado = funcion(db, customer, cert, req) if con_db else funcion(customer, cert, req)
 
     xml = base64.b64decode(resultado["xml_base64"])

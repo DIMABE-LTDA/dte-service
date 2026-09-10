@@ -91,6 +91,10 @@ def _reference(ref: dict) -> str:
     ya existe fuera —el DUS, el conocimiento de embarque— y ahí lo que importa
     es su nombre y su folio, no una posición que no tiene.
     """
+    if str(ref.get("doc_type")) == "SET":
+        # La primera referencia de cada documento del set: lo asocia a su caso.
+        # Se muestra tal cual para poder cotejarla con el set que entregó el SII.
+        return f"Caso del set: {ref.get('reason', '')}"
     razon = f" — {ref['reason']}" if ref.get("reason") else ""
     destino = ref.get("batch_index")
     if destino:
@@ -217,11 +221,19 @@ def definition(endpoint: str, payload: dict) -> dict:
             "note": "",
         }
     documentos = payload.get("documents", [])
+    emisor = (documentos[0].get("issuer") or {}) if documentos else {}
+    fecha = documentos[0].get("issue_date", "") if documentos else ""
+    quien = (
+        f"Emite {emisor.get('business_name') or '— sin razón social —'} ({emisor.get('rut', '—')})"
+        f" con fecha {fecha}. "
+        if emisor
+        else ""
+    )
     if endpoint == "issue-settlement-batch":
         return {
             "kind": "documentos",
             "summary": f"{len(documentos)} liquidación(es) factura en un solo sobre",
-            "detail": "Las comisiones van dentro de <Liquidaciones>.",
+            "detail": quien + "Las comisiones van dentro de <Liquidaciones>.",
             "documents": [_settlement(d, i) for i, d in enumerate(documentos, start=1)],
             "note": "Los montos son la suma de las líneas liquidadas. El total del"
             " documento lo calcula el motor y se ve tras emitir.",
@@ -229,7 +241,7 @@ def definition(endpoint: str, payload: dict) -> dict:
     return {
         "kind": "documentos",
         "summary": f"{len(documentos)} documento(s) en un solo sobre",
-        "detail": "Las referencias apuntan a documentos del propio envío.",
+        "detail": quien + "Las referencias apuntan a documentos del propio envío.",
         "documents": [_document(d, i) for i, d in enumerate(documentos, start=1)],
         # Se dice explícitamente para que nadie lea la suma de líneas como el
         # total del documento.

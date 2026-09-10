@@ -123,6 +123,72 @@ def create_customer(db: Session, data, *, commit: bool = True) -> Customer:
     return customer
 
 
+#: Campo del perfil → columna del cliente.
+_ISSUER_COLUMNS = {
+    "legal_name": "issuer_legal_name",
+    "activity": "issuer_activity",
+    "economic_activity": "issuer_economic_activity",
+    "address": "issuer_address",
+    "commune": "issuer_commune",
+    "city": "issuer_city",
+    "branch_name": "issuer_branch_name",
+    "branch_code": "issuer_branch_code",
+}
+
+#: Sin estos el SII no acepta el encabezado del documento.
+ISSUER_REQUIRED = {
+    "legal_name": "razón social",
+    "activity": "giro",
+    "economic_activity": "código ACTECO",
+    "address": "dirección",
+    "commune": "comuna",
+}
+
+
+def issuer_profile(customer: Customer) -> dict:
+    """El perfil del emisor tal como está guardado."""
+    return {campo: getattr(customer, col) for campo, col in _ISSUER_COLUMNS.items()}
+
+
+def issuer_missing(customer: Customer) -> list[str]:
+    """Qué dato obligatorio falta, en palabras de quien lo va a completar."""
+    perfil = issuer_profile(customer)
+    return [nombre for campo, nombre in ISSUER_REQUIRED.items() if not perfil.get(campo)]
+
+
+def set_issuer(customer: Customer, data) -> None:
+    """Reemplaza el perfil entero. Un texto en blanco queda vacío, no como ""."""
+    valores = data.model_dump() if hasattr(data, "model_dump") else dict(data)
+    for campo, col in _ISSUER_COLUMNS.items():
+        valor = valores.get(campo)
+        if isinstance(valor, str):
+            valor = valor.strip() or None
+        setattr(customer, col, valor)
+
+
+def issuer_block(customer: Customer) -> dict:
+    """El bloque ``issuer`` de un documento, armado desde la ficha.
+
+    Es lo que usa la emisión en vez de lo que viniera escrito en la definición:
+    el emisor siempre es el cliente, y su RUT es el de la ficha.
+    """
+    perfil = issuer_profile(customer)
+    bloque = {
+        "rut": customer.rut,
+        "business_name": perfil["legal_name"],
+        "activity": perfil["activity"],
+        "economic_activity": perfil["economic_activity"],
+        "address": perfil["address"],
+        "commune": perfil["commune"],
+        "city": perfil["city"] or "",
+    }
+    if perfil["branch_name"]:
+        bloque["branch_name"] = perfil["branch_name"]
+    if perfil["branch_code"]:
+        bloque["branch_code"] = perfil["branch_code"]
+    return bloque
+
+
 def update_customer(db: Session, customer: Customer, data, *, commit: bool = True) -> Customer:
     """Edición parcial: solo aplica los campos enviados (no nulos)."""
     if data.name is not None:
@@ -135,6 +201,8 @@ def update_customer(db: Session, customer: Customer, data, *, commit: bool = Tru
         customer.resolution_number = data.resolution_number
     if data.resolution_date is not None:
         customer.resolution_date = data.resolution_date
+    if getattr(data, "issuer", None) is not None:
+        set_issuer(customer, data.issuer)
     db.flush()
     db.refresh(customer)
     if commit:

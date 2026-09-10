@@ -53,6 +53,8 @@ from app.schemas.certification import (
     PreviewOut,
     PrintSamplesOut,
     ReadinessOut,
+    ReceiverOut,
+    ReceiversRequest,
     SetupRequest,
     StepRequest,
 )
@@ -62,6 +64,7 @@ from app.services import (
     certificate_service,
     certification_causes,
     certification_checks,
+    certification_fill,
     certification_preview,
     certification_service,
 )
@@ -512,7 +515,9 @@ def save_definition(
         row = CertificationDefinition(set_id=cert_set.id)
         db.add(row)
     row.endpoint = data.endpoint
-    row.payload = data.payload
+    # Sólo los datos del caso: emisor, fechas, referencia al caso, período y
+    # líneas generadas los pone el sistema al emitir.
+    row.payload = certification_fill.strip(data.endpoint, cert_set.kind or "", data.payload)
     audit_service.record_change(
         db,
         actor.id if actor else None,
@@ -568,7 +573,9 @@ def clone_definition(
         row = CertificationDefinition(set_id=cert_set.id)
         db.add(row)
     row.endpoint = origen.endpoint
-    row.payload = origen.payload
+    # Del otro cliente se copian sólo los datos del caso: su emisor, sus fechas
+    # y su número de atención no tienen nada que hacer aquí.
+    row.payload = certification_fill.strip(row.endpoint, cert_set.kind or "", origen.payload)
     audit_service.record_change(
         db,
         actor.id if actor else None,
@@ -597,7 +604,52 @@ def get_definition(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="este set todavía no tiene definición")
-    return row
+    # Se muestra sólo lo que es del caso. Una definición guardada antes de que
+    # el sistema completara emisor y fechas todavía los trae, y enseñarlos haría
+    # creer que se usan: el sistema los reemplaza al emitir.
+    return DefinitionOut(
+        set_id=row.set_id,
+        endpoint=row.endpoint,
+        payload=certification_fill.strip(row.endpoint, cert_set.kind or "", row.payload),
+        updated_at=row.updated_at,
+    )
+
+
+@router.get("/receivers", response_model=list[ReceiverOut])
+def list_receivers(
+    customer_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> list[ReceiverOut]:
+    """Los clientes reales del contribuyente que reciben los documentos del set.
+
+    El instructivo del SII pide «un Rut receptor de un cliente existente» y «RUT
+    distintos para las distintas facturas».
+    """
+    customer = _customer(db, customer_id)
+    return [ReceiverOut(**r) for r in (customer.cert_receivers or [])]
+
+
+@router.put("/receivers", response_model=list[ReceiverOut])
+def save_receivers(
+    customer_id: int,
+    data: ReceiversRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> list[ReceiverOut]:
+    """Reemplaza la lista entera: es corta y así no hay estados intermedios."""
+    customer = _customer(db, customer_id)
+    customer.cert_receivers = [r.model_dump() for r in data.receivers]
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.receivers",
+        "customer",
+        str(customer.id),
+        f"{len(data.receivers)} receptor(es) de prueba",
+    )
+    db.commit()
+    return [ReceiverOut(**r) for r in customer.cert_receivers]
 
 
 @router.post("/sets/{set_id}/emit", response_model=CertificationSubmissionOut)
@@ -721,7 +773,14 @@ def preview(
     )
     if definicion is None:
         raise HTTPException(status_code=404, detail="este set todavía no tiene definición")
-    return PreviewOut(**certification_preview.definition(definicion.endpoint, definicion.payload))
+    # La previa se hace sobre lo que de verdad se va a emitir: la definición
+    # COMPLETADA por el sistema, no la guardada.
+    cuerpo, notas = certification_fill.fill(
+        db, customer, cert_set, definicion.endpoint, definicion.payload
+    )
+    salida = certification_preview.definition(definicion.endpoint, cuerpo)
+    salida["system_notes"] = notas
+    return PreviewOut(**salida)
 
 
 @router.get("/submissions/{submission_id}/contents", response_model=ContentsOut)
@@ -770,7 +829,7 @@ def import_definitions(
             row = CertificationDefinition(set_id=cert_set.id)
             db.add(row)
         row.endpoint = entrada["endpoint"]
-        row.payload = entrada["payload"]
+        row.payload = certification_fill.strip(entrada["endpoint"], kind, entrada["payload"])
         cargados += 1
     audit_service.record_change(
         db,

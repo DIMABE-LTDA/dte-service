@@ -51,6 +51,41 @@ class Customer(Base):
     # Soft delete: NULL = activo; con fecha = archivado (no autentica ni se lista).
     deleted_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
+    # Datos del EMISOR: van en el encabezado de cada documento. Se guardan aquí
+    # y no en cada definición de set porque son del contribuyente, no del caso:
+    # escritos a mano en cada set, clonar a otro cliente emitía como el
+    # anterior. `name` es la etiqueta del portal; la razón social es otra cosa
+    # y puede no coincidir. Largos: los que admite el SII en cada campo.
+    issuer_legal_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    issuer_activity: Mapped[str | None] = mapped_column(String(80), nullable=True)  # Giro
+    issuer_economic_activity: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Acteco
+    issuer_address: Mapped[str | None] = mapped_column(String(70), nullable=True)
+    issuer_commune: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    issuer_city: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    issuer_branch_name: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    issuer_branch_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Receptores para el set de pruebas: clientes reales del contribuyente. El
+    # instructivo del SII pide «un Rut receptor de un cliente existente» y «RUT
+    # distintos para las distintas facturas»; las definiciones traían el propio
+    # SII como receptor de todo. Lista de {rut, business_name, activity,
+    # address, commune, city}.
+    cert_receivers: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
+
+    # Propiedades para que el API devuelva el perfil ya armado. La regla —qué
+    # campos hay y cuáles son obligatorios— vive en customer_service; aquí sólo
+    # se delega, con import tardío para no crear un ciclo entre modelo y servicio.
+    @property
+    def issuer(self) -> dict:
+        from app.services.customer_service import issuer_profile
+
+        return issuer_profile(self)
+
+    @property
+    def issuer_missing(self) -> list[str]:
+        from app.services.customer_service import issuer_missing
+
+        return issuer_missing(self)
+
     certificates: Mapped[list[CustomerCertificate]] = relationship(
         back_populates="customer", cascade="all, delete-orphan"
     )

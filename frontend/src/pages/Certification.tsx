@@ -4,6 +4,7 @@ import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import Icon from "../components/Icon";
 import CertReadinessPanel from "../components/CertReadiness";
+import CertReceiversCard from "../components/CertReceiversCard";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import type { CertPreview, CertSet, CertSubmission } from "../types";
@@ -194,6 +195,8 @@ export default function Certification() {
         reload={verificacion.reload}
         writable={writable}
       />
+
+      <CertReceiversCard cid={cid} writable={writable} onSaved={() => void verificacion.reload()} />
 
       <div className="card">
         <div className="card-head">
@@ -636,6 +639,18 @@ export default function Certification() {
               >
                 {/* Donde se decide gastar folios es donde tiene que verse que la
                     configuración no está lista, no sólo arriba en la página. */}
+                {/* Lo que completó el sistema, o por qué no pudo: emisor sin
+                    configurar, receptores que se repiten, sets sin aceptar
+                    para armar un libro. */}
+                {(vista.datos.system_notes ?? []).length > 0 && (
+                  <div className="notice warn">
+                    <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                      {(vista.datos.system_notes ?? []).map((n) => (
+                        <li key={n}>{n}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {verificacion.data && !verificacion.data.ready && (
                   <div className="notice error">
                     <strong>La verificación tiene {verificacion.data.errors} problema(s).</strong>{" "}

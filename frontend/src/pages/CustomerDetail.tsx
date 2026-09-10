@@ -4,6 +4,7 @@ import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
+import IssuerProfileCard from "../components/IssuerProfileCard";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import { useToast } from "../toast";
@@ -270,7 +271,15 @@ export default function CustomerDetail() {
   // cruzarlas mentalmente.
   const certVigente = certs.find((c) => !c.expired);
   const cafLibres = cafs.filter((c) => !c.exhausted);
+  const faltanEmisor = customer.issuer_missing ?? [];
   const resumen = [
+    {
+      titulo: "Datos del emisor",
+      estado: faltanEmisor.length ? "error" : "ok",
+      detalle: faltanEmisor.length
+        ? `faltan: ${faltanEmisor.join(", ")}`
+        : (customer.issuer?.legal_name ?? ""),
+    },
     {
       titulo: "Certificado de firma",
       estado: certVigente ? "ok" : certs.length ? "error" : "pendiente",
@@ -381,6 +390,8 @@ export default function CustomerDetail() {
           </div>
         </div>
       )}
+
+      <IssuerProfileCard customer={customer} writable={writable} onSaved={reload} />
 
       {/* Certificados */}
       <div className="card">

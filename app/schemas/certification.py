@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CertificationDocumentOut(BaseModel):
@@ -240,6 +240,9 @@ class PreviewOut(BaseModel):
     detail: str
     note: str
     documents: list[dict]
+    #: Qué completó el sistema o qué falta para poder hacerlo: datos del emisor
+    #: sin configurar, sets todavía sin aceptar para armar un libro...
+    system_notes: list[str] = []
 
 
 class ContentsOut(BaseModel):
@@ -302,3 +305,25 @@ class ReadinessOut(BaseModel):
     warnings: int
     checked_at: dt.datetime
     groups: list[CheckGroupOut]
+
+
+class ReceiverOut(BaseModel):
+    """Un cliente real del contribuyente, para recibir documentos del set."""
+
+    rut: str
+    business_name: str = Field(max_length=100)
+    activity: str = Field(max_length=40)  # GiroRecep
+    address: str = Field(max_length=70)
+    commune: str = Field(max_length=20)
+    city: str = Field("", max_length=20)
+
+    @field_validator("rut")
+    @classmethod
+    def _rut(cls, v: str) -> str:
+        from app.schemas.validators import normalize_rut
+
+        return normalize_rut(v)
+
+
+class ReceiversRequest(BaseModel):
+    receivers: list[ReceiverOut] = Field(default_factory=list, max_length=50)

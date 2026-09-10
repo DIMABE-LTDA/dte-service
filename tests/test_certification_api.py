@@ -402,7 +402,7 @@ _DEFINICION = {
     "endpoint": "books",
     "payload": {
         "period": "2026-05",
-        "operation_type": "VENTA",
+        "operation_type": "COMPRA",
         "validate_xsd": False,
         "lines": [
             {
@@ -420,7 +420,11 @@ _DEFINICION = {
 }
 
 
-def _con_set(client, db, h, code="5038171", kind="libro_ventas"):
+def _con_set(client, db, h, code="5038172", kind="libro_compras"):
+    # Libro de compras y no de ventas: sus líneas son dato del caso —las entrega
+    # el SII en el set— y se guardan tal cual. Las del de ventas las genera el
+    # sistema con los documentos aceptados, y no sirven para probar el flujo
+    # guardar → emitir → enviar con un cuerpo conocido.
     client.post(f"{_base(_cid(db))}/setup", json={"codes": {kind: code}}, headers=h)
     return db.query(CertificationSet).filter_by(code=code).one()
 
@@ -432,7 +436,7 @@ def _cid(db):
 
 
 def test_guardar_y_leer_la_definicion_de_un_set(client, db):
-    """El cuerpo se guarda literal: lo que se revisa es lo que se envía."""
+    """Los datos del caso se guardan literales: lo que se revisa es lo que se envía."""
     c = make_customer(db)
     h = _op(client, db)
     cs = _con_set(client, db, h)
@@ -493,8 +497,8 @@ def test_clonar_la_definicion_de_otro_cliente(client, db):
     a = make_customer(db, key="a")
     b = make_customer(db, rut="77073851-2", key="b")
     h = _op(client, db)
-    client.post(f"{_base(a.id)}/setup", json={"codes": {"libro_ventas": "5038171"}}, headers=h)
-    client.post(f"{_base(b.id)}/setup", json={"codes": {"libro_ventas": "6000001"}}, headers=h)
+    client.post(f"{_base(a.id)}/setup", json={"codes": {"libro_compras": "5038172"}}, headers=h)
+    client.post(f"{_base(b.id)}/setup", json={"codes": {"libro_compras": "6000002"}}, headers=h)
     set_a = db.query(CertificationSet).filter_by(customer_id=a.id).one()
     set_b = db.query(CertificationSet).filter_by(customer_id=b.id).one()
     client.put(f"{_base(a.id)}/sets/{set_a.id}/definition", json=_DEFINICION, headers=h)
@@ -550,7 +554,7 @@ def test_un_sobre_sin_enviar_no_pinta_el_envio_en_verde(client, db, fake_book_en
     client.post(f"{_base(c.id)}/sets/{cs.id}/emit", headers=h)
 
     etapas = {
-        e["key"]: e for e in _set(client.get(_base(c.id), headers=h).json(), "5038171")["stages"]
+        e["key"]: e for e in _set(client.get(_base(c.id), headers=h).json(), "5038172")["stages"]
     }
     assert etapas["emision"]["state"] == "ok"
     assert etapas["envio"]["state"] == "atencion"
@@ -712,7 +716,10 @@ def test_la_vista_previa_se_entiende_sin_abrir_el_json(client, db):
     # 161 × 3071 = 494.431, y la línea exenta va aparte.
     assert doc["lines_affect"] == 494431
     assert doc["lines_exempt"] == 1000
-    assert "Corrige texto n.º 1 de este mismo envío" in doc["references"][0]
+    # La primera referencia asocia el documento a su caso del set, como pide el
+    # instructivo del SII; las del propio documento van desde la segunda.
+    assert doc["references"][0] == f"Caso del set: CASO {cs.code}-1"
+    assert "Corrige texto n.º 1 de este mismo envío" in doc["references"][1]
     # Y se dice que esa suma NO es el total del documento.
     assert "no" in v["note"].lower() or "total del documento" in v["note"]
 

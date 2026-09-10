@@ -79,31 +79,72 @@ def _emisor(customer: Customer) -> list[dict]:
             )
         )
 
-    fecha = customer.resolution_date
-    if customer.resolution_number != 0:
+    salida.append(_perfil_emisor(customer))
+
+    # «Indique el número y fecha que está publicado en los datos de su empresa
+    # en el ambiente de certificación.» No hay un valor universal: lo que se
+    # puede detectar es que siga el que pone el sistema por defecto.
+    fecha, numero = customer.resolution_date, customer.resolution_number
+    donde = (
+        "Cópialos de los datos de tu empresa en el ambiente de certificación (Maullín)"
+        " y guárdalos en la ficha del cliente o desde Odoo: van en la carátula de todos los envíos."
+    )
+    if fecha > dt.date.today():
+        salida.append(
+            _check(
+                "resolucion", "Resolución", "error", f"fecha {fecha:%d-%m-%Y} en el futuro", donde
+            )
+        )
+    elif fecha == _FECHA_POR_DEFECTO:
         salida.append(
             _check(
                 "resolucion",
                 "Resolución",
                 "atencion",
-                f"número {customer.resolution_number} del {fecha:%d-%m-%Y}",
-                "En certificación el SII espera el número 0. Corrígelo en la ficha del"
-                " cliente o desde Odoo, antes de emitir: va en la carátula de todos los DTE.",
+                f"número {numero} del {fecha:%d-%m-%Y}: es el valor por defecto del sistema,"
+                " no el de tu empresa",
+                donde,
             )
         )
-    elif fecha > dt.date.today():
+    else:
         salida.append(
             _check(
                 "resolucion",
                 "Resolución",
-                "error",
-                f"fecha {fecha:%d-%m-%Y} en el futuro",
-                "La fecha de resolución no puede ser posterior a hoy.",
+                "ok",
+                f"número {numero} del {fecha:%d-%m-%Y}"
+                " · debe coincidir con la publicada en Maullín",
             )
         )
-    else:
-        salida.append(_check("resolucion", "Resolución", "ok", f"número 0 del {fecha:%d-%m-%Y}"))
     return salida
+
+
+#: Lo que el esquema pone si nadie dice otra cosa. Es de un ejemplo, no de
+#: ningún contribuyente: que siga ahí es señal de que nadie lo configuró.
+_FECHA_POR_DEFECTO = dt.date(2014, 8, 22)
+
+
+def _perfil_emisor(customer: Customer) -> dict:
+    """Los datos del emisor que el sistema pone en cada documento."""
+    from app.services import customer_service
+
+    faltan = customer_service.issuer_missing(customer)
+    if faltan:
+        return _check(
+            "emisor",
+            "Datos del emisor",
+            "error",
+            "faltan: " + ", ".join(faltan),
+            "Complétalos en la ficha del cliente («Datos del emisor») o desde Odoo."
+            " Van en el encabezado de cada documento.",
+        )
+    p = customer_service.issuer_profile(customer)
+    return _check(
+        "emisor",
+        "Datos del emisor",
+        "ok",
+        f"{p['legal_name']} · ACTECO {p['economic_activity']} · {p['address']}, {p['commune']}",
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -443,11 +484,15 @@ def _cargar(db, customer: Customer) -> tuple[dict, dict]:
     return sets, definiciones
 
 
-def _definiciones(
-    db, customer: Customer, sets: dict, definiciones: dict, validos: dict
-) -> list[dict]:
-    hoy = dt.date.today()
-    aceptados = None
+def _definiciones(db, customer: Customer, sets: dict, definiciones: dict) -> list[dict]:
+    """Que cada set esté definido y que lo que el sistema completa se pueda completar.
+
+    Ya no se revisa el emisor ni la fecha de cada definición: los pone el
+    sistema al emitir y lo que traiga la definición se ignora. Lo que sí puede
+    faltar es lo que el sistema necesita para completarlos.
+    """
+    from app.services import certification_fill
+
     salida = []
     for tipo_set in SET_TYPES:
         kind, etiqueta = tipo_set.kind, tipo_set.label
@@ -476,67 +521,92 @@ def _definiciones(
             )
             continue
 
-        problemas, avisos = [], []
+        if kind in certification_fill.GENERATED_BOOKS:
+            # Sus líneas salen de los documentos aceptados: sin ellos, no hay libro.
+            lineas, avisos = certification_fill.book_lines(db, customer, kind)
+            if lineas:
+                salida.append(
+                    _check(
+                        f"def_{kind}",
+                        etiqueta,
+                        "atencion" if avisos else "ok",
+                        f"set {s.code} · {len(lineas)} línea(s) de documentos aceptados"
+                        + (f" · {avisos[0]}" if avisos else ""),
+                    )
+                )
+            else:
+                salida.append(
+                    _check(
+                        f"def_{kind}",
+                        etiqueta,
+                        "atencion",
+                        f"set {s.code} · se arma con los documentos aceptados de sus sets;"
+                        " todavía no hay ninguno",
+                        "Envía primero los sets de documentos. El libro se completa solo.",
+                    )
+                )
+            continue
+
         docs = (d.payload or {}).get("documents", [])
-        emisores = {(doc.get("issuer") or {}).get("rut") for doc in docs} - {None}
-        ajenos = emisores - {customer.rut}
-        if ajenos:
-            # El caso que aparece al clonar: la definición trae el emisor del
-            # contribuyente del que se copió.
-            problemas.append(f"emite como {', '.join(sorted(ajenos))}, no como {customer.rut}")
-        for doc in docs:
-            try:
-                fe = dt.date.fromisoformat(doc.get("issue_date") or "")
-            except ValueError:
-                continue
-            tipo = doc.get("type") or (43 if d.endpoint == "issue-settlement-batch" else None)
-            if fe > hoy:
-                problemas.append(f"fecha de emisión {fe:%d-%m-%Y} en el futuro")
-                break
-            if tipo and int(tipo) in validos and fe < validos[int(tipo)][1]:
-                problemas.append(
-                    f"fecha {fe:%d-%m-%Y} anterior al CAF del tipo {tipo}"
-                    f" ({validos[int(tipo)][1]:%d-%m-%Y}): el SII la rechaza"
-                )
-                break
-
-        if kind in ("libro_ventas", "libro_guias"):
-            lineas = (d.payload or {}).get("lines", [])
-            declarados = {
-                (int(line.get("doc_type") or 52), int(line["folio"]))
-                for line in lineas
-                if line.get("folio") is not None
-            }
-            if aceptados is None:
-                aceptados = _documentos_aceptados(db, customer)
-            sueltos = declarados - aceptados
-            if declarados and sueltos == declarados:
-                avisos.append(
-                    "declara folios que no están en ningún envío aceptado; rehazlo cuando"
-                    " los documentos del set estén aceptados"
-                )
-            elif sueltos:
-                avisos.append(f"{len(sueltos)} de {len(declarados)} folios sin envío aceptado")
-
         n = len(docs) or len((d.payload or {}).get("lines", []))
-        base = f"set {s.code} · {n} {'línea(s)' if kind in _LIBROS else 'documento(s)'}"
-        if problemas:
-            salida.append(
-                _check(
-                    f"def_{kind}",
-                    etiqueta,
-                    "error",
-                    f"{base} · " + "; ".join(problemas),
-                    "Corrígelo con «Editar definición» antes de emitir.",
-                )
+        unidad = "línea(s)" if kind in _LIBROS else "documento(s)"
+        salida.append(
+            _check(
+                f"def_{kind}",
+                etiqueta,
+                "ok",
+                f"set {s.code} · {n} {unidad}"
+                + (f" · casos {s.code}-1 a {s.code}-{len(docs)}" if docs else ""),
             )
-        elif avisos:
-            salida.append(
-                _check(f"def_{kind}", etiqueta, "atencion", f"{base} · " + "; ".join(avisos))
-            )
-        else:
-            salida.append(_check(f"def_{kind}", etiqueta, "ok", base))
+        )
     return salida
+
+
+def _receptores(customer: Customer, definiciones: dict) -> dict:
+    """Clientes reales para las facturas del set, distintos entre sí.
+
+    El instructivo del SII: «Agregue un Rut receptor de un cliente existente.
+    Utilice RUT distintos para las distintas facturas». Hacen falta tantos como
+    facturas y guías de venta tenga el set que más traiga.
+    """
+    from app.services.certification_fill import _OWN_CUSTOMER_DOCS, SII_RUT
+
+    maximo = 0
+    for d in definiciones.values():
+        n = sum(
+            1
+            for doc in (d.payload or {}).get("documents", [])
+            if doc.get("type") in _OWN_CUSTOMER_DOCS
+            and doc.get("transfer_type") != 5
+            and (doc.get("receiver") or {}).get("rut") in (SII_RUT, None)
+        )
+        maximo = max(maximo, n)
+    lista = [r for r in (customer.cert_receivers or []) if r.get("rut")]
+    donde = "Agrégalos en «Receptores de prueba», en el expediente."
+    if not maximo:
+        return _check("receptores", "Receptores de prueba", "ok", "ningún set los necesita")
+    if not lista:
+        return _check(
+            "receptores",
+            "Receptores de prueba",
+            "atencion",
+            f"sin configurar: las facturas irían al RUT del propio SII. Hacen falta {maximo}",
+            "El instructivo pide RUT de clientes existentes y distintos por factura. " + donde,
+        )
+    if len(lista) < maximo:
+        return _check(
+            "receptores",
+            "Receptores de prueba",
+            "atencion",
+            f"{len(lista)} de {maximo}: algunos se repetirían en un mismo set",
+            "El instructivo pide un RUT distinto por factura. " + donde,
+        )
+    return _check(
+        "receptores",
+        "Receptores de prueba",
+        "ok",
+        f"{len(lista)} cliente(s): " + ", ".join(r["rut"] for r in lista[:5]),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -745,7 +815,7 @@ def run(db, customer: Customer) -> dict:
     cafs, validos = _caf(db, customer, _necesarios(definiciones))
     grupos.append({"key": "caf", "label": "CAF y folios", "checks": cafs})
 
-    defs = _definiciones(db, customer, sets, definiciones, validos)
+    defs = [_receptores(customer, definiciones)] + _definiciones(db, customer, sets, definiciones)
     grupos.append({"key": "definiciones", "label": "Qué emite cada set", "checks": defs})
 
     prueba = _timbres(customer, validos) + _firma_documento(customer, cert, validos)

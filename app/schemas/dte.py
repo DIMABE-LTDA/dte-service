@@ -94,7 +94,11 @@ class RetentionIn(BaseModel):
 
 
 class ReferenceIn(BaseModel):
-    doc_type: int
+    # Código numérico del documento (33, 61, 801...) o el literal "SET": el
+    # instructivo del SII exige que la PRIMERA referencia de cada documento del
+    # set de pruebas sea TpoDocRef=SET con RazonRef "CASO {atención}-{n}". Sin
+    # ella el documento no queda asociado a ningún caso del set.
+    doc_type: int | Literal["SET"]
     folio: str
     date: dt.date
     code: int | None = None
@@ -152,7 +156,7 @@ class BatchReferenceIn(ReferenceIn):
 
     batch_index: int | None = Field(None, ge=1)
     # Al usar batch_index estos tres se derivan del documento apuntado.
-    doc_type: int | None = None  # type: ignore[assignment]
+    doc_type: int | Literal["SET"] | None = None  # type: ignore[assignment]
     folio: str | None = None  # type: ignore[assignment]
     date: dt.date | None = None  # type: ignore[assignment]
 

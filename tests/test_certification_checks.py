@@ -10,7 +10,6 @@ import datetime as dt
 import os
 from types import SimpleNamespace
 
-import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -211,29 +210,6 @@ def test_avisa_cuando_los_folios_no_alcanzan(db):
 # --------------------------------------------------------------------------- #
 
 
-def test_detecta_una_definicion_clonada_con_el_emisor_de_otro(db):
-    """Clonar de un cliente ya certificado trae su emisor: emitiría como él."""
-    customer = make_customer(db)
-    doc = {"type": 33, "issuer": {"rut": "77262159-0"}, "issue_date": "2026-02-01"}
-    _definir(db, customer, "basico", "5038170", {"documents": [doc]})
-
-    c = _check(certification_checks.run(db, customer), "def_basico")
-    assert c["state"] == "error"
-    assert "emite como 77262159-0" in c["detail"]
-
-
-def test_detecta_una_fecha_anterior_al_caf(db):
-    """El SII rechaza un documento fechado antes de la autorización de su CAF."""
-    customer = make_customer(db)
-    _cargar_caf(db, customer, _caf_real(33, fa="2026-03-01"), 33)
-    doc = {"type": 33, "issuer": {"rut": RUT}, "issue_date": "2026-02-01"}
-    _definir(db, customer, "basico", "5038170", {"documents": [doc]})
-
-    c = _check(certification_checks.run(db, customer), "def_basico")
-    assert c["state"] == "error"
-    assert "anterior al CAF" in c["detail"]
-
-
 def test_un_set_sin_definir_se_dice_y_no_se_esconde(db):
     customer = make_customer(db)
     c = _check(certification_checks.run(db, customer), "def_liquidacion")
@@ -340,15 +316,6 @@ def test_en_produccion_no_hay_verificacion_de_certificacion(client, db):
     assert r.status_code == 400
 
 
-@pytest.mark.parametrize("numero", [0, 80])
-def test_la_resolucion_en_certificacion_espera_cero(db, numero):
-    customer = make_customer(db)
-    customer.resolution_number = numero
-    db.commit()
-    c = _check(certification_checks.run(db, customer), "resolucion")
-    assert c["state"] == ("ok" if numero == 0 else "atencion")
-
-
 def test_habria_detectado_el_timbre_que_causo_los_32_rechazos(db, monkeypatch):
     """El fallo real: el motor incrustaba el CAF con sus saltos de línea y
     firmaba el DD con ellos. La firma validaba —el motor firmaba lo que
@@ -369,3 +336,81 @@ def test_habria_detectado_el_timbre_que_causo_los_32_rechazos(db, monkeypatch):
     c = _check(certification_checks.run(db, customer), "timbre")
     assert c["state"] == "error"
     assert "espacios entre etiquetas" in c["detail"]
+
+
+# --------------------------------------------------------------------------- #
+#  Lo que el sistema necesita para completar cada set
+# --------------------------------------------------------------------------- #
+
+
+def test_sin_datos_del_emisor_no_se_puede_emitir(db):
+    """El emisor ya no sale de la definición: si la ficha no lo tiene, falta."""
+    customer = make_customer(db)
+    c = _check(certification_checks.run(db, customer), "emisor")
+    assert c["state"] == "error"
+    assert "razón social" in c["detail"]
+
+
+def test_con_los_datos_del_emisor_completos_pasa(db):
+    from app.services import customer_service
+
+    customer = make_customer(db)
+    customer_service.set_issuer(
+        customer,
+        {
+            "legal_name": "EMPRESA SPA",
+            "activity": "GIRO",
+            "economic_activity": 439000,
+            "address": "CALLE 1",
+            "commune": "RANCAGUA",
+        },
+    )
+    db.commit()
+    c = _check(certification_checks.run(db, customer), "emisor")
+    assert c["state"] == "ok"
+    assert "EMPRESA SPA" in c["detail"]
+
+
+def test_la_resolucion_por_defecto_se_senala(db):
+    """«Indique el número y fecha que está publicado en los datos de su empresa
+    en el ambiente de certificación»: la del sistema no es la de nadie."""
+    customer = make_customer(db)
+    c = _check(certification_checks.run(db, customer), "resolucion")
+    assert c["state"] == "atencion"
+    assert "valor por defecto" in c["detail"]
+
+    customer.resolution_date = dt.date(2026, 8, 26)
+    customer.resolution_number = 0
+    db.commit()
+    c = _check(certification_checks.run(db, customer), "resolucion")
+    assert c["state"] == "ok"
+    assert "Maullín" in c["detail"]
+
+
+def test_sin_receptores_de_prueba_se_avisa(db):
+    """«Utilice RUT distintos para las distintas facturas.»"""
+    customer = make_customer(db)
+    sii = {"rut": "60803000-K", "business_name": "SII"}
+    _definir(
+        db,
+        customer,
+        "basico",
+        "5038170",
+        {"documents": [{"type": 33, "receiver": sii} for _ in range(4)]},
+    )
+    c = _check(certification_checks.run(db, customer), "receptores")
+    assert c["state"] == "atencion"
+    assert "Hacen falta 4" in c["detail"]
+
+    customer.cert_receivers = [{"rut": "76086428-5"}, {"rut": "96790240-3"}]
+    db.commit()
+    c = _check(certification_checks.run(db, customer), "receptores")
+    assert "2 de 4" in c["detail"]
+
+
+def test_el_libro_de_ventas_espera_documentos_aceptados(db):
+    customer = make_customer(db)
+    _definir(db, customer, "libro_ventas", "5038171", {}, endpoint="books")
+    c = _check(certification_checks.run(db, customer), "def_libro_ventas")
+    assert c["state"] == "atencion"
+    assert "documentos aceptados" in c["detail"]
