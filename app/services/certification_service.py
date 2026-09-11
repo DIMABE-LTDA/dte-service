@@ -256,7 +256,6 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
     aceptado no es declarado.
     """
     envios = sorted(cert_set.submissions, key=lambda s: s.id)
-    ultimo = envios[-1] if envios else None
 
     req_state, req_detail = _requisitos(db, customer)
     out = [{"key": "requisitos", "label": "Requisitos", "state": req_state, "detail": req_detail}]
@@ -266,6 +265,7 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
             {"key": k, "label": lbl, "state": "pendiente", "detail": ""} for k, lbl in _ETAPAS[1:]
         ]
         return out
+    ultimo = envios[-1]
 
     docs = sum(len(e.documents) for e in envios[-1:])
     out.append(
@@ -432,7 +432,7 @@ def expected_sets(db, customer: Customer) -> list[dict]:
     # vuelo desde la cabecera) se muestra igual, al final: perderlo sería peor.
     sueltos = [s for k, s in existentes.items() if k not in BY_KIND]
 
-    salida = []
+    salida: list[dict] = []
     for tipo in SET_TYPES:
         cert_set = existentes.get(tipo.kind)
         if cert_set is None:

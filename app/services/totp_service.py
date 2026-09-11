@@ -22,6 +22,7 @@ import time
 
 import pyotp
 from sqlalchemy import or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.core import crypto
@@ -84,7 +85,9 @@ def verify_code(db: Session, user: User, code: str, *, commit: bool = True) -> b
         # nosotros quienes comparamos.
         if not hmac.compare_digest(totp.at(paso * _STEP), presentado):
             continue
-        gastado = db.execute(
+        # CursorResult y no Result: es un UPDATE, y lo que importa es cuántas
+        # filas tocó (0 = el paso ya se había consumido).
+        gastado: CursorResult = db.execute(  # type: ignore[assignment]
             update(User)
             .where(
                 User.id == user.id,

@@ -4,7 +4,11 @@ Se ejecuta el script real con ``post`` interceptado: el cuerpo lo construye el
 mismo código que el SII ya aceptó, así que no hay transcripción a mano y por
 tanto no hay dígitos mal copiados.
 """
-import json, pathlib, runpy, sys
+
+import json
+import pathlib
+import runpy
+import sys
 
 ORIGEN = pathlib.Path(sys.argv[1])
 DESTINO = pathlib.Path(sys.argv[2])

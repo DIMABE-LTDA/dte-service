@@ -98,7 +98,7 @@ def _reference(ref: dict) -> str:
     razon = f" — {ref['reason']}" if ref.get("reason") else ""
     destino = ref.get("batch_index")
     if destino:
-        codigo = REF_CODES.get(ref.get("code"), "Referencia")
+        codigo = _ref_code(ref)
         return f"{codigo} n.º {destino} de este mismo envío{razon}"
     tipo = ref.get("doc_type")
     if tipo is not None:
@@ -106,7 +106,13 @@ def _reference(ref: dict) -> str:
         folio = f" n.º {ref['folio']}" if ref.get("folio") else ""
         fecha = f" del {ref['date']}" if ref.get("date") else ""
         return f"{nombre}{folio}{fecha}{razon}"
-    return (REF_CODES.get(ref.get("code"), "Referencia") + razon).strip()
+    return (_ref_code(ref) + razon).strip()
+
+
+def _ref_code(ref: dict) -> str:
+    """Nombre del código de referencia (anula, corrige texto, corrige montos)."""
+    codigo = ref.get("code")
+    return REF_CODES.get(int(codigo), "Referencia") if codigo is not None else "Referencia"
 
 
 def _settlement(doc: dict, position: int) -> dict:

@@ -1083,3 +1083,19 @@ def test_aceptados_parciales_avisan_sin_gritar(client, db):
     etapa = next(e for e in cert_set["stages"] if e["key"] == "estado")
     assert etapa["state"] == "atencion"
     assert "3 de 4 aceptados" in etapa["detail"]
+
+
+def test_consultar_un_sobre_sin_enviar_dice_que_no_hay_trackid(client, db):
+    """Un borrador no tiene TrackID: preguntarle al SII no tiene sentido."""
+    customer = make_customer(db, key="sin-track")
+    _con_envio(db, customer, code="5038170")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=customer.id).one()
+    envio.track_id = None
+    db.commit()
+
+    r = client.post(
+        f"/admin/customers/{customer.id}/certification/submissions/{envio.id}/refresh",
+        headers=_op(client, db),
+    )
+    assert r.status_code == 409
+    assert "no tiene TrackID" in r.json()["detail"]

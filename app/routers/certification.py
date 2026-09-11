@@ -277,6 +277,13 @@ def refresh_status(
     """
     customer = _customer(db, customer_id)
     row = _submission(db, customer, submission_id)
+    if not row.track_id:
+        # Un sobre emitido y sin enviar no tiene TrackID: no hay nada que
+        # preguntarle al SII todavía.
+        raise HTTPException(
+            status_code=409,
+            detail="este sobre todavía no se envió: no tiene TrackID que consultar",
+        )
     cert = _cert(db, customer)
     estado = certification_service.query_status(
         customer, cert, row.track_id, get_settings().request_timeout_s
@@ -594,7 +601,7 @@ def get_definition(
     set_id: int,
     actor: User | None = Depends(admin_read_access),
     db: Session = Depends(get_db),
-) -> CertificationDefinition:
+) -> DefinitionOut:
     customer = _customer(db, customer_id)
     cert_set = _set(db, customer, set_id)
     row = (

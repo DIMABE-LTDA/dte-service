@@ -256,6 +256,14 @@ def _texto(nodo, nombre: str) -> str | None:
     return h.text.strip() if h is not None and h.text else None
 
 
+def _requerido(nodo, nombre: str) -> str:
+    """Un dato sin el cual el documento no es un documento: tipo, folio."""
+    valor = _texto(nodo, nombre)
+    if not valor:
+        raise ValueError(f"el documento no trae {nombre}")
+    return valor
+
+
 def _entero(valor: str | None) -> int:
     if not valor:
         return 0
@@ -278,10 +286,10 @@ def _sales_line(doc) -> dict:
     equivalente en pesos (OtraMoneda en PESO CL), se usa ese.
     """
     iddoc, receptor, totales = _hijo(doc, "IdDoc"), _hijo(doc, "Receptor"), _hijo(doc, "Totales")
-    tipo = int(_texto(iddoc, "TipoDTE"))
+    tipo = int(_requerido(iddoc, "TipoDTE"))
     linea = {
         "doc_type": tipo,
-        "folio": int(_texto(iddoc, "Folio")),
+        "folio": int(_requerido(iddoc, "Folio")),
         "date": _texto(iddoc, "FchEmis"),
         "rut": _texto(receptor, "RUTRecep") or "",
         "business_name": (_texto(receptor, "RznSocRecep") or "")[:50],
@@ -322,7 +330,7 @@ def _guide_line(doc) -> dict:
     """Una línea del Libro de Guías con los datos de la guía."""
     iddoc, receptor, totales = _hijo(doc, "IdDoc"), _hijo(doc, "Receptor"), _hijo(doc, "Totales")
     linea = {
-        "folio": int(_texto(iddoc, "Folio")),
+        "folio": int(_requerido(iddoc, "Folio")),
         "date": _texto(iddoc, "FchEmis"),
         "receiver_rut": _texto(receptor, "RUTRecep") or "",
         "receiver_name": (_texto(receptor, "RznSocRecep") or "")[:50],

@@ -192,6 +192,17 @@ def _certificado(db, customer: Customer) -> tuple[list[dict], object | None]:
             )
         ], None
 
+    if cert is None:
+        return [
+            _check(
+                "certificado",
+                "Certificado de firma",
+                "error",
+                "no se pudo resolver el certificado vigente",
+                "Vuelve a subir el .pfx en la ficha del cliente.",
+            )
+        ], None
+
     quien = f"{fila.holder or 'titular desconocido'} · RUT {fila.rut or '—'}"
     salida = []
     autofirmado = None
@@ -433,15 +444,18 @@ def _caf(db, customer: Customer, necesarios: Counter) -> tuple[list[dict], dict]
 def _par_de_claves_coincide(caf) -> bool:
     """La clave privada del CAF (RSASK) corresponde a su clave pública (RSAPK)."""
     from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
 
     try:
         privada = serialization.load_pem_private_key(
             caf.rsa_private_key_pem.encode("latin-1"), password=None
         )
-        m = int.from_bytes(base64.b64decode(_txt(caf.caf_element, "M")), "big")
-        e = int.from_bytes(base64.b64decode(_txt(caf.caf_element, "E")), "big")
+        m = int.from_bytes(base64.b64decode(_txt(caf.caf_element, "M") or ""), "big")
+        e = int.from_bytes(base64.b64decode(_txt(caf.caf_element, "E") or ""), "big")
     except Exception:  # noqa: BLE001
         return False
+    if not isinstance(privada, rsa.RSAPrivateKey):
+        return False  # el SII firma los CAF con RSA: otra clave no es de un CAF
     numeros = privada.public_key().public_numbers()
     return numeros.n == m and numeros.e == e
 
@@ -645,8 +659,8 @@ def _timbres(customer: Customer, validos: dict) -> list[dict]:
             ted = build_ted(doc, caf, dt.datetime.now().replace(microsecond=0))
             datos = dd_bytes(ted.find("DD"))
             nodo = caf.caf_element
-            m = int.from_bytes(base64.b64decode(_txt(nodo, "M")), "big")
-            e = int.from_bytes(base64.b64decode(_txt(nodo, "E")), "big")
+            m = int.from_bytes(base64.b64decode(_txt(nodo, "M") or ""), "big")
+            e = int.from_bytes(base64.b64decode(_txt(nodo, "E") or ""), "big")
             publica = rsa.RSAPublicNumbers(e, m).public_key()
             publica.verify(
                 base64.b64decode(ted.find("FRMT").text),
@@ -770,7 +784,8 @@ def _firma_documento(customer: Customer, cert, validos: dict) -> list[dict]:
         der = base64.b64decode(s.find(f".//{{{ds}}}X509Certificate").text)
         pem = x509.load_der_x509_certificate(der).public_bytes(Encoding.PEM)
         ctx = xmlsec.SignatureContext()
-        ctx.key = xmlsec.Key.from_memory(pem, xmlsec.KeyFormat.CERT_PEM, None)
+        # KeyFormat existe en tiempo de ejecución; los stubs de xmlsec no lo declaran.
+        ctx.key = xmlsec.Key.from_memory(pem, xmlsec.KeyFormat.CERT_PEM, None)  # type: ignore[attr-defined]
         try:
             ctx.verify(s)
             validas += 1
@@ -803,7 +818,7 @@ def _firma_documento(customer: Customer, cert, validos: dict) -> list[dict]:
 
 def run(db, customer: Customer) -> dict:
     """Todas las comprobaciones, agrupadas, con un veredicto global."""
-    grupos = []
+    grupos: list[dict] = []
 
     grupos.append({"key": "emisor", "label": "Emisor", "checks": _emisor(customer)})
 
