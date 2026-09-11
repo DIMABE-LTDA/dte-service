@@ -124,10 +124,14 @@ services:
     # /dte/../admin/customers casa con PathPrefix(/dte) pero la app no lo
     # resuelve a /admin y devuelve 404 (verificado). Si algún día se mete un
     # proxy que normalice ENTRE Traefik y el API, ese filtro deja de valer.
+    #
+    # /me va con Path exacto y no PathPrefix: es donde el ERP lee y corrige su
+    # propia configuración (resolución, datos del emisor), y un prefijo "/me"
+    # dejaría pasar cualquier ruta futura que empiece igual —/metrics, /members—.
     labels:
       - traefik.enable=${API_PUBLIC:-false}
       - traefik.docker.network=dokploy-network
-      - traefik.http.routers.dteapi.rule=Host(`${API_DOMAIN:-api.dimabe.cl}`) && (PathPrefix(`/dte`) || PathPrefix(`/boletas`) || PathPrefix(`/rcv`) || PathPrefix(`/books`) || PathPrefix(`/bhe`) || PathPrefix(`/exchange`) || PathPrefix(`/health`))
+      - traefik.http.routers.dteapi.rule=Host(`${API_DOMAIN:-api.dimabe.cl}`) && (PathPrefix(`/dte`) || PathPrefix(`/boletas`) || PathPrefix(`/rcv`) || PathPrefix(`/books`) || PathPrefix(`/bhe`) || PathPrefix(`/exchange`) || PathPrefix(`/health`) || Path(`/me`))
       - traefik.http.routers.dteapi.entrypoints=websecure
       - traefik.http.routers.dteapi.tls=true
       - traefik.http.routers.dteapi.tls.certresolver=letsencrypt
