@@ -19,14 +19,35 @@ class Settings(BaseSettings):
     fernet_keys: str = ""
     schemas_dir: str = "schemas"
     admin_api_key: str = "change-me"
+    # La clave de bootstrap (entorno) tiene poder total sobre todos los clientes
+    # y no es revocable ni deja identidad en la auditoría. Apagarla en cuanto
+    # existan MachineKey, que sí son revocables y tienen rol propio.
+    admin_bootstrap_key_enabled: bool = True
     request_timeout_s: int = 60
     log_level: str = "INFO"
-    # Orígenes permitidos para la SPA (coma-separados). Vacío = sin CORS (dev usa proxy).
+    # Orígenes permitidos para la SPA (coma-separados), con esquema. Vacío = sin
+    # CORS, que es lo normal: portal y API se sirven en el mismo sitio.
     cors_origins: str = ""
 
-    # --- Rate limiting (estado por proceso: con N workers el límite efectivo es ~N x) ---
+    # --- Rate limiting ---
+    # Vacío = estado en memoria de cada proceso (con N workers el límite
+    # efectivo es ~N x). Con una URL de Redis el estado se comparte y el
+    # límite vale para todo el despliegue, réplicas incluidas.
+    redis_url: str = ""
     login_attempts_per_minute: int = 10
+    # Fallos de X-Admin-Key por IP. Más estrecho que el de clientes: es la
+    # credencial con escritura sobre TODOS los clientes y nadie la teclea.
+    admin_key_failures_per_5min: int = 10
+    # Consulta pública de boletas: holgado para el comprador, estrecho para
+    # quien quiera tantear montos por fuerza bruta.
+    public_lookup_per_minute: int = 20
+    # Sitio que se imprime en la boleta para que el consumidor la consulte.
+    receipt_verification_url: str = ""
     tenant_auth_failures_per_5min: int = 30
+    # Cuota de un cliente YA autenticado. Sin esto, el único freno es sobre
+    # fallos de autenticación y un cliente puede acaparar el servicio: firmar
+    # y hablar con el SII son caros y los paga todo el mundo. 0 = sin cuota.
+    customer_requests_per_minute: int = 120
 
     # --- Portal (JWT + cookie) ---
     jwt_secret: str = "change-me-jwt"
@@ -48,10 +69,29 @@ class Settings(BaseSettings):
             raise ValueError(
                 "DTE_JWT_SECRET debe configurarse con un valor aleatorio de >=32 caracteres"
             )
-        if self.admin_api_key.startswith("change-me") or len(self.admin_api_key) < 16:
+        if self.admin_bootstrap_key_enabled and (
+            self.admin_api_key.startswith("change-me") or len(self.admin_api_key) < 16
+        ):
             raise ValueError(
                 "DTE_ADMIN_API_KEY debe configurarse con un valor aleatorio de >=16 caracteres"
+                " (o apagarse con DTE_ADMIN_BOOTSTRAP_KEY_ENABLED=false)"
             )
+        # El comodín con allow_credentials=True es la combinación prohibida: el
+        # navegador se niega a usarla, así que la SPA dejaría de funcionar y
+        # alguien "arreglaría" el CORS quitando las credenciales. Y un origen sin
+        # esquema no casa nunca con el header Origin, que siempre lo trae: falla
+        # en silencio y cuesta horas de depuración.
+        for origin in self.cors_origin_list:
+            if origin == "*":
+                raise ValueError(
+                    "DTE_CORS_ORIGINS no acepta '*': el API se sirve con"
+                    " allow_credentials=True. Enumera los orígenes de la SPA."
+                )
+            if not origin.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"DTE_CORS_ORIGINS: '{origin}' debe incluir el esquema"
+                    " (https://dte.dimabe.cl), que es como llega el header Origin"
+                )
         return self
 
     @property

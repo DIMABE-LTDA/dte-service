@@ -1,11 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
+import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
+import IssuerProfileCard from "../components/IssuerProfileCard";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
-import type { BheResponse, RcvResponse } from "../types";
+import { useToast } from "../toast";
+import type { BheResponse, CafInfo, CertificateInfo, GrantedService, RcvResponse } from "../types";
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -41,7 +44,6 @@ export default function CustomerDetail() {
   }, [cid]);
 
   const [modal, setModal] = useState<ModalKind>(null);
-  const [msg, setMsg] = useState("");
   const [actionError, setActionError] = useState("");
   const [modalError, setModalError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,6 +53,23 @@ export default function CustomerDetail() {
   const [certFile, setCertFile] = useState<File | null>(null);
   const [certPass, setCertPass] = useState("");
   const [cafFile, setCafFile] = useState<File | null>(null);
+  const [confirmCaf, setConfirmCaf] = useState<CafInfo | null>(null);
+  const [confirmCert, setConfirmCert] = useState<CertificateInfo | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<GrantedService | null>(null);
+  const [confirmSiiKey, setConfirmSiiKey] = useState(false);
+  const keyNotice = useRef<HTMLDivElement>(null);
+  const toast = useToast();
+
+  /** Deja el fallo donde se está mirando y, además, como aviso global.
+   *
+   * La ficha es larga: un error pintado bajo la cabecera queda fuera de la
+   * vista de quien acaba de pulsar «Retirar» en la tabla de CAF.
+   */
+  function avisar(err: unknown) {
+    const e = err as ApiError;
+    setActionError(e.message);
+    toast.error(e.message, e.hints);
+  }
   const [siiPass, setSiiPass] = useState("");
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [operation, setOperation] = useState("COMPRA");
@@ -58,9 +77,14 @@ export default function CustomerDetail() {
   const [bhePeriod, setBhePeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [bhe, setBhe] = useState<BheResponse | null>(null);
 
+  // La apiKey se ve UNA vez y el aviso se pinta al principio de la página: si
+  // el operador estaba abajo, se lo perdía sin enterarse.
+  useEffect(() => {
+    if (grantedKey) keyNotice.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [grantedKey]);
+
   function openModal(kind: Exclude<ModalKind, null>) {
     setActionError("");
-    setMsg("");
     setModalError("");
     setModal(kind);
   }
@@ -96,13 +120,12 @@ export default function CustomerDetail() {
   function grant(e: FormEvent) {
     e.preventDefault();
     setModalError("");
-    setMsg("");
     setGrantedKey(null);
     setBusy(true);
     api
       .grant(cid, grantSvc, grantKey || undefined)
       .then((res) => {
-        setMsg("Servicio habilitado.");
+        toast.ok("Servicio habilitado.");
         setGrantedKey(res.apikey ?? null);
         setModal(null);
         return reload();
@@ -110,27 +133,57 @@ export default function CustomerDetail() {
       .catch((err) => setModalError((err as Error).message))
       .finally(() => setBusy(false));
   }
-  function revoke(code: string) {
+  function deleteCert() {
+    if (!confirmCert) return;
     setActionError("");
-    setMsg("");
+    setBusy(true);
     api
-      .revokeService(cid, code)
+      .deleteCertificate(cid, confirmCert.id)
       .then(() => {
-        setMsg("Servicio revocado.");
+        toast.ok(`Certificado ${confirmCert.id} eliminado.`);
+        setConfirmCert(null);
         return reload();
       })
-      .catch((err) => setActionError((err as Error).message));
+      .catch((err) => avisar(err))
+      .finally(() => setBusy(false));
+  }
+  function retireCaf() {
+    if (!confirmCaf) return;
+    setActionError("");
+    setBusy(true);
+    api
+      .retireCaf(cid, confirmCaf.id)
+      .then(() => {
+        toast.ok(`CAF tipo ${confirmCaf.doc_type} retirado.`);
+        setConfirmCaf(null);
+        return reload();
+      })
+      .catch((err) => avisar(err))
+      .finally(() => setBusy(false));
+  }
+  function revoke() {
+    if (!confirmRevoke) return;
+    setActionError("");
+    setBusy(true);
+    api
+      .revokeService(cid, confirmRevoke.service_code)
+      .then(() => {
+        toast.ok(`Servicio "${confirmRevoke.name}" revocado.`);
+        setConfirmRevoke(null);
+        return reload();
+      })
+      .catch((err) => avisar(err))
+      .finally(() => setBusy(false));
   }
   async function uploadCert(e: FormEvent) {
     e.preventDefault();
     if (!certFile) return;
     setModalError("");
-    setMsg("");
     setBusy(true);
     try {
       const b64 = await fileToBase64(certFile);
       await api.uploadCert(cid, b64, certPass);
-      setMsg("Certificado cargado.");
+      toast.ok("Certificado cargado.");
       setModal(null);
       await reload();
     } catch (err) {
@@ -143,12 +196,11 @@ export default function CustomerDetail() {
     e.preventDefault();
     if (!cafFile) return;
     setModalError("");
-    setMsg("");
     setBusy(true);
     try {
       const b64 = await fileToBase64(cafFile);
       await api.uploadCaf(cid, b64);
-      setMsg("CAF cargado.");
+      toast.ok("CAF cargado.");
       setModal(null);
       await reload();
     } catch (err) {
@@ -161,11 +213,10 @@ export default function CustomerDetail() {
     e.preventDefault();
     if (!siiPass) return;
     setModalError("");
-    setMsg("");
     setBusy(true);
     try {
       await api.setSiiKey(cid, siiPass);
-      setMsg("Clave tributaria guardada.");
+      toast.ok("Clave tributaria guardada.");
       setModal(null);
       await reload();
     } catch (err) {
@@ -176,14 +227,16 @@ export default function CustomerDetail() {
   }
   function deleteSiiKey() {
     setActionError("");
-    setMsg("");
+    setBusy(true);
     api
       .deleteSiiKey(cid)
       .then(() => {
-        setMsg("Clave tributaria eliminada.");
+        toast.ok("Clave tributaria eliminada.");
+        setConfirmSiiKey(false);
         return reload();
       })
-      .catch((err) => setActionError((err as Error).message));
+      .catch((err) => avisar(err))
+      .finally(() => setBusy(false));
   }
   function queryRcv(e: FormEvent) {
     e.preventDefault();
@@ -213,6 +266,54 @@ export default function CustomerDetail() {
   }
   const { customer, granted, certs, cafs, services, siiKey } = data;
 
+  // Lo que la ficha tiene que responder antes que nada: ¿este cliente puede
+  // emitir, y si no, qué le falta? Antes había que leer las cinco tarjetas y
+  // cruzarlas mentalmente.
+  const certVigente = certs.find((c) => !c.expired);
+  const cafLibres = cafs.filter((c) => !c.exhausted);
+  const faltanEmisor = customer.issuer_missing ?? [];
+  const resumen = [
+    {
+      titulo: "Datos del emisor",
+      estado: faltanEmisor.length ? "error" : "ok",
+      detalle: faltanEmisor.length
+        ? `faltan: ${faltanEmisor.join(", ")}`
+        : (customer.issuer?.legal_name ?? ""),
+    },
+    {
+      titulo: "Certificado de firma",
+      estado: certVigente ? "ok" : certs.length ? "error" : "pendiente",
+      detalle: certVigente
+        ? `vigente hasta ${certVigente.due_date}`
+        : certs.length
+          ? "todos vencidos — no se puede firmar"
+          : "sin certificado — no se puede firmar",
+    },
+    {
+      titulo: "CAF / folios",
+      estado: cafLibres.length ? "ok" : cafs.length ? "atencion" : "pendiente",
+      detalle: cafLibres.length
+        ? `${cafLibres.length} con folios disponibles`
+        : cafs.length
+          ? "todos agotados — pide un CAF nuevo al SII"
+          : "sin CAF — no hay folios que timbrar",
+    },
+    {
+      titulo: "Servicios",
+      estado: granted.length ? "ok" : "pendiente",
+      detalle: granted.length
+        ? `${granted.length} habilitado(s)`
+        : "sin servicios — nadie puede autenticar",
+    },
+    {
+      // No se pinta como problema: sólo hace falta para consultar BHE, y
+      // marcarla en rojo daría una alarma que no corresponde.
+      titulo: "Clave tributaria SII",
+      estado: siiKey.configured ? "ok" : "pendiente",
+      detalle: siiKey.configured ? "configurada" : "opcional — sólo para consultar BHE",
+    },
+  ];
+
   return (
     <>
       <p>
@@ -221,15 +322,57 @@ export default function CustomerDetail() {
       <h1>{customer.name}</h1>
       <p className="muted">
         Código <span className="code">{customer.key}</span> · RUT {customer.rut} ·{" "}
-        <span className={`badge ${customer.environment === "PRODUCTION" ? "denied" : "ok"}`}>
+        <span className={`badge ${customer.environment === "PRODUCTION" ? "warn" : "neutral"}`}>
           {customer.environment}
         </span>
+        {/* La resolución va en la carátula de cada DTE: si está mal, salen mal
+            todos los documentos del cliente. Se guardaba sin mostrarse nunca. */}
+        {" · "}
+        Resolución{" "}
+        <span className="code">
+          {customer.resolution_number} del {customer.resolution_date}
+        </span>
+        {customer.environment === "CERTIFICATION" && customer.resolution_number === 0 && (
+          <> (la que el SII espera en certificación)</>
+        )}
       </p>
-      {msg && !grantedKey && <p style={{ color: "var(--ok)" }}>{msg}</p>}
+      {/* Estado de la ficha: la respuesta a "¿puede emitir?" antes del detalle. */}
+      <div className="etapas ficha-estado">
+        {resumen.map((r) => (
+          <div className={`etapa ${r.estado}`} key={r.titulo}>
+            <div className="etapa-titulo">
+              <span className="etapa-punto" />
+              {r.titulo}
+            </div>
+            <div className="etapa-detalle">{r.detalle}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* El expediente sólo existe en certificación: en producción no hay set
+          de pruebas que seguir, y ofrecer el enlace invitaría a buscarlo.
+          Va como tarjeta y no como enlace de texto porque en un cliente de
+          certificación es el trabajo entero, no un dato más de la ficha. */}
+      {customer.environment === "CERTIFICATION" && (
+        <div className="card destacada">
+          <div className="card-head">
+            <h2>Certificación ante el SII</h2>
+            <span className="spacer" />
+            <Link className="boton-enlace" to={`/customers/${cid}/certification`}>
+              <Icon name="audit" />
+              Abrir expediente
+            </Link>
+          </div>
+          <p className="muted" style={{ margin: 0 }}>
+            Los sets de prueba con su avance, lo que emite cada uno antes de emitirlo, y cada envío
+            guardado con su TrackID y su sobre para subirlo al SII.
+          </p>
+        </div>
+      )}
       {actionError && <p className="error">{actionError}</p>}
       {grantedKey && (
-        <div className="notice ok">
-          {msg} Copia la <strong>apiKey</strong> ahora — no se vuelve a mostrar:
+        <div className="notice ok" ref={keyNotice}>
+          Servicio habilitado. Copia la <strong>apiKey</strong> ahora — no se vuelve a mostrar:
           <div className="secret">
             <span className="code">{grantedKey}</span>
             <button
@@ -240,59 +383,15 @@ export default function CustomerDetail() {
               <Icon name="copy" />
               Copiar
             </button>
+            <button className="btn-link" type="button" onClick={() => setGrantedKey(null)}>
+              <Icon name="x" />
+              Ya la copié
+            </button>
           </div>
         </div>
       )}
 
-      {/* Servicios habilitados */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Servicios habilitados</h2>
-          <span className="spacer" />
-          {writable && (
-            <button onClick={openGrant}>
-              <Icon name="plus" />
-              Habilitar servicio
-            </button>
-          )}
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Servicio</th>
-              <th>Código</th>
-              {writable && <th />}
-            </tr>
-          </thead>
-          <tbody>
-            {granted.map((s) => (
-              <tr key={s.service_code}>
-                <td>{s.name}</td>
-                <td className="muted">{s.service_code}</td>
-                {writable && (
-                  <td>
-                    <button
-                      className="btn-link danger"
-                      type="button"
-                      onClick={() => revoke(s.service_code)}
-                    >
-                      <Icon name="revoke" />
-                      Revocar
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {granted.length === 0 && (
-              <tr>
-                <td colSpan={writable ? 3 : 2} className="muted">
-                  Sin servicios habilitados.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <IssuerProfileCard customer={customer} writable={writable} onSaved={reload} />
 
       {/* Certificados */}
       <div className="card">
@@ -306,68 +405,168 @@ export default function CustomerDetail() {
             </button>
           )}
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Vence</th>
-              <th>Cargado</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {certs.map((c) => (
-              <tr key={c.id}>
-                <td>{c.id}</td>
-                <td>{c.due_date}</td>
-                <td>{c.created_at.slice(0, 10)}</td>
-                <td>
-                  <span className={`badge ${c.expired ? "error" : "ok"}`}>
-                    {c.expired ? "vencido" : "vigente"}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {certs.length === 0 && (
+        <div className="tabla-scroll">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={4} className="muted">
-                  Sin certificados.
-                </td>
+                <th>ID</th>
+                {/* El RUT del firmante va primero: es el dato que se busca
+                    cuando el SII rechaza un envío, y no es el de la empresa. */}
+                <th>RUT que firma</th>
+                <th>Titular</th>
+                <th>Emitido por</th>
+                <th>Vence</th>
+                <th>Cargado</th>
+                <th>Estado</th>
+                {writable && <th />}
               </tr>
+            </thead>
+            <tbody>
+              {certs.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.id}</td>
+                  <td className="nowrap">
+                    <span className="code">{c.rut ?? "—"}</span>
+                  </td>
+                  <td>{c.holder ?? "—"}</td>
+                  <td className="muted">{c.issuer ?? "—"}</td>
+                  <td className="nowrap">{c.due_date}</td>
+                  <td className="nowrap">{c.created_at.slice(0, 10)}</td>
+                  <td>
+                    <span className={`badge ${c.expired ? "error" : "ok"}`}>
+                      {c.expired ? "vencido" : "vigente"}
+                    </span>
+                  </td>
+                  {writable && (
+                    <td className="right">
+                      <button
+                        className="btn-link danger"
+                        type="button"
+                        onClick={() => setConfirmCert(c)}
+                      >
+                        <Icon name="trash" />
+                        Eliminar
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {certs.length === 0 && (
+                <tr>
+                  <td colSpan={writable ? 8 : 7} className="muted">
+                    Sin certificados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {certs.length > 1 && (
+          <p className="muted" style={{ margin: "0.6rem 0 0" }}>
+            Con varios certificados se firma con <strong>el más reciente</strong>.
+          </p>
+        )}
+      </div>
+
+      <div className="ficha-bloques">
+        {/* Servicios habilitados */}
+        <div className="card">
+          <div className="card-head">
+            <h2>Servicios habilitados</h2>
+            <span className="spacer" />
+            {writable && (
+              <button onClick={openGrant}>
+                <Icon name="plus" />
+                Habilitar servicio
+              </button>
             )}
-          </tbody>
-        </table>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Servicio</th>
+                <th>Código</th>
+                {writable && <th />}
+              </tr>
+            </thead>
+            <tbody>
+              {granted.map((s) => (
+                <tr key={s.service_code}>
+                  <td>{s.name}</td>
+                  <td className="muted">{s.service_code}</td>
+                  {writable && (
+                    <td>
+                      <button
+                        className="btn-link danger"
+                        type="button"
+                        onClick={() => setConfirmRevoke(s)}
+                      >
+                        <Icon name="revoke" />
+                        Revocar
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {granted.length === 0 && (
+                <tr>
+                  <td colSpan={writable ? 3 : 2} className="muted">
+                    Sin servicios habilitados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Clave tributaria SII (para BHE) */}
+        <div className="card">
+          <div className="card-head">
+            <h2>Clave tributaria SII (BHE)</h2>
+            <span className="spacer" />
+            {writable && (
+              <button onClick={openSii}>
+                <Icon name="key" />
+                {siiKey.configured ? "Actualizar clave" : "Configurar clave"}
+              </button>
+            )}
+          </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Clave del portal del SII (login web) para consultar las Boletas de Honorarios recibidas.
+          </p>
+          {/* Las consultas viven aquí porque es esta clave la que usan. */}
+          <div className="actions">
+            <span className={`badge ${siiKey.configured ? "ok" : "neutral"}`}>
+              {siiKey.configured ? "configurada" : "no configurada"}
+            </span>
+            {writable && siiKey.configured && (
+              <button
+                className="btn-link danger"
+                type="button"
+                onClick={() => setConfirmSiiKey(true)}
+              >
+                <Icon name="trash" />
+                Eliminar clave
+              </button>
+            )}
+          </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Consulta directa al SII con las credenciales guardadas del cliente.
+          </p>
+          <div className="actions">
+            <button className="secondary" onClick={openRcv}>
+              <Icon name="search" />
+              Consultar RCV
+            </button>
+            <button className="secondary" onClick={openBhe}>
+              <Icon name="search" />
+              Consultar BHE recibidas
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Clave tributaria SII (para BHE) */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Clave tributaria SII (BHE)</h2>
-          <span className="spacer" />
-          {writable && (
-            <button onClick={openSii}>
-              <Icon name="key" />
-              {siiKey.configured ? "Actualizar clave" : "Configurar clave"}
-            </button>
-          )}
-        </div>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Clave del portal del SII (login web) para consultar las Boletas de Honorarios recibidas.
-        </p>
-        <div className="actions">
-          <span className={`badge ${siiKey.configured ? "ok" : "denied"}`}>
-            {siiKey.configured ? "configurada" : "no configurada"}
-          </span>
-          {writable && siiKey.configured && (
-            <button className="btn-link danger" type="button" onClick={deleteSiiKey}>
-              <Icon name="trash" />
-              Eliminar clave
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* CAF / folios */}
+      {/* CAF / folios — a todo el ancho: es la única tabla larga. */}
       <div className="card">
         <div className="card-head">
           <h2>CAF / folios</h2>
@@ -387,6 +586,7 @@ export default function CustomerDetail() {
               <th>Hasta</th>
               <th>Último usado</th>
               <th>Estado</th>
+              {writable && <th />}
             </tr>
           </thead>
           <tbody>
@@ -397,15 +597,24 @@ export default function CustomerDetail() {
                 <td>{c.folio_to}</td>
                 <td>{c.last_folio || "—"}</td>
                 <td>
-                  <span className={`badge ${c.exhausted ? "denied" : "ok"}`}>
+                  <span className={`badge ${c.exhausted ? "warn" : "ok"}`}>
                     {c.exhausted ? "agotado" : "disponible"}
                   </span>
                 </td>
+                {writable && (
+                  <td className="right">
+                    {!c.exhausted && (
+                      <button className="btn-link danger" onClick={() => setConfirmCaf(c)}>
+                        Retirar
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
             {cafs.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted">
+                <td colSpan={writable ? 6 : 5} className="muted">
                   Sin CAF cargados.
                 </td>
               </tr>
@@ -413,28 +622,6 @@ export default function CustomerDetail() {
           </tbody>
         </table>
       </div>
-
-      {/* Consultas SII (operador) */}
-      {writable && (
-        <div className="card">
-          <div className="card-head">
-            <h2>Consultas SII (operador)</h2>
-          </div>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Consulta directa al SII con las credenciales guardadas del cliente.
-          </p>
-          <div className="actions">
-            <button className="secondary" onClick={openRcv}>
-              <Icon name="search" />
-              Consultar RCV
-            </button>
-            <button className="secondary" onClick={openBhe}>
-              <Icon name="search" />
-              Consultar BHE recibidas
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ---- Modales ---- */}
       {modal === "grant" && (
@@ -517,6 +704,94 @@ export default function CustomerDetail() {
             {busy && <p className="muted">Subiendo y validando el certificado…</p>}
           </form>
         </Modal>
+      )}
+
+      {confirmRevoke && (
+        <ConfirmModal
+          title="Revocar servicio"
+          danger
+          busy={busy}
+          confirmLabel="Revocar"
+          confirmIcon="revoke"
+          onClose={() => setConfirmRevoke(null)}
+          onConfirm={revoke}
+          message={
+            <>
+              ¿Quitarle a este cliente <strong>{confirmRevoke.name}</strong>? Su sistema empezará a
+              recibir <strong>401</strong> en ese servicio de inmediato, y para devolvérselo hay que
+              habilitarlo de nuevo con una <strong>apiKey nueva</strong>: la actual no se recupera y
+              habrá que reconfigurar el sistema del cliente.
+            </>
+          }
+        />
+      )}
+
+      {confirmSiiKey && (
+        <ConfirmModal
+          title="Eliminar clave tributaria"
+          danger
+          busy={busy}
+          confirmLabel="Eliminar"
+          confirmIcon="trash"
+          onClose={() => setConfirmSiiKey(false)}
+          onConfirm={deleteSiiKey}
+          message={
+            <>
+              ¿Borrar la clave del portal del SII de este cliente? Se dejarán de poder consultar sus
+              boletas de honorarios recibidas. La clave no queda guardada en ninguna otra parte:
+              para reponerla hay que volver a pedírsela a la empresa.
+            </>
+          }
+        />
+      )}
+
+      {confirmCert && (
+        <ConfirmModal
+          title="Eliminar certificado"
+          danger
+          busy={busy}
+          confirmLabel="Eliminar"
+          onClose={() => setConfirmCert(null)}
+          onConfirm={deleteCert}
+          message={
+            <>
+              ¿Eliminar el certificado de{" "}
+              <strong>{confirmCert.holder ?? `id ${confirmCert.id}`}</strong>
+              {confirmCert.rut ? ` (RUT ${confirmCert.rut})` : ""}? Los documentos ya firmados con
+              él siguen siendo válidos —la firma viaja dentro del XML—, pero el archivo .pfx se
+              borra y habría que volver a subirlo.
+              {/* Quedarse sin certificado no se impide, pero sí se avisa: es la
+                  diferencia entre limpiar una ficha y dejarla sin poder emitir. */}
+              {certs.length === 1 && (
+                <>
+                  {" "}
+                  <strong>Es el único que tiene este cliente</strong>: sin certificado no se puede
+                  firmar ni emitir.
+                </>
+              )}{" "}
+              Esto no se puede deshacer.
+            </>
+          }
+        />
+      )}
+
+      {confirmCaf && (
+        <ConfirmModal
+          title="Retirar CAF"
+          danger
+          busy={busy}
+          confirmLabel="Retirar"
+          onClose={() => setConfirmCaf(null)}
+          onConfirm={retireCaf}
+          message={
+            <>
+              ¿Sacar de circulación el CAF del tipo <strong>{confirmCaf.doc_type}</strong> (folios{" "}
+              {confirmCaf.folio_from}–{confirmCaf.folio_to})? Los documentos ya emitidos con él
+              siguen siendo válidos; lo que se corta es que se emitan más. El siguiente folio saldrá
+              del CAF que siga, y esto no se puede deshacer.
+            </>
+          }
+        />
       )}
 
       {modal === "caf" && (

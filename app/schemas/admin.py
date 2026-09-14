@@ -10,6 +10,23 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.schemas.validators import normalize_rut
 
 
+class IssuerProfile(BaseModel):
+    """Datos del emisor que van en el encabezado de cada documento.
+
+    Son del contribuyente, no del caso. Los largos máximos son los del SII:
+    más largo, el documento no valida contra el XSD.
+    """
+
+    legal_name: str | None = Field(default=None, max_length=100)  # RznSoc
+    activity: str | None = Field(default=None, max_length=80)  # GiroEmis
+    economic_activity: int | None = Field(default=None, ge=1, le=999999)  # Acteco
+    address: str | None = Field(default=None, max_length=70)  # DirOrigen
+    commune: str | None = Field(default=None, max_length=20)  # CmnaOrigen
+    city: str | None = Field(default=None, max_length=20)  # CiudadOrigen
+    branch_name: str | None = Field(default=None, max_length=20)  # Sucursal
+    branch_code: int | None = Field(default=None, ge=1)  # CdgSIISucur
+
+
 class CustomerCreate(BaseModel):
     name: str = Field(min_length=1)
     # customerCode (opaco). Opcional: si no se envía, el servidor lo genera a
@@ -34,6 +51,17 @@ class CustomerOut(BaseModel):
     key: str
     rut: str
     environment: str
+    #: Van en la carátula de cada DTE. Se devuelven porque el portal los
+    #: guardaba sin mostrarlos nunca: si están mal, todos los documentos del
+    #: cliente salen mal y no había dónde verlo ni forma de corregirlo sin
+    #: escribirlos de memoria.
+    resolution_number: int
+    resolution_date: dt.date
+    #: Datos del emisor. Vacío hasta que alguien los configure: se dice así en
+    #: vez de inventarlos.
+    issuer: IssuerProfile = IssuerProfile()
+    #: Lo que falta para poder emitir. Lista vacía = completo.
+    issuer_missing: list[str] = []
     deleted_at: dt.datetime | None = None
 
 
@@ -46,6 +74,8 @@ class CustomerUpdate(BaseModel):
     environment: Literal["CERTIFICATION", "PRODUCTION"] | None = None
     resolution_number: int | None = None
     resolution_date: dt.date | None = None
+    #: Se reemplaza entero: un campo en blanco lo deja vacío.
+    issuer: IssuerProfile | None = None
 
     @field_validator("rut")
     @classmethod
@@ -117,6 +147,11 @@ class CertificateInfo(BaseModel):
     due_date: dt.date
     created_at: dt.datetime
     expired: bool
+    #: RUT del firmante. Es el que necesita «Enviar Doctos» en el SII, y no es
+    #: el de la empresa: el certificado se emite a una persona natural.
+    rut: str | None = None
+    holder: str | None = None
+    issuer: str | None = None
 
 
 class CafInfo(BaseModel):

@@ -17,11 +17,23 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): ApiS
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
+  // Se lleva en ref y no sólo en estado porque `reload` necesita saber si ya
+  // hay algo pintado antes de que React aplique el siguiente render.
+  const hayDatos = useRef(false);
+
   async function reload(): Promise<void> {
-    setLoading(true);
+    // `loading` significa "todavía no hay nada que mostrar", no "hay una
+    // petición en curso". La diferencia importa: las páginas hacen
+    // `if (loading) return <p>Cargando…</p>`, así que ponerlo en true durante
+    // una recarga sustituía la página entera por una línea de texto. El
+    // documento se encogía, el navegador perdía la posición del scroll, y al
+    // volver a pintar el operador aparecía arriba del todo sin ninguna señal
+    // de qué había pasado con la acción que acababa de lanzar.
+    if (!hayDatos.current) setLoading(true);
     setError(null);
     try {
       setData(await fetcherRef.current());
+      hayDatos.current = true;
     } catch (e) {
       setError((e as Error).message);
     } finally {

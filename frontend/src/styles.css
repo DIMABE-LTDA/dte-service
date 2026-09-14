@@ -11,6 +11,8 @@
   --ok: #22c55e;
   --bad: #ef4444;
   --warn: #f59e0b;
+  /* Anillo de foco: tiene que verse sobre --panel y sobre --bg. */
+  --focus: #7dd3fc;
 }
 
 * {
@@ -253,10 +255,6 @@ a {
 .btn-link.danger:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.14);
 }
-.btn-link:hover {
-  text-decoration: underline;
-  background: none;
-}
 .actions {
   display: flex;
   gap: 0.75rem;
@@ -384,7 +382,6 @@ button {
 }
 input:focus,
 select:focus {
-  outline: none;
   border-color: var(--accent);
 }
 button {
@@ -494,6 +491,18 @@ button:disabled {
   background: rgba(239, 68, 68, 0.15);
   color: var(--bad);
 }
+/* Ámbar = "mírame": producción (donde los documentos son reales) y folios
+   agotados. `denied` queda para su significado original, el resultado de una
+   petición en la auditoría. */
+.badge.warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warn);
+}
+/* Gris = dato, no alerta: archivado, no configurado. */
+.badge.neutral {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--muted);
+}
 
 .error {
   color: var(--bad);
@@ -571,4 +580,549 @@ button:disabled {
 .tabs button.active {
   background: var(--accent);
   color: #04293b;
+}
+
+/* Cabecera de agrupación por RUT en la lista de clientes: una empresa que
+   opera en los dos ambientes son dos fichas, y así se leen como una sola
+   empresa sin dejar de ser independientes. */
+tr.group-head td {
+  padding-top: 0.9rem;
+  padding-bottom: 0.3rem;
+  border-bottom: none;
+  font-size: 0.9rem;
+}
+tr.group-head:hover {
+  background: none;
+}
+td.sub {
+  padding-left: 1.2rem;
+}
+
+/* Dentro de una tabla el customerCode y el RUT son identificadores cortos: no
+   deben partirse a mitad de palabra. El break-all de .code existe para los
+   secretos largos de la ficha, que sí necesitan quebrar. */
+td .code {
+  white-space: nowrap;
+  word-break: normal;
+}
+td.nowrap {
+  white-space: nowrap;
+}
+
+/* Foco de teclado. El portal se opera a diario con el teclado y hasta aquí no
+   había ningún indicador: los inputs tenían `outline: none` y los botones y
+   enlaces nunca definieron uno, así que la posición del foco era invisible.
+   :focus-visible sólo lo pinta cuando el navegador estima que el foco viene
+   del teclado, así que el clic con ratón no deja el anillo pegado. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* El chip de usuario del topbar lleva a la cuenta propia. */
+a.user {
+  text-decoration: none;
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+}
+a.user:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+/* Pasos numerados del alta del segundo factor. */
+ol.steps-list {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+}
+ol.steps-list li {
+  margin-bottom: 0.8rem;
+}
+
+/* Etapas del expediente de certificación: el borde superior lleva el color, así
+   el estado se lee de un vistazo sin depender del texto del badge. */
+.etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0 1rem;
+}
+.etapa {
+  flex: 1 1 165px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--muted);
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  background: var(--panel-2);
+}
+.etapa.ok {
+  border-top-color: var(--ok);
+}
+.etapa.atencion {
+  border-top-color: var(--warn);
+}
+.etapa.error {
+  border-top-color: var(--bad);
+}
+.etapa-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.etapa-detalle {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.3rem;
+  line-height: 1.35;
+}
+/* El punto repite el color del borde para que el estado no dependa sólo de una
+   línea de 3px, que en pantallas pequeñas casi no se ve. */
+.etapa-punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+.etapa.ok .etapa-punto {
+  background: var(--ok);
+}
+.etapa.atencion .etapa-punto {
+  background: var(--warn);
+}
+.etapa.error .etapa-punto {
+  background: var(--bad);
+}
+/* Una tabla ancha debe scrollear dentro de su tarjeta, no empujar la página:
+   en pantallas angostas el desbordamiento saca la barra horizontal del body y
+   descoloca todo el panel. */
+.tabla-scroll {
+  overflow-x: auto;
+}
+/* Barra de avance del expediente. Da de un vistazo lo que la tabla cuenta en
+   detalle; sin ella hay que sumar filas para saber cómo va el trámite. */
+.barra {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.barra-relleno {
+  height: 100%;
+  background: var(--ok);
+  transition: width 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-relleno {
+    transition: none;
+  }
+}
+/* Las etapas en rejilla y no en flex libre: con seis pasos, el flex dejaba el
+   último estirado a todo el ancho en una segunda fila. Y los botones alineados
+   abajo, para que no bailen según el largo del texto de cada uno. */
+.etapas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.etapa {
+  display: flex;
+  flex-direction: column;
+}
+.etapa .btn-link {
+  margin-top: auto;
+  align-self: flex-start;
+}
+/* Los seis pasos del trámite en 3+3: con auto-fit quedaban 5+1 y el último
+   huérfano. Además el texto de cada paso es largo y agradece el ancho. */
+.etapas.pasos {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .etapas.pasos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1000px) {
+  .etapas.pasos {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+/* Guía de la respuesta del SII bajo el envío. Va dentro de la tabla y no en un
+   modal: es lo que hay que leer justo cuando se ve el rechazo, no un clic
+   después. */
+tr.guia td {
+  padding-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+.guia-caja {
+  border-left: 3px solid var(--bad);
+  background: rgba(239, 68, 68, 0.07);
+  border-radius: 0 6px 6px 0;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+.guia-caja.ok {
+  border-left-color: var(--ok);
+  background: rgba(34, 197, 94, 0.07);
+}
+.guia-caja em {
+  color: var(--warn);
+  font-style: normal;
+}
+.guia-pasos {
+  margin: 0.45rem 0 0;
+  padding-left: 1.15rem;
+}
+.guia-pasos li {
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+}
+/* El cuerpo de la emisión es JSON: monoespaciada y sin corrector, porque aquí
+   se pegan códigos de Aduana y RUT, no prosa. */
+textarea.json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  min-height: 12rem;
+  resize: vertical;
+}
+/* Vista previa de lo que se va a emitir. Va en la propia tarjeta del set y no
+   en un modal: es lo que hay que mirar justo antes de gastar folios. */
+.previa {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--panel-2);
+  padding: 0.7rem 0.9rem;
+  margin-top: 0.8rem;
+}
+.previa-cabecera {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.previa-items div {
+  margin-bottom: 0.15rem;
+}
+.previa-ref {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+.previa-nota {
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0;
+}
+
+/* ----------------------------------------------------------------- */
+/*  Ficha de cliente                                                  */
+/* ----------------------------------------------------------------- */
+/* El estado va arriba y en el mismo lenguaje visual que las etapas del
+   expediente —punto de color y borde superior—, para que el operador no tenga
+   que aprender dos vocabularios para leer la misma idea. */
+.ficha-estado {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  margin-top: 0.9rem;
+}
+
+/* Los bloques cortos en dos columnas. Apilados a todo el ancho, cada tabla de
+   dos filas ocupaba una pantalla y empujaba los CAF —que es la tabla que de
+   verdad se consulta— fuera de la vista. */
+.ficha-bloques {
+  display: grid;
+  /* Dos columnas fijas y no auto-fit: con cuatro bloques, auto-fit metía tres
+     arriba y dejaba el cuarto huérfano al lado de un hueco. Es el mismo caso
+     que los seis pasos del trámite. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .ficha-bloques {
+    grid-template-columns: 1fr;
+  }
+}
+.ficha-bloques .card {
+  margin-bottom: 0;
+}
+/* En una columna estrecha el flex de la cabecera aprieta el botón hasta
+   partirle el texto ("Habilitar / servicio"). El que cede es el título. */
+.card-head h2 {
+  min-width: 0;
+}
+.card-head button,
+.card-head .boton-enlace {
+  white-space: nowrap;
+  flex: none;
+}
+
+/* La tarjeta del expediente. Es el trabajo entero en un cliente de
+   certificación, así que se distingue del resto de la configuración. */
+.card.destacada {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.07), transparent 60%), var(--panel);
+}
+
+/* Un <Link> que tiene que verse como un botón: el selector de elemento
+   `button` no lo alcanza. */
+.boton-enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #04293b;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 0.13s ease,
+    box-shadow 0.13s ease;
+}
+.boton-enlace:hover {
+  background: var(--accent-strong);
+  box-shadow: 0 3px 12px rgba(56, 189, 248, 0.28);
+  text-decoration: none;
+}
+.boton-enlace svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* La previa dentro del modal ya no necesita su marco: el modal es el marco. */
+.modal .previa {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* ----------------------------------------------------------------- */
+/*  Avisos globales                                                   */
+/* ----------------------------------------------------------------- */
+/* Van fijos sobre la ventana y no en el flujo de la página: las acciones se
+   disparan desde tarjetas que están muy por debajo del primer scroll, y un
+   mensaje pintado arriba del todo quedaba fuera de la vista de quien acababa
+   de pulsar el botón — parecía que no pasaba nada. */
+.avisos {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.6rem;
+  max-width: min(30rem, calc(100vw - 2.4rem));
+  /* El contenedor no debe tapar la página cuando está vacío. */
+  pointer-events: none;
+}
+.aviso {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  animation: aviso-entra 0.18s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aviso {
+    animation: none;
+  }
+}
+@keyframes aviso-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.aviso.ok {
+  border-color: var(--ok);
+}
+.aviso.error {
+  border-color: var(--bad);
+}
+.aviso svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 0.1rem;
+}
+.aviso.ok svg {
+  color: var(--ok);
+}
+.aviso.error svg {
+  color: var(--bad);
+}
+.aviso-cuerpo {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+/* La guía del error: qué revisar, en el orden en que conviene revisarlo. */
+.aviso-guia {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.aviso-guia li + li {
+  margin-top: 0.3rem;
+}
+.aviso .close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  flex: none;
+}
+.aviso .close:hover:not(:disabled) {
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+}
+
+/* Desglose del SII bajo la insignia de estado. Pequeño pero legible: es el
+   dato que distingue un envío entregado de uno que sólo se pudo leer. */
+.conteo {
+  font-size: 0.78rem;
+  margin-top: 0.3rem;
+  line-height: 1.35;
+}
+
+/* ----------------------------------------------------------------- */
+/*  Verificación antes de emitir                                      */
+/* ----------------------------------------------------------------- */
+/* El borde dice el veredicto antes de leer nada: verde se puede emitir, rojo
+   emitir gastaría folios en documentos que el SII rechazaría. */
+.card.verificacion.lista {
+  border-left: 4px solid var(--ok);
+}
+.card.verificacion.bloqueada {
+  border-left: 4px solid var(--bad);
+}
+.verificacion-veredicto {
+  margin: 0 0 0.3rem;
+}
+.verificacion-sii {
+  margin: 0.4rem 0 0.8rem;
+}
+.notice.error {
+  border-color: var(--bad);
+  background: rgba(239, 68, 68, 0.08);
+  margin-bottom: 0.8rem;
+}
+
+details.grupo {
+  border-top: 1px solid var(--line);
+  padding: 0.55rem 0;
+}
+details.grupo summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  list-style: none;
+}
+details.grupo summary::-webkit-details-marker {
+  display: none;
+}
+/* El triángulo propio, porque el nativo no se alinea con el punto de estado. */
+details.grupo summary::after {
+  content: "▸";
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+details.grupo[open] summary::after {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  details.grupo summary::after {
+    transition: none;
+  }
+}
+.grupo-nombre {
+  font-weight: 600;
+}
+.etapa-punto.ok {
+  background: var(--ok);
+}
+.etapa-punto.atencion {
+  background: var(--warn);
+}
+.etapa-punto.error {
+  background: var(--bad);
+}
+
+ul.comprobaciones {
+  list-style: none;
+  margin: 0.5rem 0 0.2rem;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+ul.comprobaciones li {
+  display: grid;
+  grid-template-columns: 5.2rem minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  font-size: 0.9rem;
+}
+ul.comprobaciones .badge {
+  justify-self: start;
+  text-align: center;
+}
+.arreglo {
+  margin-top: 0.2rem;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+/* Datos del emisor: pares etiqueta/valor en rejilla, que se leen de un vistazo. */
+dl.perfil {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6rem 1.2rem;
+  margin: 0.4rem 0 0;
+}
+dl.perfil dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+dl.perfil dd {
+  margin: 0.1rem 0 0;
+}
+.card.incompleta {
+  border-left: 4px solid var(--bad);
+}
+/* Formulario en dos columnas: ocho campos apilados no caben en un modal. */
+.form-grid.dos {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 640px) {
+  .form-grid.dos {
+    grid-template-columns: 1fr;
+  }
+}
+
+.notice.warn {
+  border-color: var(--warn);
+  background: rgba(245, 158, 11, 0.08);
+  margin-bottom: 0.8rem;
 }

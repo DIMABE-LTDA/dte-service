@@ -27,7 +27,10 @@ services:
       DTE_DATABASE_URL: postgresql+psycopg://dte:dte@db:5432/dte_service
       # :? → compose falla si no están definidas (nunca arrancar con defaults).
       DTE_FERNET_KEYS: ${DTE_FERNET_KEYS:?definir DTE_FERNET_KEYS}
-      DTE_ADMIN_API_KEY: ${DTE_ADMIN_API_KEY:?definir DTE_ADMIN_API_KEY (>=16 chars)}
+      # Sin ':?': se puede omitir apagando la clave de bootstrap. Que no falte
+      # con la clave encendida lo verifica igual el propio servicio al arrancar.
+      DTE_ADMIN_API_KEY: ${DTE_ADMIN_API_KEY:-}
+      DTE_ADMIN_BOOTSTRAP_KEY_ENABLED: ${DTE_ADMIN_BOOTSTRAP_KEY_ENABLED:-true}
       DTE_JWT_SECRET: ${DTE_JWT_SECRET:?definir DTE_JWT_SECRET (>=32 chars)}
       # Demo sobre HTTP → cookie sin Secure. En prod (TLS delante) poner true.
       DTE_COOKIE_SECURE: ${DTE_COOKIE_SECURE:-false}
@@ -36,12 +39,31 @@ services:
       DTE_SUPERADMIN_EMAIL: ${DTE_SUPERADMIN_EMAIL:-}
       DTE_SUPERADMIN_PASSWORD: ${DTE_SUPERADMIN_PASSWORD:-}
       DTE_SCHEMAS_DIR: /srv/schemas
+      # Vacía = cada worker cuenta sus propios límites. Con Redis el estado se
+      # comparte: `docker compose --profile escalado up` levanta el servicio.
+      DTE_REDIS_URL: ${DTE_REDIS_URL:-}
+      # Cuota de un cliente ya autenticado, por minuto. 0 = sin cuota.
+      DTE_CUSTOMER_REQUESTS_PER_MINUTE: ${DTE_CUSTOMER_REQUESTS_PER_MINUTE:-120}
+      # Sitio que se imprime en la boleta para que el consumidor la consulte.
+      DTE_RECEIPT_VERIFICATION_URL: ${DTE_RECEIPT_VERIFICATION_URL:-}
+      # Proxys de confianza para X-Forwarded-For: la red bridge de Docker, donde
+      # viven 'web' y 'boletas'. OJO: el puerto 8000 de abajo también sale por
+      # el gateway de esa red, así que quien alcance 8000 podría falsear su IP
+      # y saltarse el límite de la consulta pública. Al publicar el sitio,
+      # dejar 8000 accesible sólo desde la red interna (o no publicarlo).
+      DTE_FORWARDED_ALLOW_IPS: ${DTE_FORWARDED_ALLOW_IPS:-172.16.0.0/12}
     ports:
       # Para clientes máquina (Odoo). El portal entra por el servicio 'web'.
       - "8000:8000"
     volumes:
       # Monta los XSD oficiales del SII (del motor) en el contenedor.
       - ./schemas:/srv/schemas:ro
+
+  # Estado compartido de los límites de tasa (opcional, ver DTE_REDIS_URL).
+  redis:
+    image: redis:7-alpine
+    profiles: ["escalado"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
 
   # Ingress del portal: sirve la SPA y proxya /api/* al API (mismo sitio).
   web:
@@ -50,6 +72,21 @@ services:
       - api
     ports:
       - "80:80"
+
+  # Sitio público de consulta de boletas. Contenedor y origen propios: es
+  # anónimo y está expuesto, así que no comparte origen con el portal.
+  boletas:
+    build:
+      context: ./boletas-web
+      args:
+        # Vacío = sitio multiempresa: el comprador elige de qué empresa es su
+        # boleta. Se fija un RUT sólo cuando una empresa publica el sitio en su
+        # propio dominio y no corresponde ofrecerle las demás.
+        VITE_ISSUER_RUT: ${DTE_BOLETAS_ISSUER_RUT:-}
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
 
 volumes:
   pgdata:

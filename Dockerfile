@@ -23,5 +23,12 @@ RUN pip install .
 # Esquemas XSD del SII (del motor) montados o copiados a /srv/schemas.
 ENV DTE_SCHEMAS_DIR=/srv/schemas
 
+# Detrás de un proxy, --proxy-headers hace que request.client.host sea la IP
+# real del visitante y no la del proxy: de eso depende que el límite de tasa de
+# la consulta pública se aplique por comprador y no a todos en un mismo balde.
+# Sólo se confía en los proxys de DTE_FORWARDED_ALLOW_IPS; desde cualquier otro
+# origen el X-Forwarded-For se ignora (si no, se falsearía para saltar el límite).
+ENV DTE_FORWARDED_ALLOW_IPS=127.0.0.1
+
 # Aplica migraciones (Alembic) y arranca.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips \"$DTE_FORWARDED_ALLOW_IPS\""]

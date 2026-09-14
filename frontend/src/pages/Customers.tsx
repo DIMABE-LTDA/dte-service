@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
+import { useToast } from "../toast";
 import type { Customer } from "../types";
 
 const EMPTY = {
@@ -17,6 +18,25 @@ const EMPTY = {
 };
 
 type Confirm = { kind: "delete" | "restore"; customer: Customer };
+
+type Company = { rut: string; name: string; fichas: Customer[] };
+
+/** Agrupa las fichas por RUT.
+ *
+ * Una empresa que opera en certificación y en producción son dos clientes
+ * distintos —cada uno con su certificado, sus CAF y sus correlativos— y esa
+ * separación es deliberada. Pero en la lista se leía como dos empresas: aquí
+ * se muestran juntas sin que dejen de ser fichas independientes.
+ */
+function groupByRut(items: Customer[]): Company[] {
+  const byRut = new Map<string, Company>();
+  for (const c of items) {
+    const g = byRut.get(c.rut);
+    if (g) g.fichas.push(c);
+    else byRut.set(c.rut, { rut: c.rut, name: c.name, fichas: [c] });
+  }
+  return [...byRut.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
 
 export default function Customers() {
   const { user } = useAuth();
@@ -37,6 +57,14 @@ export default function Customers() {
   const [created, setCreated] = useState<Customer | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [actionError, setActionError] = useState("");
+  const toast = useToast();
+
+  /** Muestra el fallo donde se está mirando y, además, como aviso global. */
+  function avisar(err: unknown) {
+    const e = err as ApiError;
+    setActionError(e.message);
+    toast.error(e.message, e.hints);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -48,7 +76,17 @@ export default function Customers() {
 
   function openEdit(c: Customer) {
     setEditing(c);
-    setForm({ ...EMPTY, name: c.name, rut: c.rut, environment: c.environment });
+    // Precargados: el formulario se abría vacío, así que editar cualquier
+    // cosa obligaba a recordar de memoria el número de resolución para no
+    // dejarlo atrás.
+    setForm({
+      ...EMPTY,
+      name: c.name,
+      rut: c.rut,
+      environment: c.environment,
+      resolution_number: c.resolution_number ? String(c.resolution_number) : "",
+      resolution_date: c.resolution_date ?? "",
+    });
     setFormError("");
     setCreated(null);
     setOpen(true);
@@ -66,10 +104,12 @@ export default function Customers() {
         resolution_number?: number;
         resolution_date?: string;
       } = { name: form.name, rut: form.rut, environment: form.environment };
-      if (form.environment === "PRODUCTION" && form.resolution_number) {
+      // Sin filtrar por ambiente: en certificación el 0 es un valor legítimo
+      // —el que el SII espera—, no un campo sin rellenar.
+      if (form.resolution_number !== "") {
         payload.resolution_number = Number(form.resolution_number);
-        if (form.resolution_date) payload.resolution_date = form.resolution_date;
       }
+      if (form.resolution_date) payload.resolution_date = form.resolution_date;
       if (editing) {
         await api.updateCustomer(editing.id, payload);
       } else {
@@ -94,7 +134,7 @@ export default function Customers() {
       setConfirm(null);
       await reload();
     } catch (err) {
-      setActionError((err as Error).message);
+      avisar(err);
     } finally {
       setBusy(false);
     }
@@ -159,70 +199,109 @@ export default function Customers() {
                 <th />
               </tr>
             </thead>
-            <tbody>
-              {(items ?? []).map((c) => {
-                const archived = !!c.deleted_at;
-                return (
-                  <tr key={c.id} className={archived ? "archived" : ""}>
-                    <td>{c.id}</td>
-                    <td>
-                      {c.name}
-                      {archived && <span className="badge denied"> archivado</span>}
-                    </td>
-                    <td>
-                      <span className="code">{c.key}</span>
-                    </td>
-                    <td>{c.rut}</td>
-                    <td>
-                      <span className={`badge ${c.environment === "PRODUCTION" ? "denied" : "ok"}`}>
-                        {c.environment}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="actions">
-                        <Link className="btn-link neutral" to={`/customers/${c.id}`}>
-                          <Icon name="settings" />
-                          Gestionar
-                        </Link>
-                        {writable && !archived && (
-                          <>
-                            <button className="btn-link" type="button" onClick={() => openEdit(c)}>
-                              <Icon name="edit" />
-                              Editar
-                            </button>
-                            <button
-                              className="btn-link danger"
-                              type="button"
-                              onClick={() => setConfirm({ kind: "delete", customer: c })}
-                            >
-                              <Icon name="trash" />
-                              Eliminar
-                            </button>
-                          </>
-                        )}
-                        {writable && archived && (
-                          <button
-                            className="btn-link"
-                            type="button"
-                            onClick={() => setConfirm({ kind: "restore", customer: c })}
+            {groupByRut(items ?? []).map((company) => {
+              // Una sola ficha se muestra como siempre; con dos o más, el
+              // nombre y el RUT suben a una cabecera y no se repiten fila a fila.
+              const agrupada = company.fichas.length > 1;
+              return (
+                <tbody key={company.rut}>
+                  {agrupada && (
+                    <tr className="group-head">
+                      <td />
+                      <td colSpan={5}>
+                        <strong>{company.name}</strong> · RUT {company.rut} ·{" "}
+                        <span className="muted">
+                          {company.fichas.length} fichas, una por ambiente
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  {company.fichas.map((c) => {
+                    const archived = !!c.deleted_at;
+                    return (
+                      <tr key={c.id} className={archived ? "archived" : ""}>
+                        <td>{c.id}</td>
+                        <td className={agrupada ? "sub" : ""}>
+                          {agrupada ? (
+                            <span className="muted">↳</span>
+                          ) : (
+                            <>
+                              {c.name}
+                              {archived && <span className="badge neutral"> archivado</span>}
+                            </>
+                          )}
+                          {agrupada && archived && <span className="badge denied"> archivado</span>}
+                        </td>
+                        <td>
+                          <span className="code">{c.key}</span>
+                        </td>
+                        <td className="nowrap">{agrupada ? "" : c.rut}</td>
+                        <td>
+                          <span
+                            className={`badge ${c.environment === "PRODUCTION" ? "warn" : "neutral"}`}
                           >
-                            <Icon name="restore" />
-                            Reactivar
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {items && items.length === 0 && (
+                            {c.environment}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="actions">
+                            <Link className="btn-link neutral" to={`/customers/${c.id}`}>
+                              <Icon name="settings" />
+                              Gestionar
+                            </Link>
+                            {c.environment === "CERTIFICATION" && !archived && (
+                              <Link className="btn-link" to={`/customers/${c.id}/certification`}>
+                                <Icon name="audit" />
+                                Certificar
+                              </Link>
+                            )}
+                            {writable && !archived && (
+                              <>
+                                <button
+                                  className="btn-link"
+                                  type="button"
+                                  onClick={() => openEdit(c)}
+                                >
+                                  <Icon name="edit" />
+                                  Editar
+                                </button>
+                                <button
+                                  className="btn-link danger"
+                                  type="button"
+                                  onClick={() => setConfirm({ kind: "delete", customer: c })}
+                                >
+                                  <Icon name="trash" />
+                                  Eliminar
+                                </button>
+                              </>
+                            )}
+                            {writable && archived && (
+                              <button
+                                className="btn-link"
+                                type="button"
+                                onClick={() => setConfirm({ kind: "restore", customer: c })}
+                              >
+                                <Icon name="restore" />
+                                Reactivar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              );
+            })}
+            {items && items.length === 0 && (
+              <tbody>
                 <tr>
                   <td colSpan={6} className="muted">
                     Sin clientes.
                   </td>
                 </tr>
-              )}
-            </tbody>
+              </tbody>
+            )}
           </table>
         )}
       </div>
@@ -283,26 +362,31 @@ export default function Customers() {
                 <option value="PRODUCTION">Producción</option>
               </select>
             </div>
-            {form.environment === "PRODUCTION" && (
-              <>
-                <div className="field">
-                  <label>N° resolución</label>
-                  <input
-                    value={form.resolution_number}
-                    onChange={(e) => setForm({ ...form, resolution_number: e.target.value })}
-                    placeholder={editing ? "(dejar vacío = sin cambio)" : ""}
-                  />
-                </div>
-                <div className="field">
-                  <label>Fecha resolución</label>
-                  <input
-                    type="date"
-                    value={form.resolution_date}
-                    onChange={(e) => setForm({ ...form, resolution_date: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
+            {/* Siempre visibles. Ocultarlos en certificación los volvía
+                inencontrables —«no veo dónde configurar la resolución»— y el
+                dato existe en los dos ambientes: va en la carátula de todos los
+                DTE. Lo que cambia es qué valor corresponde. */}
+            <div className="field">
+              <label>N° resolución</label>
+              <input
+                value={form.resolution_number}
+                onChange={(e) => setForm({ ...form, resolution_number: e.target.value })}
+                placeholder={editing ? "(dejar vacío = sin cambio)" : "0"}
+              />
+            </div>
+            <div className="field">
+              <label>Fecha resolución</label>
+              <input
+                type="date"
+                value={form.resolution_date}
+                onChange={(e) => setForm({ ...form, resolution_date: e.target.value })}
+              />
+            </div>
+            <p className="muted" style={{ margin: 0, gridColumn: "1 / -1" }}>
+              {form.environment === "CERTIFICATION"
+                ? "En certificación el SII espera número 0 y fecha 2014-08-22."
+                : "La resolución que te asignó el SII al autorizarte a emitir. Va en la carátula de cada DTE."}
+            </p>
           </form>
         </Modal>
       )}

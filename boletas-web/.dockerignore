@@ -1,0 +1,5 @@
+# node_modules y dist se generan dentro de la imagen; copiarlos desde el disco
+# alarga el build y arriesga publicar un dist viejo.
+node_modules
+dist
+.env*

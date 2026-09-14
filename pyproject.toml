@@ -18,6 +18,12 @@ dependencies = [
     "cryptography>=42.0",
     "argon2-cffi>=23.1",
     "pyjwt>=2.8",
+    # Sólo se usa si DTE_REDIS_URL está configurada (import perezoso), pero va
+    # en dependencias: tenerla como extra convierte un despliegue con la
+    # variable puesta y el paquete ausente en un límite que falla en silencio.
+    "redis>=5.0",
+    # TOTP del segundo factor del portal (RFC 6238).
+    "pyotp>=2.9",
     # El motor dte_chile NO va en dependencies directas: rompería el editable
     # local de dev y el vendoring offline de Docker (referencia directa de git).
     # Dev: `pip install -e ../dte_chile`. CI: extra `engine` (pineado, abajo).
@@ -27,7 +33,7 @@ dependencies = [
 [project.optional-dependencies]
 # Motor pineado al tag → builds reproducibles (lo usa el CI). Requiere acceso al
 # repo privado cl_dte_lib (token de git).
-engine = ["dte_chile @ git+https://github.com/leonardodimabe/cl_dte_lib.git@v0.3.0"]
+engine = ["dte_chile @ git+https://github.com/leonardodimabe/cl_dte_lib.git@v0.4.1"]
 dev = [
     "pytest>=8.0",
     "httpx>=0.27",
@@ -45,7 +51,9 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["migrations/versions"]
+# vendor/ es el motor vendorizado: código de otro repositorio, con su propio
+# CI. Revisarlo aquí sólo daría ruido que no se puede arreglar aquí.
+extend-exclude = ["migrations/versions", "vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

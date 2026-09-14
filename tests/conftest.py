@@ -83,10 +83,14 @@ def _clean_db():
 def _reset_rate_limiters():
     """Los limitadores son estado global del proceso: aislarlos entre tests."""
     from app.routers.auth import _login_limiter
-    from app.security.tenant import _tenant_failures
+    from app.security.auth import _admin_failures
+    from app.security.tenant import _customer_quota, _tenant_failures
 
     _login_limiter.reset()
+    _admin_failures.reset()
     _tenant_failures.reset()
+    if _customer_quota is not None:
+        _customer_quota.reset()
     yield
 
 

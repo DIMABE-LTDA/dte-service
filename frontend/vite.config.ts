@@ -11,7 +11,9 @@ export default defineConfig({
     // entre las rutas de navegación (/users, /audit) y los endpoints del API.
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        // 127.0.0.1 (no "localhost"): en Windows localhost resuelve a ::1 y el
+        // proxy de Node se cuelga si el API escucha en IPv4.
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
       },

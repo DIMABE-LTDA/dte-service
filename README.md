@@ -70,8 +70,15 @@ git con el secreto **`ENGINE_TOKEN`** (PAT fine-grained / deploy key con lectura
 |---|---|---|
 | RCV (per-cliente) | `POST /rcv/documents` | `apiKey` + `customerCode` (servicio RCV) |
 | RCV (operador) | `POST /admin/customers/{id}/rcv` | `X-Admin-Key` |
-| DTE | `POST /dte/issue`, `GET /dte/status/{track_id}` | `apiKey` + `customerCode` (DTE) |
+| DTE (33/34/46/52/56/61) | `POST /dte/issue`, `GET /dte/status/{track_id}` | `apiKey` + `customerCode` (DTE) |
+| DTE en lote (un sobre) | `POST /dte/issue-batch` | `apiKey` + `customerCode` (DTE) |
+| Liquidación factura (43) | `POST /dte/issue-settlement` | `apiKey` + `customerCode` (DTE) |
+| Exportación (110/111/112) | `POST /dte/issue-export` | `apiKey` + `customerCode` (DTE) |
+| Representación impresa | `POST /dte/print` | `apiKey` + `customerCode` (DTE) |
 | IECV | `POST /books` | `apiKey` + `customerCode` (BOOK) |
+| Libro de Guías | `POST /books/guides` | `apiKey` + `customerCode` (BOOK) |
+| Boleta electrónica (39/41) | `POST /boletas/issue-batch` | `apiKey` + `customerCode` (DTE) |
+| Consumo de folios (RCOF) | `POST /boletas/folio-report` | `apiKey` + `customerCode` (DTE) |
 | Intercambio | `POST /exchange/{ack,result,receipts}` | `apiKey` + `customerCode` (EXCHANGE) |
 | Admin (datos maestros) | `POST /admin/customers[...]` | `X-Admin-Key` |
 | Portal: auth | `POST /auth/login`, `GET /auth/me` | público / `Bearer` |
@@ -141,7 +148,74 @@ curl -X DELETE http://localhost:8000/machine-keys/<id> -H "Authorization: Bearer
 ```
 
 Recomendado: usar `DTE_ADMIN_API_KEY` solo para crear la primera clave de
-consumidor y migrar Odoo (y otros) a claves dedicadas.
+consumidor y migrar Odoo (y otros) a claves dedicadas. Hecha esa migración,
+**apagar la de bootstrap** con `DTE_ADMIN_BOOTSTRAP_KEY_ENABLED=false`: deja de
+autenticar (y puede ir vacía). Es la única credencial con poder sobre todos los
+clientes que no es revocable ni deja identidad en la auditoría. Si se apaga sin
+haber creado ninguna clave de máquina, `/admin` queda solo con el JWT del
+portal y el servicio lo avisa en el log al arrancar.
+
+## Libros (IECV) en moneda extranjera
+
+El IECV se declara **siempre en pesos**. Un documento de exportación se emite en
+su moneda, así que su línea del libro lleva `currency` y `exchange_rate` (el
+observado del día del documento) y el servicio hace la conversión:
+
+```json
+{ "doc_type": 110, "folio": 7, "date": "2026-05-10",
+  "rut": "55555555-5", "business_name": "COMPRADOR EXTRANJERO",
+  "exempt_amount": "15.40", "total_amount": "15.40",
+  "currency": "DOLAR USA", "exchange_rate": "950.25" }
+```
+
+→ `<MntExe>14634</MntExe>`. Sin `currency` los montos son pesos y deben ser
+enteros; un decimal ahí se rechaza al validar, en vez de acabar como un `15.40`
+en un campo que el XSD quiere entero.
+
+## Expediente de certificación
+
+De cada envío al SII de un cliente en ambiente **certificación** se guarda solo
+el TrackID, el sobre exacto que se subió (cifrado) y qué venía dentro. Antes no
+se persistía nada: el TrackID llegaba en la respuesta y se perdía si nadie lo
+copiaba, y el sobre no se guardaba en absoluto.
+
+El enganche está en `sii_upload.upload()`, el paso obligado de documentos,
+boletas y libros, así que no hay que acordarse de nada al emitir. Si quien emite
+quiere atribuir el envío a un set del SII, manda la cabecera opcional:
+
+```
+X-Certification-Set: 5038170
+```
+
+Sin ella el envío se guarda igual, con `set_id` nulo, y se asocia después: la
+captura no depende de recordar ponerla. Un reintento crea un envío nuevo sin
+borrar el anterior — el Libro de Ventas llevó trece.
+
+En producción no se captura nada: el servicio no guarda DTE, y ésta es una
+excepción acotada a un corpus finito y temporal.
+
+## Endurecimiento
+
+Pensado para que el servicio pueda quedar expuesto a internet:
+
+- **Fuerza bruta.** El login del portal cuenta *todo* intento por IP
+  (`DTE_LOGIN_ATTEMPTS_PER_MINUTE`); `X-Admin-Key` y las credenciales de cliente
+  cuentan solo los **fallos** (`DTE_ADMIN_KEY_FAILURES_PER_5MIN`,
+  `DTE_TENANT_AUTH_FAILURES_PER_5MIN`), así el tráfico legítimo de alto volumen
+  no se penaliza. Una credencial válida rechazada por rol (403) no cuenta como
+  fallo. El estado vive en la memoria de cada proceso: con N workers el límite
+  efectivo es ~N x, suficiente como freno, no como cuota exacta.
+- **Segundo factor.** Opcional y por usuario, en *Mi cuenta* del portal (TOTP de
+  cualquier app de autenticación). El secreto va cifrado con Fernet y el alta no
+  activa nada hasta confirmar un código. Entrega ocho códigos de recuperación de
+  un solo uso: guárdalos, son la única salida si se pierde el teléfono. Si
+  también se pierden, un `superadmin` puede resetearlo desde *Usuarios*, y queda
+  en la auditoría de cambios.
+- **Cabeceras.** Toda respuesta lleva `X-Frame-Options: DENY`,
+  `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options` y
+  `Referrer-Policy`; con `DTE_COOKIE_SECURE=true` (o sea, con TLS delante) se
+  agrega HSTS. Los nginx del portal y del sitio de boletas ponen las mismas
+  sobre el HTML que sirven ellos.
 
 ## Panel admin (SPA React)
 

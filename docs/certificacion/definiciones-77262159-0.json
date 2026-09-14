@@ -1,0 +1,2156 @@
+{
+  "basico": {
+    "code": "5038170",
+    "endpoint": "issue-batch",
+    "payload": {
+      "documents": [
+        {
+          "type": 33,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "Cajon AFECTO",
+              "quantity": 161,
+              "unit_price": 3071
+            },
+            {
+              "name": "Relleno AFECTO",
+              "quantity": 68,
+              "unit_price": 5105
+            }
+          ]
+        },
+        {
+          "type": 33,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "Panuelo AFECTO",
+              "quantity": 673,
+              "unit_price": 5230,
+              "discount_pct": 9
+            },
+            {
+              "name": "ITEM 2 AFECTO",
+              "quantity": 615,
+              "unit_price": 4283,
+              "discount_pct": 20
+            }
+          ]
+        },
+        {
+          "type": 33,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "Pintura B&W AFECTO",
+              "quantity": 53,
+              "unit_price": 6134
+            },
+            {
+              "name": "ITEM 2 AFECTO",
+              "quantity": 222,
+              "unit_price": 3807
+            },
+            {
+              "name": "ITEM 3 SERVICIO EXENTO",
+              "quantity": 1,
+              "unit_price": 35196,
+              "exempt": true
+            }
+          ]
+        },
+        {
+          "type": 33,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "ITEM 1 AFECTO",
+              "quantity": 360,
+              "unit_price": 5226
+            },
+            {
+              "name": "ITEM 2 AFECTO",
+              "quantity": 152,
+              "unit_price": 6258
+            },
+            {
+              "name": "ITEM 3 SERVICIO EXENTO",
+              "quantity": 2,
+              "unit_price": 6822,
+              "exempt": true
+            }
+          ],
+          "global_discounts": [
+            {
+              "value": 20,
+              "kind": "D",
+              "reason": "DESCUENTO GLOBAL ITEMES AFECTOS"
+            }
+          ]
+        },
+        {
+          "type": 61,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "CORRIGE GIRO DEL RECEPTOR",
+              "quantity": 1,
+              "unit_price": 0
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 1,
+              "code": 2,
+              "reason": "CORRIGE GIRO DEL RECEPTOR"
+            }
+          ]
+        },
+        {
+          "type": 61,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "Panuelo AFECTO",
+              "quantity": 247,
+              "unit_price": 5230,
+              "discount_pct": 9
+            },
+            {
+              "name": "ITEM 2 AFECTO",
+              "quantity": 417,
+              "unit_price": 4283,
+              "discount_pct": 20
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 2,
+              "code": 3,
+              "reason": "DEVOLUCION DE MERCADERIAS"
+            }
+          ]
+        },
+        {
+          "type": 61,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "Pintura B&W AFECTO",
+              "quantity": 53,
+              "unit_price": 6134
+            },
+            {
+              "name": "ITEM 2 AFECTO",
+              "quantity": 222,
+              "unit_price": 3807
+            },
+            {
+              "name": "ITEM 3 SERVICIO EXENTO",
+              "quantity": 1,
+              "unit_price": 35196,
+              "exempt": true
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 3,
+              "code": 1,
+              "reason": "ANULA FACTURA"
+            }
+          ]
+        },
+        {
+          "type": 56,
+          "issue_date": "2026-09-02",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "ANULA NOTA DE CREDITO",
+              "quantity": 1,
+              "unit_price": 0
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 5,
+              "code": 1,
+              "reason": "ANULA NOTA DE CREDITO ELECTRONICA"
+            }
+          ]
+        }
+      ],
+      "validate_xsd": true
+    }
+  },
+  "guias": {
+    "code": "5038173",
+    "endpoint": "issue-batch",
+    "payload": {
+      "documents": [
+        {
+          "type": 52,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "ACTIVIDADES ESPECIALIZADAS CONSTRUCCION",
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA"
+          },
+          "items": [
+            {
+              "name": "ITEM 1",
+              "quantity": 74,
+              "unit_price": 0
+            },
+            {
+              "name": "ITEM 2",
+              "quantity": 109,
+              "unit_price": 0
+            },
+            {
+              "name": "ITEM 3",
+              "quantity": 71,
+              "unit_price": 0
+            }
+          ],
+          "transfer_type": 5,
+          "transport": {
+            "dest_address": "BODEGA 2, MONS. FDO. DE BARRIONUEVO #1540",
+            "dest_commune": "RANCAGUA"
+          }
+        },
+        {
+          "type": 52,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "ITEM 1",
+              "quantity": 290,
+              "unit_price": 6055
+            },
+            {
+              "name": "ITEM 2",
+              "quantity": 559,
+              "unit_price": 1485
+            }
+          ],
+          "transfer_type": 1,
+          "dispatch_type": 2
+        },
+        {
+          "type": 52,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "ITEM 1",
+              "quantity": 152,
+              "unit_price": 1780
+            },
+            {
+              "name": "ITEM 2",
+              "quantity": 350,
+              "unit_price": 4743
+            }
+          ],
+          "transfer_type": 1,
+          "dispatch_type": 1
+        }
+      ],
+      "validate_xsd": true
+    }
+  },
+  "exenta": {
+    "code": "5038175",
+    "endpoint": "issue-batch",
+    "payload": {
+      "documents": [
+        {
+          "type": 34,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "HORAS PROGRAMADOR",
+              "quantity": 13,
+              "unit_price": 7358,
+              "exempt": true,
+              "unit": "Hora"
+            }
+          ]
+        },
+        {
+          "type": 61,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "HORAS PROGRAMADOR",
+              "quantity": 1,
+              "unit_price": 920,
+              "exempt": true
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 1,
+              "code": 3,
+              "reason": "MODIFICA MONTO"
+            }
+          ]
+        },
+        {
+          "type": 34,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "SERV CONSULTORIA FACT ELECTRONICA",
+              "quantity": 1,
+              "unit_price": 375349,
+              "exempt": true
+            },
+            {
+              "name": "SERV CONSULTORIA GUIA DESPACHO ELECT",
+              "quantity": 1,
+              "unit_price": 267465,
+              "exempt": true
+            }
+          ]
+        },
+        {
+          "type": 61,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "CORRIGE GIRO DEL RECEPTOR",
+              "quantity": 1,
+              "unit_price": 0,
+              "exempt": true
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 3,
+              "code": 2,
+              "reason": "CORRIGE GIRO DEL RECEPTOR"
+            }
+          ]
+        },
+        {
+          "type": 56,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "ANULA NOTA DE CREDITO",
+              "quantity": 1,
+              "unit_price": 0,
+              "exempt": true
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 4,
+              "code": 1,
+              "reason": "ANULA NOTA DE CREDITO ELECTRONICA"
+            }
+          ]
+        },
+        {
+          "type": 34,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "CAPACITACION USO CIGUEÑALES",
+              "quantity": 1,
+              "unit_price": 356839,
+              "exempt": true
+            },
+            {
+              "name": "CAPACITACION USO PLC's CNC",
+              "quantity": 1,
+              "unit_price": 245213,
+              "exempt": true
+            }
+          ]
+        },
+        {
+          "type": 61,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "CAPACITACION USO CIGUEÑALES",
+              "quantity": 1,
+              "unit_price": 178420,
+              "exempt": true
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 6,
+              "code": 3,
+              "reason": "MODIFICA MONTO"
+            }
+          ]
+        },
+        {
+          "type": 56,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "60803000-K",
+            "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+            "activity": "Gobierno",
+            "address": "Teatinos 120",
+            "commune": "Santiago",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "CAPACITACION USO PLC's CNC",
+              "quantity": 1,
+              "unit_price": 49043,
+              "exempt": true
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 6,
+              "code": 3,
+              "reason": "MODIFICA MONTO"
+            }
+          ]
+        }
+      ],
+      "validate_xsd": true
+    }
+  },
+  "exportacion_1": {
+    "code": "5038176",
+    "endpoint": "issue-export-batch",
+    "payload": {
+      "documents": [
+        {
+          "type": 110,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "55555555-5",
+            "business_name": "IMPORTADORA EXTRANJERA SA",
+            "activity": "IMPORTACION",
+            "address": "CALLE EXTRANJERA 1",
+            "commune": "BARCELONA",
+            "city": "BARCELONA"
+          },
+          "currency": "LIBRA EST",
+          "items": [
+            {
+              "name": "CHATARRA DE ALUMINIO",
+              "quantity": "872",
+              "unit_price": "177",
+              "unit": "LT"
+            }
+          ],
+          "customs": {
+            "sale_mode": 4,
+            "sale_clause": 2,
+            "clause_total": "4631.13",
+            "transport_route": 1,
+            "loading_port": 906,
+            "unloading_port": 563,
+            "tare_unit": 17,
+            "gross_weight_unit": 9,
+            "net_weight_unit": 9,
+            "total_packages": 87,
+            "packages": [
+              {
+                "kind_code": 13,
+                "quantity": 87
+              }
+            ],
+            "freight": "3574.57",
+            "insurance": "2759.05",
+            "receiver_country": 517,
+            "destination_country": 517
+          },
+          "global_charges": [
+            {
+              "value": 3574.57,
+              "kind": "R",
+              "value_type": "$",
+              "reason": "FLETE"
+            },
+            {
+              "value": 2759.05,
+              "kind": "R",
+              "value_type": "$",
+              "reason": "SEGURO"
+            }
+          ],
+          "payment_mode": 21,
+          "references": [
+            {
+              "doc_type": 810,
+              "folio": "1",
+              "date": "2026-09-01",
+              "reason": "MIC"
+            }
+          ]
+        },
+        {
+          "type": 112,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "55555555-5",
+            "business_name": "IMPORTADORA EXTRANJERA SA",
+            "activity": "IMPORTACION",
+            "address": "CALLE EXTRANJERA 1",
+            "commune": "BARCELONA",
+            "city": "BARCELONA"
+          },
+          "currency": "LIBRA EST",
+          "items": [
+            {
+              "name": "CHATARRA DE ALUMINIO",
+              "quantity": "291",
+              "unit_price": "177",
+              "unit": "LT"
+            }
+          ],
+          "customs": {
+            "receiver_country": 517,
+            "destination_country": 517
+          },
+          "references": [
+            {
+              "batch_index": 1,
+              "code": 3,
+              "reason": "DEVOLUCION DE MERCADERIA"
+            }
+          ]
+        },
+        {
+          "type": 111,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "55555555-5",
+            "business_name": "IMPORTADORA EXTRANJERA SA",
+            "activity": "IMPORTACION",
+            "address": "CALLE EXTRANJERA 1",
+            "commune": "BARCELONA",
+            "city": "BARCELONA"
+          },
+          "currency": "LIBRA EST",
+          "items": [
+            {
+              "name": "ANULA NOTA DE CREDITO",
+              "amount": "0"
+            }
+          ],
+          "customs": {
+            "receiver_country": 517,
+            "destination_country": 517
+          },
+          "references": [
+            {
+              "batch_index": 2,
+              "code": 1,
+              "reason": "ANULA NOTA DE CREDITO"
+            }
+          ]
+        }
+      ],
+      "validate_xsd": true
+    }
+  },
+  "exportacion_2": {
+    "code": "5038177",
+    "endpoint": "issue-export-batch",
+    "payload": {
+      "documents": [
+        {
+          "type": 110,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "55555555-5",
+            "business_name": "IMPORTADORA EXTRANJERA SA",
+            "activity": "IMPORTACION",
+            "address": "CALLE EXTRANJERA 1",
+            "commune": "BARCELONA",
+            "city": "BARCELONA"
+          },
+          "currency": "DOLAR USA",
+          "items": [
+            {
+              "name": "ASESORIAS Y PROYECTOS PROFESIONALES",
+              "amount": "14",
+              "surcharge_pct": "10"
+            }
+          ],
+          "service_indicator": 3,
+          "payment_mode": 11,
+          "customs": {
+            "sale_clause": 5,
+            "transport_route": 4,
+            "loading_port": 903,
+            "unloading_port": 591,
+            "receiver_country": 563,
+            "destination_country": 563
+          },
+          "references": [
+            {
+              "doc_type": 812,
+              "folio": "1",
+              "date": "2026-09-01",
+              "reason": "RESOLUCION SNA"
+            }
+          ]
+        },
+        {
+          "type": 110,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "55555555-5",
+            "business_name": "IMPORTADORA EXTRANJERA SA",
+            "activity": "IMPORTACION",
+            "address": "CALLE EXTRANJERA 1",
+            "commune": "BARCELONA",
+            "city": "BARCELONA"
+          },
+          "currency": "DOLAR USA",
+          "items": [
+            {
+              "name": "CAJAS CIRUELAS TIERNIZADAS SIN CAROZO CALIBRE 60/70",
+              "quantity": "239",
+              "unit_price": "114",
+              "unit": "KN",
+              "discount_pct": "5"
+            },
+            {
+              "name": "CAJAS DE PASAS DE UVA FLAME MORENA SIN SEMILLA MEDIANAS",
+              "quantity": "164",
+              "unit_price": "62",
+              "unit": "KN"
+            }
+          ],
+          "payment_mode": 11,
+          "customs": {
+            "sale_mode": 1,
+            "sale_clause": 5,
+            "clause_total": "831.17",
+            "transport_route": 4,
+            "loading_port": 903,
+            "unloading_port": 591,
+            "tare_unit": 10,
+            "gross_weight_unit": 10,
+            "net_weight_unit": 10,
+            "total_packages": 24,
+            "packages": [
+              {
+                "kind_code": 75,
+                "quantity": 24
+              }
+            ],
+            "freight": "115.14",
+            "insurance": "15.95",
+            "receiver_country": 563,
+            "destination_country": 563
+          },
+          "global_charges": [
+            {
+              "value": 115.14,
+              "kind": "R",
+              "value_type": "$",
+              "reason": "FLETE"
+            },
+            {
+              "value": 15.95,
+              "kind": "R",
+              "value_type": "$",
+              "reason": "SEGURO"
+            },
+            {
+              "value": 91.43,
+              "kind": "R",
+              "value_type": "$",
+              "reason": "COMISIONES EN EL EXTERIOR"
+            }
+          ],
+          "references": [
+            {
+              "doc_type": 807,
+              "folio": "1",
+              "date": "2026-09-01",
+              "reason": "DUS"
+            },
+            {
+              "doc_type": 809,
+              "folio": "1",
+              "date": "2026-09-01",
+              "reason": "AWB"
+            }
+          ]
+        },
+        {
+          "type": 110,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "55555555-5",
+            "business_name": "IMPORTADORA EXTRANJERA SA",
+            "activity": "IMPORTACION",
+            "address": "CALLE EXTRANJERA 1",
+            "commune": "BARCELONA",
+            "city": "BARCELONA"
+          },
+          "currency": "DOLAR USA",
+          "items": [
+            {
+              "name": "ALOJAMIENTO HABITACIONES",
+              "amount": "42"
+            }
+          ],
+          "service_indicator": 4,
+          "receiver_nationality": 563
+        }
+      ],
+      "validate_xsd": true
+    }
+  },
+  "liquidacion": {
+    "code": "5038178",
+    "endpoint": "issue-settlement-batch",
+    "payload": {
+      "documents": [
+        {
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "17099910-K",
+            "business_name": "MANDANTE EJEMPLO LIMITADA",
+            "activity": "Comercio al por mayor",
+            "address": "Calle Mandante 456",
+            "commune": "Providencia",
+            "city": "Santiago"
+          },
+          "lines": [
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURAS",
+              "amount": 180269,
+              "quantity": 4,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "EXENTO FACTURAS",
+              "amount": 50865,
+              "quantity": 3,
+              "exempt": true
+            },
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURAS ELECTRONICAS",
+              "amount": 35540,
+              "quantity": 14,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "EXENTO FACTURAS ELECTRONICAS",
+              "amount": 33838,
+              "quantity": 10,
+              "exempt": true
+            }
+          ],
+          "commissions": []
+        },
+        {
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "17099910-K",
+            "business_name": "MANDANTE EJEMPLO LIMITADA",
+            "activity": "Comercio al por mayor",
+            "address": "Calle Mandante 456",
+            "commune": "Providencia",
+            "city": "Santiago"
+          },
+          "lines": [
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURA ELECTRONICA 4254",
+              "amount": 19972,
+              "quantity": 1,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "EXENTO FACTURA ELECTRONICA 4254",
+              "amount": 13567,
+              "quantity": 1,
+              "exempt": true
+            },
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURA ELECTRONICA 4768",
+              "amount": 168315,
+              "quantity": 1,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "EXENTO FACTURA ELECTRONICA 4768",
+              "amount": 101584,
+              "quantity": 1,
+              "exempt": true
+            },
+            {
+              "liquidated_type": "61",
+              "name": "NETO NOTA DE CREDITO 328",
+              "amount": -20536,
+              "quantity": 1,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "61",
+              "name": "EXENTO NOTA DE CREDITO 328",
+              "amount": -12063,
+              "quantity": 1,
+              "exempt": true
+            },
+            {
+              "liquidated_type": "39",
+              "name": "BOLETAS",
+              "amount": 1604804,
+              "quantity": 2129,
+              "exempt": false
+            }
+          ],
+          "commissions": []
+        },
+        {
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "17099910-K",
+            "business_name": "MANDANTE EJEMPLO LIMITADA",
+            "activity": "Comercio al por mayor",
+            "address": "Calle Mandante 456",
+            "commune": "Providencia",
+            "city": "Santiago"
+          },
+          "lines": [
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURA ELECTRONICA 1515",
+              "amount": 103648,
+              "quantity": 1,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURAS ELECTRONICAS",
+              "amount": 45578,
+              "quantity": 78,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "EXENTO FACTURAS ELECTRONICAS",
+              "amount": 37094,
+              "quantity": 14,
+              "exempt": true
+            }
+          ],
+          "commissions": [
+            {
+              "description": "NETO COMISION FIJA",
+              "net_amount": 866
+            },
+            {
+              "description": "NETO COMISION VARIABLE",
+              "net_amount": 2279
+            }
+          ]
+        },
+        {
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "17099910-K",
+            "business_name": "MANDANTE EJEMPLO LIMITADA",
+            "activity": "Comercio al por mayor",
+            "address": "Calle Mandante 456",
+            "commune": "Providencia",
+            "city": "Santiago"
+          },
+          "lines": [
+            {
+              "liquidated_type": "33",
+              "name": "NETO ANTICIPO FACTURACION",
+              "amount": 550000,
+              "quantity": 78,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURAS",
+              "amount": 98625,
+              "quantity": 14,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "EXENTO FACTURAS",
+              "amount": 208950,
+              "quantity": 15,
+              "exempt": true
+            },
+            {
+              "liquidated_type": "33",
+              "name": "NETO FACTURAS ELECTRONICAS",
+              "amount": 34828,
+              "quantity": 12,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "33",
+              "name": "EXENTO FACTURAS ELECTRONICAS",
+              "amount": 402028,
+              "quantity": 4,
+              "exempt": true
+            },
+            {
+              "liquidated_type": "61",
+              "name": "NETO NOTA DE CREDITO 1981",
+              "amount": -31286,
+              "quantity": 1,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "43",
+              "name": "NETO LIQUIDACION FACTURA ELECTRONICA 4554",
+              "amount": -43935,
+              "quantity": 1,
+              "exempt": false
+            },
+            {
+              "liquidated_type": "43",
+              "name": "EXENTO LIQUIDACION FACTURA ELECTRONICA 4554",
+              "amount": -44226,
+              "quantity": 1,
+              "exempt": true
+            }
+          ],
+          "commissions": [
+            {
+              "description": "NETO COMISION CONSIGNACION",
+              "net_amount": 630
+            },
+            {
+              "description": "NETO COMISIONES LIQ FACT ELECT 4554",
+              "net_amount": -2197
+            }
+          ]
+        }
+      ],
+      "validate_xsd": true
+    }
+  },
+  "factura_compra": {
+    "code": "5038180",
+    "endpoint": "issue-batch",
+    "payload": {
+      "documents": [
+        {
+          "type": 46,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "17099910-K",
+            "business_name": "PROVEEDOR EJEMPLO LIMITADA",
+            "activity": "Venta por mayor materiales construccion",
+            "address": "Calle Proveedor 456",
+            "commune": "Providencia",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "Producto 1",
+              "quantity": 709,
+              "unit_price": 5610
+            },
+            {
+              "name": "Producto 2",
+              "quantity": 31,
+              "unit_price": 3045
+            }
+          ],
+          "retentions": [
+            {
+              "code": 15
+            }
+          ]
+        },
+        {
+          "type": 61,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "17099910-K",
+            "business_name": "PROVEEDOR EJEMPLO LIMITADA",
+            "activity": "Venta por mayor materiales construccion",
+            "address": "Calle Proveedor 456",
+            "commune": "Providencia",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "Producto 1",
+              "quantity": 236,
+              "unit_price": 5610
+            },
+            {
+              "name": "Producto 2",
+              "quantity": 10,
+              "unit_price": 3045
+            }
+          ],
+          "retentions": [
+            {
+              "code": 15
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 1,
+              "code": 3,
+              "reason": "DEVOLUCION DE MERCADERIA ITEMS 1 Y 2"
+            }
+          ]
+        },
+        {
+          "type": 56,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "receiver": {
+            "rut": "17099910-K",
+            "business_name": "PROVEEDOR EJEMPLO LIMITADA",
+            "activity": "Venta por mayor materiales construccion",
+            "address": "Calle Proveedor 456",
+            "commune": "Providencia",
+            "city": "Santiago"
+          },
+          "items": [
+            {
+              "name": "ANULA NOTA DE CREDITO",
+              "quantity": 1,
+              "unit_price": 0
+            }
+          ],
+          "retentions": [
+            {
+              "code": 15
+            }
+          ],
+          "references": [
+            {
+              "batch_index": 2,
+              "code": 1,
+              "reason": "ANULA NOTA DE CREDITO ELECTRONICA"
+            }
+          ]
+        }
+      ],
+      "validate_xsd": true
+    }
+  },
+  "libro_guias": {
+    "code": "5038174",
+    "endpoint": "books/guides",
+    "payload": {
+      "period": "2026-09",
+      "notification_folio": 5038174,
+      "submission_type": "TOTAL",
+      "lines": [
+        {
+          "folio": 7,
+          "date": "2026-09-01",
+          "transfer_type": 5,
+          "receiver_rut": "77262159-0",
+          "receiver_name": "CONSTRUCTORA DIMABE SPA",
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 0
+        },
+        {
+          "folio": 8,
+          "date": "2026-09-01",
+          "transfer_type": 1,
+          "receiver_rut": "60803000-K",
+          "receiver_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "net_amount": 2586065,
+          "vat_amount": 491352,
+          "total_amount": 3077417,
+          "modified_amount": 3077417,
+          "ref_doc_type": 33,
+          "ref_folio": 12,
+          "ref_date": "2026-08-31"
+        },
+        {
+          "folio": 9,
+          "date": "2026-09-01",
+          "transfer_type": 1,
+          "receiver_rut": "60803000-K",
+          "receiver_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "net_amount": 1930610,
+          "vat_amount": 366816,
+          "total_amount": 2297426,
+          "voided": 2
+        }
+      ]
+    }
+  },
+  "libro_compras": {
+    "code": "5038172",
+    "endpoint": "books",
+    "payload": {
+      "period": "2026-09",
+      "operation_type": "COMPRA",
+      "book_type": "ESPECIAL",
+      "notification_folio": 5038172,
+      "proportionality_factor": 0.6,
+      "lines": [
+        {
+          "doc_type": 30,
+          "folio": 234,
+          "date": "2026-09-02",
+          "rut": "76158145-7",
+          "business_name": "PROVEEDOR DE PRUEBA SPA",
+          "exempt_amount": 0,
+          "net_amount": 40670,
+          "vat_amount": 7727,
+          "total_amount": 48397
+        },
+        {
+          "doc_type": 33,
+          "folio": 32,
+          "date": "2026-09-02",
+          "rut": "76158145-7",
+          "business_name": "PROVEEDOR DE PRUEBA SPA",
+          "exempt_amount": 9928,
+          "net_amount": 9526,
+          "vat_amount": 1810,
+          "total_amount": 21264
+        },
+        {
+          "doc_type": 30,
+          "folio": 781,
+          "date": "2026-09-02",
+          "rut": "76158145-7",
+          "business_name": "PROVEEDOR DE PRUEBA SPA",
+          "exempt_amount": 0,
+          "net_amount": 30019,
+          "vat_amount": 0,
+          "total_amount": 35723,
+          "common_use_vat": 5704
+        },
+        {
+          "doc_type": 60,
+          "folio": 451,
+          "date": "2026-09-02",
+          "rut": "76158145-7",
+          "business_name": "PROVEEDOR DE PRUEBA SPA",
+          "exempt_amount": 0,
+          "net_amount": 2846,
+          "vat_amount": 541,
+          "total_amount": 3387
+        },
+        {
+          "doc_type": 33,
+          "folio": 67,
+          "date": "2026-09-02",
+          "rut": "76158145-7",
+          "business_name": "PROVEEDOR DE PRUEBA SPA",
+          "exempt_amount": 0,
+          "net_amount": 11305,
+          "vat_amount": 0,
+          "total_amount": 13453,
+          "non_recoverable_vat": [
+            {
+              "code": 4,
+              "amount": 2148
+            }
+          ]
+        },
+        {
+          "doc_type": 46,
+          "folio": 9,
+          "date": "2026-09-02",
+          "rut": "76158145-7",
+          "business_name": "PROVEEDOR DE PRUEBA SPA",
+          "exempt_amount": 0,
+          "net_amount": 10215,
+          "vat_amount": 1941,
+          "total_amount": 12156
+        },
+        {
+          "doc_type": 60,
+          "folio": 211,
+          "date": "2026-09-02",
+          "rut": "76158145-7",
+          "business_name": "PROVEEDOR DE PRUEBA SPA",
+          "exempt_amount": 0,
+          "net_amount": 7246,
+          "vat_amount": 1377,
+          "total_amount": 8623
+        }
+      ]
+    }
+  },
+  "libro_ventas": {
+    "code": "5038171",
+    "endpoint": "books",
+    "payload": {
+      "period": "2026-09",
+      "operation_type": "VENTA",
+      "notification_folio": 5038171,
+      "book_type": "ESPECIAL",
+      "lines": [
+        {
+          "doc_type": 33,
+          "folio": 18,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 10000,
+          "vat_amount": 1900,
+          "total_amount": 11900
+        },
+        {
+          "doc_type": 33,
+          "folio": 19,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 841571,
+          "vat_amount": 159898,
+          "total_amount": 1001469
+        },
+        {
+          "doc_type": 33,
+          "folio": 20,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 5310245,
+          "vat_amount": 1008947,
+          "total_amount": 6319192
+        },
+        {
+          "doc_type": 33,
+          "folio": 21,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 35196,
+          "net_amount": 1170256,
+          "vat_amount": 222349,
+          "total_amount": 1427801
+        },
+        {
+          "doc_type": 33,
+          "folio": 22,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 13644,
+          "net_amount": 2266061,
+          "vat_amount": 430552,
+          "total_amount": 2710257
+        },
+        {
+          "doc_type": 34,
+          "folio": 13,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 95654,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 95654
+        },
+        {
+          "doc_type": 34,
+          "folio": 14,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 642814,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 642814
+        },
+        {
+          "doc_type": 34,
+          "folio": 15,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 602052,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 602052
+        },
+        {
+          "doc_type": 43,
+          "folio": 13,
+          "date": "2026-09-01",
+          "rut": "17099910-K",
+          "business_name": "MANDANTE EJEMPLO LIMITADA",
+          "exempt_amount": 84703,
+          "net_amount": 215809,
+          "vat_amount": 41004,
+          "total_amount": 341516
+        },
+        {
+          "doc_type": 43,
+          "folio": 14,
+          "date": "2026-09-01",
+          "rut": "17099910-K",
+          "business_name": "MANDANTE EJEMPLO LIMITADA",
+          "exempt_amount": 103088,
+          "net_amount": 1772555,
+          "vat_amount": 336785,
+          "total_amount": 2212428
+        },
+        {
+          "doc_type": 43,
+          "folio": 15,
+          "date": "2026-09-01",
+          "rut": "17099910-K",
+          "business_name": "MANDANTE EJEMPLO LIMITADA",
+          "exempt_amount": 37094,
+          "net_amount": 149226,
+          "vat_amount": 28353,
+          "total_amount": 210930,
+          "commission_net": 3145,
+          "commission_exempt": 0,
+          "commission_vat": 598
+        },
+        {
+          "doc_type": 43,
+          "folio": 16,
+          "date": "2026-09-01",
+          "rut": "17099910-K",
+          "business_name": "MANDANTE EJEMPLO LIMITADA",
+          "exempt_amount": 566752,
+          "net_amount": 608232,
+          "vat_amount": 115564,
+          "total_amount": 1292412,
+          "commission_net": -1567,
+          "commission_exempt": 0,
+          "commission_vat": -297
+        },
+        {
+          "doc_type": 56,
+          "folio": 15,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 0,
+          "ref_doc_type": 61,
+          "ref_folio": 25
+        },
+        {
+          "doc_type": 56,
+          "folio": 16,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 0,
+          "ref_doc_type": 61,
+          "ref_folio": 29
+        },
+        {
+          "doc_type": 56,
+          "folio": 17,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 49043,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 49043,
+          "ref_doc_type": 34,
+          "ref_folio": 15
+        },
+        {
+          "doc_type": 61,
+          "folio": 25,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 0,
+          "ref_doc_type": 33,
+          "ref_folio": 19
+        },
+        {
+          "doc_type": 61,
+          "folio": 26,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 2604356,
+          "vat_amount": 494828,
+          "total_amount": 3099184,
+          "ref_doc_type": 33,
+          "ref_folio": 20
+        },
+        {
+          "doc_type": 61,
+          "folio": 27,
+          "date": "2026-09-02",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 35196,
+          "net_amount": 1170256,
+          "vat_amount": 222349,
+          "total_amount": 1427801,
+          "ref_doc_type": 33,
+          "ref_folio": 21
+        },
+        {
+          "doc_type": 61,
+          "folio": 28,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 920,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 920,
+          "ref_doc_type": 34,
+          "ref_folio": 13
+        },
+        {
+          "doc_type": 61,
+          "folio": 29,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 0,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 0,
+          "ref_doc_type": 34,
+          "ref_folio": 14
+        },
+        {
+          "doc_type": 61,
+          "folio": 30,
+          "date": "2026-09-01",
+          "rut": "60803000-K",
+          "business_name": "SERVICIO DE IMPUESTOS INTERNOS",
+          "exempt_amount": 178420,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 178420,
+          "ref_doc_type": 34,
+          "ref_folio": 15
+        },
+        {
+          "doc_type": 110,
+          "folio": 12,
+          "date": "2026-09-01",
+          "rut": "55555555-5",
+          "business_name": "IMPORTADORA EXTRANJERA SA",
+          "exempt_amount": 160678,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 160678
+        },
+        {
+          "doc_type": 110,
+          "folio": 13,
+          "date": "2026-09-01",
+          "rut": "55555555-5",
+          "business_name": "IMPORTADORA EXTRANJERA SA",
+          "exempt_amount": 15,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 15
+        },
+        {
+          "doc_type": 110,
+          "folio": 14,
+          "date": "2026-09-01",
+          "rut": "55555555-5",
+          "business_name": "IMPORTADORA EXTRANJERA SA",
+          "exempt_amount": 36274,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 36274
+        },
+        {
+          "doc_type": 110,
+          "folio": 15,
+          "date": "2026-09-01",
+          "rut": "55555555-5",
+          "business_name": "IMPORTADORA EXTRANJERA SA",
+          "exempt_amount": 42,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 42
+        },
+        {
+          "doc_type": 111,
+          "folio": 3,
+          "date": "2026-09-01",
+          "rut": "55555555-5",
+          "business_name": "IMPORTADORA EXTRANJERA SA",
+          "exempt_amount": 0,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 0
+        },
+        {
+          "doc_type": 112,
+          "folio": 3,
+          "date": "2026-09-01",
+          "rut": "55555555-5",
+          "business_name": "IMPORTADORA EXTRANJERA SA",
+          "exempt_amount": 51507,
+          "net_amount": 0,
+          "vat_amount": 0,
+          "total_amount": 51507
+        }
+      ]
+    }
+  },
+  "boletas": {
+    "code": "",
+    "endpoint": "boletas",
+    "payload": {
+      "receipts": [
+        {
+          "type": 39,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "items": [
+            {
+              "name": "Cambio de aceite",
+              "quantity": 1,
+              "unit_price": 19900
+            },
+            {
+              "name": "Alineacion y balanceo",
+              "quantity": 1,
+              "unit_price": 9900
+            }
+          ],
+          "references": [
+            {
+              "doc_type": "SET",
+              "folio": "1",
+              "reason": "CASO-1"
+            }
+          ]
+        },
+        {
+          "type": 39,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "items": [
+            {
+              "name": "Papel de regalo",
+              "quantity": 17,
+              "unit_price": 120
+            }
+          ],
+          "references": [
+            {
+              "doc_type": "SET",
+              "folio": "1",
+              "reason": "CASO-2"
+            }
+          ]
+        },
+        {
+          "type": 39,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "items": [
+            {
+              "name": "Sandwic",
+              "quantity": 2,
+              "unit_price": 1500
+            },
+            {
+              "name": "Bebida",
+              "quantity": 2,
+              "unit_price": 550
+            }
+          ],
+          "references": [
+            {
+              "doc_type": "SET",
+              "folio": "1",
+              "reason": "CASO-3"
+            }
+          ]
+        },
+        {
+          "type": 39,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "items": [
+            {
+              "name": "item afecto 1",
+              "quantity": 8,
+              "unit_price": 1590
+            },
+            {
+              "name": "item exento 2",
+              "quantity": 2,
+              "unit_price": 1000,
+              "exempt": true
+            }
+          ],
+          "references": [
+            {
+              "doc_type": "SET",
+              "folio": "1",
+              "reason": "CASO-4"
+            }
+          ]
+        },
+        {
+          "type": 39,
+          "issue_date": "2026-09-01",
+          "issuer": {
+            "rut": "77262159-0",
+            "business_name": "CONSTRUCTORA DIMABE SPA",
+            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+            "economic_activity": 439000,
+            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+            "commune": "RANCAGUA",
+            "city": "RANCAGUA",
+            "branch_code": 4229993
+          },
+          "items": [
+            {
+              "name": "Arroz",
+              "quantity": 5,
+              "unit_price": 700,
+              "unit": "Kg"
+            }
+          ],
+          "references": [
+            {
+              "doc_type": "SET",
+              "folio": "1",
+              "reason": "CASO-5"
+            }
+          ]
+        }
+      ],
+      "validate_xsd": true
+    }
+  }
+}

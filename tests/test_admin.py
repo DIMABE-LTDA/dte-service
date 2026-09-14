@@ -1,9 +1,9 @@
 import base64
 import datetime as dt
 
-from app.security.service_codes import SERVICE_RCV
+from app.security.service_codes import SERVICE_DTE, SERVICE_RCV
 from app.services import certificate_service, rcv_service
-from tests.conftest import auth_header, fake_caf_xml, make_customer, make_user
+from tests.conftest import auth_header, fake_caf_xml, grant, headers, make_customer, make_user
 from tests.test_auth_rcv import _FakeRcv
 
 ADMIN = {"X-Admin-Key": "test-admin-key-0123456789"}
@@ -73,9 +73,25 @@ def test_create_grant_and_caf(client):
     assert r.json()["doc_type"] == 33 and r.json()["folio_to"] == 5
 
 
+def _describe(pfx: bytes, password: str) -> dict:
+    """`describe` parsea el .pfx de verdad; aquí los .pfx son de juguete.
+
+    La huella se deriva de los bytes para que dos .pfx distintos no parezcan el
+    mismo certificado: es justo lo que comprueba el test de duplicados.
+    """
+    import hashlib
+
+    return {
+        "due_date": dt.date(2030, 1, 1),
+        "holder": "TITULAR DE PRUEBA",
+        "issuer": "CA DE PRUEBA",
+        "thumbprint": hashlib.sha256(pfx).hexdigest(),
+    }
+
+
 def test_upload_certificate(client, monkeypatch):
     cid = _create(client, key="c2")
-    monkeypatch.setattr(certificate_service, "_expiry", lambda pfx, pw: dt.date(2030, 1, 1))
+    monkeypatch.setattr(certificate_service, "describe", _describe)
 
     r = client.post(
         f"/admin/customers/{cid}/certificate",
@@ -193,8 +209,7 @@ def test_grant_unknown_service_returns_400(client):
 def test_certificate_rut_mismatch_allowed(client, monkeypatch):
     # El certificado del SII se emite a una persona natural: su RUT puede diferir
     # del de la empresa. Por eso un cert con RUT distinto se acepta (no se valida).
-    # `_expiry` parsea el .pfx real, que aquí es de juguete → se fakea.
-    monkeypatch.setattr(certificate_service, "_expiry", lambda pfx, pw: dt.date(2030, 1, 1))
+    monkeypatch.setattr(certificate_service, "describe", _describe)
     cid = _create(client, key="rutmm", rut="11111111-1")
     r = client.post(
         f"/admin/customers/{cid}/certificate",
@@ -262,7 +277,7 @@ def test_customer_cafs_listing(client):
 
 def test_customer_certificates_listing(client, monkeypatch):
     cid = _create(client, key="certs")
-    monkeypatch.setattr(certificate_service, "_expiry", lambda pfx, pw: dt.date(2030, 1, 1))
+    monkeypatch.setattr(certificate_service, "describe", _describe)
     client.post(
         f"/admin/customers/{cid}/certificate",
         json={"file_base64": base64.b64encode(b"x").decode(), "password": "pw"},
@@ -270,3 +285,158 @@ def test_customer_certificates_listing(client, monkeypatch):
     )
     certs = client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()
     assert len(certs) == 1 and certs[0]["expired"] is False
+
+
+def test_no_deja_cargar_dos_veces_el_mismo_certificado(client, monkeypatch):
+    """Cargarlo dos veces deja la ficha con filas indistinguibles.
+
+    Y como se resuelve el más reciente, la copia tapa a la original sin que nada
+    lo diga: quien reintenta un envío cree haber cambiado algo y no cambió nada.
+    """
+    cid = _create(client, key="c-dup")
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    cuerpo = {"file_base64": base64.b64encode(b"un-pfx").decode(), "password": "pw"}
+
+    assert (
+        client.post(f"/admin/customers/{cid}/certificate", json=cuerpo, headers=ADMIN).status_code
+        == 200
+    )
+
+    r = client.post(f"/admin/customers/{cid}/certificate", json=cuerpo, headers=ADMIN)
+    assert r.status_code == 400
+    mensaje = r.json()["error"]["message"]
+    assert "ya está cargado" in mensaje
+    # Dice cuál, para no tener que adivinar cuál de las filas es.
+    assert "id 1" in mensaje
+
+    # Y uno distinto sí entra: el rechazo es por certificado, no por cliente.
+    otro = {"file_base64": base64.b64encode(b"otro-pfx").decode(), "password": "pw"}
+    assert (
+        client.post(f"/admin/customers/{cid}/certificate", json=otro, headers=ADMIN).status_code
+        == 200
+    )
+
+
+def test_la_ficha_muestra_el_rut_que_firma(client, monkeypatch):
+    """El RUT del certificado es el que necesita «Enviar Doctos» en el SII.
+
+    No es el de la empresa —el certificado se emite a una persona natural— y sin
+    verlo no hay forma de saber a qué RUT darle el permiso cuando el envío sale
+    rechazado.
+    """
+    cid = _create(client, key="c-rut")
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    client.post(
+        f"/admin/customers/{cid}/certificate",
+        json={"file_base64": base64.b64encode(b"pfx").decode(), "password": "pw"},
+        headers=ADMIN,
+    )
+
+    fila = client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()[0]
+    assert fila["rut"] == "76158145-7"  # el del stub de conftest
+    assert fila["holder"] == "TITULAR DE PRUEBA"
+    assert fila["issuer"] == "CA DE PRUEBA"
+
+
+def test_borrar_un_certificado_lo_quita_de_la_ficha(client, monkeypatch):
+    """Un certificado de prueba cargado por error deja de poder quitarse de en medio.
+
+    Importa porque se firma con el más reciente: si el equivocado es el último,
+    no hay forma de volver al bueno sin volver a subirlo.
+    """
+    cid = _create(client, key="c-borrar")
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    for pfx in (b"uno", b"dos"):
+        client.post(
+            f"/admin/customers/{cid}/certificate",
+            json={"file_base64": base64.b64encode(pfx).decode(), "password": "pw"},
+            headers=ADMIN,
+        )
+    ids = [
+        c["id"] for c in client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()
+    ]
+    assert len(ids) == 2
+
+    r = client.delete(f"/admin/customers/{cid}/certificates/{ids[-1]}", headers=ADMIN)
+    assert r.status_code == 204
+
+    quedan = client.get(f"/admin/customers/{cid}/certificates", headers=ADMIN).json()
+    assert [c["id"] for c in quedan] == ids[:-1]
+
+
+def test_no_se_puede_borrar_el_certificado_de_otro_cliente(client, monkeypatch):
+    """El id por sí solo no debe bastar: sería borrar material ajeno."""
+    monkeypatch.setattr(certificate_service, "describe", _describe)
+    mio = _create(client, key="c-mio")
+    ajeno = _create(client, key="c-ajeno")
+    client.post(
+        f"/admin/customers/{ajeno}/certificate",
+        json={"file_base64": base64.b64encode(b"pfx").decode(), "password": "pw"},
+        headers=ADMIN,
+    )
+    suyo = client.get(f"/admin/customers/{ajeno}/certificates", headers=ADMIN).json()[0]["id"]
+
+    r = client.delete(f"/admin/customers/{mio}/certificates/{suyo}", headers=ADMIN)
+    assert r.status_code == 400
+    assert client.get(f"/admin/customers/{ajeno}/certificates", headers=ADMIN).json()
+
+
+def test_la_ficha_devuelve_la_resolucion(client):
+    """Número y fecha de resolución van en la carátula de cada DTE.
+
+    Se guardaban al crear el cliente y no se devolvían nunca: no había dónde
+    verlos, y el formulario de edición se abría vacío, así que corregir el
+    nombre obligaba a recordar el número de memoria para no perderlo.
+    """
+    cid = _create(client, key="c-res")
+    fila = client.get("/admin/customers", headers=ADMIN).json()
+    cliente = next(c for c in fila if c["id"] == cid)
+    assert cliente["resolution_number"] == 0
+    assert cliente["resolution_date"] == "2014-08-22"
+
+
+def test_el_cliente_maquina_ve_y_corrige_su_resolucion(client, db):
+    """El ERP necesita comprobar contra qué está emitiendo.
+
+    El número y la fecha de resolución van en la carátula de todos los DTE y
+    sólo se veían desde el portal: quien integra desde su ERP no tenía forma de
+    verificarlos ni de corregirlos sin pedírselo a otra persona.
+    """
+    customer = make_customer(db, key="me-cfg")
+    grant(db, customer, SERVICE_DTE)
+
+    r = client.get("/me", headers=headers(customer.key))
+    assert r.status_code == 200
+    assert r.json()["resolution_number"] == 0
+    assert r.json()["environment"] == "CERTIFICATION"
+
+    r = client.patch(
+        "/me",
+        json={"resolution_number": 80, "resolution_date": "2014-08-22"},
+        headers=headers(customer.key),
+    )
+    assert r.status_code == 200
+    assert r.json()["resolution_number"] == 80
+
+    # Corregir uno no borra el otro.
+    r = client.patch("/me", json={"resolution_number": 99}, headers=headers(customer.key))
+    assert r.json()["resolution_number"] == 99
+    assert r.json()["resolution_date"] == "2014-08-22"
+
+
+def test_el_cliente_maquina_no_puede_cambiarse_de_ambiente(client, db):
+    """El ambiente lo fija la credencial, no el cuerpo de la petición.
+
+    Poder cambiarlo con la propia apiKey anularía la separación entre ambientes:
+    una credencial de certificación pasaría a emitir contra Palena.
+    """
+    customer = make_customer(db, key="me-env")
+    grant(db, customer, SERVICE_DTE)
+
+    client.patch(
+        "/me",
+        json={"environment": "PRODUCTION", "resolution_number": 5},
+        headers=headers(customer.key),
+    )
+    db.refresh(customer)
+    assert customer.environment.value == "CERTIFICATION"

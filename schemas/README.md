@@ -1,56 +1,64 @@
 # Esquemas XSD del SII
 
-Los XSD son **archivos oficiales del SII** y NO se versionan (ver `.gitignore`).
-Sirven para que la API valide los documentos **antes** de enviarlos
-(`validate_xsd=true`); sin ellos, esa validación responde `503 XSDNotAvailable`
-y igual puedes emitir con `validate_xsd=false`.
+Coloca aquí los archivos **XSD oficiales del SII**. El validador
+(`dte_chile.validation.Validator`) los carga desde esta carpeta.
 
-## De dónde sacarlos
+## Archivos esperados
 
-Descárgalos del SII (sii.cl → documentación de Factura Electrónica, "Formato XML
-de los Documentos Tributarios Electrónicos" / esquemas de envío y libros). Vienen
-en varios ZIP; **cada familia comparte nombres de archivo con contenido distinto**,
-por eso cada una vive en su propia subcarpeta.
+| Documento | XSD |
+|-----------|-----|
+| DTE (33/34/56/61) | `DTE_v10.xsd` |
+| Sobre de envío | `EnvioDTE_v10.xsd` |
+| Respuesta / acuse de recibo | `RespuestaEnvioDTE_v10.xsd` |
+| Recibo de mercaderías (Ley 19.983) | `Recibos_v10.xsd` |
+| Libro de Compras y Ventas | `LibroCV_v10.xsd` |
+| Libro de Guías de Despacho | `LibroGuia_v10.xsd` |
 
-## Estructura esperada
-
-El `Validator` mapea el elemento raíz → archivo (ver `dte_chile/validation.py`):
-
-| Documento            | Archivo requerido                       |
-| -------------------- | --------------------------------------- |
-| `DTE`                | `schemas/dte/DTE_v10.xsd`               |
-| `EnvioDTE`           | `schemas/dte/EnvioDTE_v10.xsd`          |
-| `RespuestaDTE`       | `schemas/response/RespuestaEnvioDTE_v10.xsd` |
-| `EnvioRecibos`       | `schemas/receipts/EnvioRecibos_v10.xsd` |
-| `LibroCompraVenta`   | `schemas/iecv/LibroCV_v10.xsd`          |
-
-**Importante:** cada subcarpeta debe contener además los XSD que el principal
-`incluye`/`importa` (los `xsd:include` / `xsd:import` del archivo), copiados desde
-el **mismo ZIP** de esa familia. Típicamente:
+Estos esquemas **se referencian entre sí** por ruta relativa (`xsd:import` /
+`xsd:include`), por lo que hay que colocar **todos** los archivos del paquete
+en esta misma carpeta, incluyendo dependencias como:
 
 - `SiiTypes_v10.xsd`
-- `xmldsignature_v10.xsd`
-- y, según la familia, `Recibos_v10.xsd` (recibos), etc.
+- `xmldsignature_v10.xsd`  (firma XMLDSig)
 
-Quedando, por ejemplo:
+## Estructura (subcarpetas por familia)
+
+Los zips del SII **comparten nombres de archivo** (`SiiTypes_v10.xsd`,
+`xmldsignature_v10.xsd`) con contenidos distintos, así que cada familia vive en
+su propia subcarpeta para no pisarse:
 
 ```
 schemas/
-├── dte/        DTE_v10.xsd  EnvioDTE_v10.xsd  SiiTypes_v10.xsd  xmldsignature_v10.xsd
-├── response/   RespuestaEnvioDTE_v10.xsd  SiiTypes_v10.xsd  xmldsignature_v10.xsd
-├── receipts/   EnvioRecibos_v10.xsd  Recibos_v10.xsd  SiiTypes_v10.xsd  xmldsignature_v10.xsd
-└── iecv/       LibroCV_v10.xsd  SiiTypes_v10.xsd  xmldsignature_v10.xsd
+├── dte/        ← DTE_v10.xsd, EnvioDTE_v10.xsd, SiiTypes, xmldsignature
+├── iecv/       ← LibroCV_v10.xsd + Lce*  (LibroCompraVenta)
+├── response/   ← RespuestaEnvioDTE_v10.xsd (+ SiiTypes, xmldsignature copiados)
+├── receipts/   ← EnvioRecibos_v10.xsd, Recibos_v10.xsd  (Ley 19.983)
+└── lgd/        ← LibroGuia_v10.xsd (Libro de Guías de Despacho)
 ```
 
-## Nota sobre LibroCV
+## Descarga automática (recomendado)
 
-Algunos XSD del SII (p. ej. el tipo `LceCal` en `LibroCV_v10.xsd`) declaran
-decimales fuera del rango que acepta libxml2 y fallan al compilar
-(`XSDNotAvailable` con detalle). Requieren un pequeño parche en el XSD; si no
-necesitas validar el libro localmente, omítelo y usa `validate_xsd=false`.
+```powershell
+powershell -ExecutionPolicy Bypass -File schemas\download_schemas.ps1
+```
 
-## Docker
+Descarga los 5 paquetes oficiales del SII, los ubica en sus subcarpetas, copia
+las dependencias que faltan y aplica un parche menor (libxml2 no acepta un
+decimal de 34 dígitos en `LceSiiTypes_v10.xsd`).
 
-`docker-compose.yml` monta esta carpeta en el contenedor del API
-(`./schemas:/srv/schemas:ro`, `DTE_SCHEMAS_DIR=/srv/schemas`). Basta con dejar
-los XSD aquí antes de `docker compose up`.
+## Fuentes oficiales del SII
+
+| Paquete | Contenido |
+|---------|-----------|
+| `schema_dte.zip` | DTE, EnvioDTE |
+| `schema_iecv.zip` | LibroCV (IECV) |
+| `schema_ic.zip` | RespuestaEnvioDTE |
+| `schema19983.zip` | Recibos (Ley 19.983) |
+| `schema_lgd.zip` | LibroGuia (Libro de Guías de Despacho) |
+
+Base: `https://www.sii.cl/factura_electronica/factura_mercado/`
+
+> ⚠️ Usa siempre los XSD **oficiales del SII** (no copias de terceros).
+
+Esta carpeta está en `.gitignore` (salvo este README y el script): los XSD no se
+versionan.

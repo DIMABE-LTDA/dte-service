@@ -5,12 +5,27 @@ import type {
   CertificateInfo,
   Customer,
   GrantedService,
+  IssuerProfile,
   Me,
   RcvResponse,
   RequestLog,
   ServiceGrantResult,
   ServiceInfo,
+  CertCheck,
+  CertContents,
+  CertDefinition,
+  CertCustomer,
+  CertDossier,
+  CertEnvelope,
+  CertNote,
+  CertPreview,
+  CertReceiver,
+  CertReadiness,
+  CertSet,
+  CertSubmission,
   Token,
+  TotpSetup,
+  TotpStatus,
   User,
 } from "./types";
 
@@ -21,23 +36,47 @@ const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 
 // La sesión vive en una cookie HttpOnly que pone el servidor; JS no la maneja.
 // `credentials: "include"` hace que el navegador la envíe en cada request.
-class ApiError extends Error {}
+/** Error del API, con la guía que el servidor haya adjuntado.
+ *
+ * `hints` es el `details` del cuerpo de error: qué revisar y en qué orden.
+ * Existe porque hay fallos cuyo mensaje es exacto pero inútil —"el SII rechazó
+ * la semilla firmada (estado=10)"— y la causa real está siempre en la misma
+ * lista corta de sitios. Perderla al cruzar la frontera HTTP dejaba al
+ * operador con un número.
+ */
+export class ApiError extends Error {
+  readonly hints: string[];
+
+  constructor(message: string, hints: string[] = []) {
+    super(message);
+    this.hints = hints;
+  }
+}
+
+/** Saca el mensaje y la guía del cuerpo, vengan del handler o de FastAPI. */
+async function errorDe(res: Response, porDefecto: string): Promise<ApiError> {
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+  const err = (body as { error?: { message?: string; details?: string[] } }).error;
+  const mensaje = err?.message ?? (body as { detail?: string }).detail ?? porDefecto;
+  return new ApiError(mensaje, err?.details ?? []);
+}
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const res = await fetch(`${BASE}${path}`, { ...opts, headers, credentials: "include" });
   if (res.status === 401) {
     // /auth/* (me, login, logout) gestionan su propio estado: no redirigir aquí.
-    if (!path.startsWith("/auth/")) window.location.assign("/login");
-    throw new ApiError("no autenticado");
+    if (!path.startsWith("/auth/")) {
+      window.location.assign("/login");
+      throw new ApiError("no autenticado");
+    }
+    // Y NECESITAN el detalle: el login distingue "falta el segundo factor"
+    // ('totp_required') de una contraseña incorrecta, y con un mensaje genérico
+    // nunca llegaría a pedir el código.
+    throw await errorDe(res, "no autenticado");
   }
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
-    const msg =
-      (body as { error?: { message?: string } }).error?.message ??
-      (body as { detail?: string }).detail ??
-      `HTTP ${res.status}`;
-    throw new ApiError(msg);
+    throw await errorDe(res, `HTTP ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -48,7 +87,88 @@ function body(data: unknown): RequestInit {
 }
 
 export const api = {
-  login: (email: string, password: string) => req<Token>("/auth/login", body({ email, password })),
+  login: (
+    email: string,
+    password: string,
+    second?: { totp_code?: string; recovery_code?: string },
+  ) => req<Token>("/auth/login", body({ email, password, ...second })),
+  totpStatus: () => req<TotpStatus>("/auth/totp"),
+  totpSetup: () => req<TotpSetup>("/auth/totp/setup", { method: "POST" }),
+  totpActivate: (code: string, password: string) =>
+    req<{ recovery_codes: string[] }>("/auth/totp/activate", body({ code, password })),
+  totpDisable: (password: string) => req<void>("/auth/totp/disable", body({ password })),
+  resetUserTotp: (id: number) => req<User>(`/users/${id}/totp/reset`, { method: "POST" }),
+
+  // --- Expediente de certificación ---
+  certIndex: () => req<CertCustomer[]>("/admin/certification"),
+  certDossier: (cid: number) => req<CertDossier>(`/admin/customers/${cid}/certification`),
+  certRefresh: (cid: number, sid: number) =>
+    req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/refresh`, {
+      method: "POST",
+    }),
+  certAssign: (cid: number, sid: number, code: string, kind: string) =>
+    req<CertSubmission>(
+      `/admin/customers/${cid}/certification/submissions/${sid}/assign`,
+      body({ code, kind }),
+    ),
+  certDeclare: (cid: number, setId: number, declared_at: string) =>
+    req<CertSet>(
+      `/admin/customers/${cid}/certification/sets/${setId}/declare`,
+      body({ declared_at }),
+    ),
+  certEnvelope: (cid: number, sid: number) =>
+    req<CertEnvelope>(`/admin/customers/${cid}/certification/submissions/${sid}/envelope`),
+  certSetup: (cid: number, codes: Record<string, string>) =>
+    req<CertDossier>(`/admin/customers/${cid}/certification/setup`, body({ codes })),
+  certStep: (cid: number, step: string, done_at: string | null, note: string) =>
+    req<CertDossier>(
+      `/admin/customers/${cid}/certification/steps/${step}`,
+      body({ done_at, note }),
+    ),
+  certDefinition: (cid: number, setId: number) =>
+    req<CertDefinition>(`/admin/customers/${cid}/certification/sets/${setId}/definition`),
+  certSaveDefinition: (cid: number, setId: number, endpoint: string, payload: unknown) =>
+    req<CertDefinition>(`/admin/customers/${cid}/certification/sets/${setId}/definition`, {
+      method: "PUT",
+      body: JSON.stringify({ endpoint, payload }),
+    }),
+  certCloneDefinition: (cid: number, setId: number, from_customer_id: number) =>
+    req<CertDefinition>(
+      `/admin/customers/${cid}/certification/sets/${setId}/definition/clone`,
+      body({ from_customer_id }),
+    ),
+  certEmit: (cid: number, setId: number, force = false) =>
+    req<CertSubmission>(`/admin/customers/${cid}/certification/sets/${setId}/emit?force=${force}`, {
+      method: "POST",
+    }),
+  certSend: (cid: number, sid: number) =>
+    req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
+      method: "POST",
+    }),
+  certImport: (cid: number, sets: Record<string, unknown>) =>
+    req<CertDossier>(`/admin/customers/${cid}/certification/import`, body({ sets })),
+  certReceivers: (cid: number) =>
+    req<CertReceiver[]>(`/admin/customers/${cid}/certification/receivers`),
+  certSaveReceivers: (cid: number, receivers: CertReceiver[]) =>
+    req<CertReceiver[]>(`/admin/customers/${cid}/certification/receivers`, {
+      method: "PUT",
+      body: JSON.stringify({ receivers }),
+    }),
+  certChecks: (cid: number) => req<CertReadiness>(`/admin/customers/${cid}/certification/checks`),
+  certCheckSii: (cid: number) =>
+    req<CertCheck>(`/admin/customers/${cid}/certification/checks/sii`, { method: "POST" }),
+  certPreview: (cid: number, setId: number) =>
+    req<CertPreview>(`/admin/customers/${cid}/certification/sets/${setId}/preview`),
+  certContents: (cid: number, sid: number) =>
+    req<CertContents>(`/admin/customers/${cid}/certification/submissions/${sid}/contents`),
+  certPrintSamples: (cid: number) =>
+    req<{ documents: Record<string, unknown>[]; skipped: Record<string, string>[] }>(
+      `/admin/customers/${cid}/certification/print-samples`,
+      { method: "POST" },
+    ),
+  certNotes: (cid: number) => req<CertNote[]>(`/admin/customers/${cid}/certification/notes`),
+  certAddNote: (cid: number, set_id: number, text: string) =>
+    req<CertNote>(`/admin/customers/${cid}/certification/notes`, body({ set_id, text })),
   logout: () => req<void>("/auth/logout", { method: "POST" }),
   me: () => req<Me>("/auth/me"),
 
@@ -74,6 +194,7 @@ export const api = {
       environment?: string;
       resolution_number?: number;
       resolution_date?: string;
+      issuer?: IssuerProfile;
     },
   ) => req<Customer>(`/admin/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   services: () => req<ServiceInfo[]>("/admin/services"),
@@ -89,6 +210,10 @@ export const api = {
     req(`/admin/customers/${id}/certificate`, body({ file_base64, password })),
   uploadCaf: (id: number, xml_base64: string) =>
     req(`/admin/customers/${id}/caf`, body({ xml_base64 })),
+  deleteCertificate: (id: number, certId: number) =>
+    req<void>(`/admin/customers/${id}/certificates/${certId}`, { method: "DELETE" }),
+  retireCaf: (id: number, cafId: number) =>
+    req(`/admin/customers/${id}/cafs/${cafId}/retire`, { method: "POST" }),
   rcv: (id: number, period: string, operation: string) =>
     req<RcvResponse>(`/admin/customers/${id}/rcv`, body({ period, operation })),
   bheReceived: (id: number, period: string) =>

@@ -13,7 +13,7 @@ from app.db.models import User
 from app.db.session import get_db
 from app.schemas.user import UserActiveUpdate, UserCreate, UserOut
 from app.security.auth import require_superadmin
-from app.services import audit_service, user_service
+from app.services import audit_service, totp_service, user_service
 from app.services.user_service import UserError
 
 router = APIRouter(prefix="/users", tags=["Usuarios"])
@@ -91,4 +91,25 @@ def restore_user(
     except UserError as ex:
         raise HTTPException(status_code=400, detail=str(ex)) from ex
     audit_service.record_change(db, actor.id, "user.restore", "user", str(user.id), user.email)
+    return user
+
+
+@router.post("/{user_id}/totp/reset", response_model=UserOut)
+def reset_totp(
+    user_id: int,
+    actor: User = Depends(require_superadmin),
+    db: Session = Depends(get_db),
+) -> User:
+    """Apaga el segundo factor de otro usuario.
+
+    Es la salida cuando alguien pierde el teléfono Y los códigos de
+    recuperación. Queda en la auditoría de cambios porque baja el nivel de
+    protección de una cuenta con acceso al material tributario: si aparece sin
+    que nadie lo haya pedido, hay que preguntar.
+    """
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="usuario inexistente")
+    totp_service.disable(db, user, commit=False)
+    audit_service.record_change(db, actor.id, "user.totp_reset", "user", str(user.id), user.email)
     return user

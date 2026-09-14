@@ -1,14 +1,23 @@
 import { useState, type FormEvent } from "react";
-import { api } from "../api";
+import { api, type ApiError } from "../api";
 import ConfirmModal from "../components/ConfirmModal";
 import Icon from "../components/Icon";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
+import { useToast } from "../toast";
 import type { User } from "../types";
 
 const EMPTY = { email: "", password: "", role: "operator", customer_id: "" };
 
-type Confirm = { kind: "delete" | "restore"; user: User };
+type Confirm = { kind: "delete" | "restore" | "totp"; user: User };
+
+const TITULOS = {
+  delete: "Eliminar usuario",
+  restore: "Reactivar usuario",
+  totp: "Resetear la verificación en dos pasos",
+} as const;
+const ETIQUETAS = { delete: "Eliminar", restore: "Reactivar", totp: "Resetear" } as const;
+const ICONOS = { delete: "trash", restore: "restore", totp: "key" } as const;
 
 export default function Users() {
   const [showArchived, setShowArchived] = useState(false);
@@ -23,6 +32,14 @@ export default function Users() {
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const toast = useToast();
+
+  /** Muestra el fallo donde se está mirando y, además, como aviso global. */
+  function avisar(err: unknown) {
+    const e = err as ApiError;
+    setActionError(e.message);
+    toast.error(e.message, e.hints);
+  }
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
   function openCreate() {
@@ -57,7 +74,7 @@ export default function Users() {
       await api.setUserActive(u.id, !u.is_active);
       await reload();
     } catch (err) {
-      setActionError((err as Error).message);
+      avisar(err);
     }
   }
 
@@ -67,11 +84,12 @@ export default function Users() {
     setBusy(true);
     try {
       if (confirm.kind === "delete") await api.deleteUser(confirm.user.id);
+      else if (confirm.kind === "totp") await api.resetUserTotp(confirm.user.id);
       else await api.restoreUser(confirm.user.id);
       setConfirm(null);
       await reload();
     } catch (err) {
-      setActionError((err as Error).message);
+      avisar(err);
     } finally {
       setBusy(false);
     }
@@ -121,7 +139,7 @@ export default function Users() {
                     <td>{u.id}</td>
                     <td>
                       {u.email}
-                      {archived && <span className="badge denied"> archivado</span>}
+                      {archived && <span className="badge neutral"> archivado</span>}
                     </td>
                     <td>{u.role}</td>
                     <td>{u.customer_id ?? "—"}</td>
@@ -134,6 +152,15 @@ export default function Users() {
                       <div className="actions">
                         {!archived && (
                           <>
+                            <button
+                              className="btn-link"
+                              type="button"
+                              title="Apaga su verificación en dos pasos: la salida cuando alguien pierde el teléfono y los códigos"
+                              onClick={() => setConfirm({ kind: "totp", user: u })}
+                            >
+                              <Icon name="key" />
+                              Resetear 2FA
+                            </button>
                             <button className="btn-link" type="button" onClick={() => toggle(u)}>
                               <Icon name="power" />
                               {u.is_active ? "Desactivar" : "Activar"}
@@ -240,11 +267,11 @@ export default function Users() {
 
       {confirm && (
         <ConfirmModal
-          title={confirm.kind === "delete" ? "Eliminar usuario" : "Reactivar usuario"}
-          danger={confirm.kind === "delete"}
+          title={TITULOS[confirm.kind]}
+          danger={confirm.kind !== "restore"}
           busy={busy}
-          confirmLabel={confirm.kind === "delete" ? "Eliminar" : "Reactivar"}
-          confirmIcon={confirm.kind === "delete" ? "trash" : "restore"}
+          confirmLabel={ETIQUETAS[confirm.kind]}
+          confirmIcon={ICONOS[confirm.kind]}
           onClose={() => setConfirm(null)}
           onConfirm={doConfirm}
           message={
@@ -252,6 +279,13 @@ export default function Users() {
               <>
                 ¿Archivar al usuario <strong>{confirm.user.email}</strong>? No podrá iniciar sesión.
                 Podrás reactivarlo después.
+              </>
+            ) : confirm.kind === "totp" ? (
+              <>
+                ¿Apagar la verificación en dos pasos de <strong>{confirm.user.email}</strong>? Su
+                cuenta quedará protegida sólo por la contraseña hasta que vuelva a activarla, y se
+                borran sus códigos de recuperación. Hazlo únicamente si te lo pidió esa persona:
+                queda anotado en la auditoría de cambios.
               </>
             ) : (
               <>

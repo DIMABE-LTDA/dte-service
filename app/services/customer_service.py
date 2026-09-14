@@ -123,6 +123,72 @@ def create_customer(db: Session, data, *, commit: bool = True) -> Customer:
     return customer
 
 
+#: Campo del perfil → columna del cliente.
+_ISSUER_COLUMNS = {
+    "legal_name": "issuer_legal_name",
+    "activity": "issuer_activity",
+    "economic_activity": "issuer_economic_activity",
+    "address": "issuer_address",
+    "commune": "issuer_commune",
+    "city": "issuer_city",
+    "branch_name": "issuer_branch_name",
+    "branch_code": "issuer_branch_code",
+}
+
+#: Sin estos el SII no acepta el encabezado del documento.
+ISSUER_REQUIRED = {
+    "legal_name": "razón social",
+    "activity": "giro",
+    "economic_activity": "código ACTECO",
+    "address": "dirección",
+    "commune": "comuna",
+}
+
+
+def issuer_profile(customer: Customer) -> dict:
+    """El perfil del emisor tal como está guardado."""
+    return {campo: getattr(customer, col) for campo, col in _ISSUER_COLUMNS.items()}
+
+
+def issuer_missing(customer: Customer) -> list[str]:
+    """Qué dato obligatorio falta, en palabras de quien lo va a completar."""
+    perfil = issuer_profile(customer)
+    return [nombre for campo, nombre in ISSUER_REQUIRED.items() if not perfil.get(campo)]
+
+
+def set_issuer(customer: Customer, data) -> None:
+    """Reemplaza el perfil entero. Un texto en blanco queda vacío, no como ""."""
+    valores = data.model_dump() if hasattr(data, "model_dump") else dict(data)
+    for campo, col in _ISSUER_COLUMNS.items():
+        valor = valores.get(campo)
+        if isinstance(valor, str):
+            valor = valor.strip() or None
+        setattr(customer, col, valor)
+
+
+def issuer_block(customer: Customer) -> dict:
+    """El bloque ``issuer`` de un documento, armado desde la ficha.
+
+    Es lo que usa la emisión en vez de lo que viniera escrito en la definición:
+    el emisor siempre es el cliente, y su RUT es el de la ficha.
+    """
+    perfil = issuer_profile(customer)
+    bloque = {
+        "rut": customer.rut,
+        "business_name": perfil["legal_name"],
+        "activity": perfil["activity"],
+        "economic_activity": perfil["economic_activity"],
+        "address": perfil["address"],
+        "commune": perfil["commune"],
+        "city": perfil["city"] or "",
+    }
+    if perfil["branch_name"]:
+        bloque["branch_name"] = perfil["branch_name"]
+    if perfil["branch_code"]:
+        bloque["branch_code"] = perfil["branch_code"]
+    return bloque
+
+
 def update_customer(db: Session, customer: Customer, data, *, commit: bool = True) -> Customer:
     """Edición parcial: solo aplica los campos enviados (no nulos)."""
     if data.name is not None:
@@ -135,6 +201,8 @@ def update_customer(db: Session, customer: Customer, data, *, commit: bool = Tru
         customer.resolution_number = data.resolution_number
     if data.resolution_date is not None:
         customer.resolution_date = data.resolution_date
+    if getattr(data, "issuer", None) is not None:
+        set_issuer(customer, data.issuer)
     db.flush()
     db.refresh(customer)
     if commit:
@@ -201,6 +269,55 @@ def _same_rut(a: str | None, b: str | None) -> bool:
         return format_rut(a) == format_rut(b)
     except ValueError:
         return a.strip() == b.strip()
+
+
+def delete_certificate(
+    db: Session, customer: Customer, cert_id: int, *, commit: bool = True
+) -> CustomerCertificate:
+    """Borra un certificado del cliente.
+
+    Se borra de verdad y no se marca: guarda una clave privada cifrada, y un
+    certificado que ya no se usa es material que no hay razón para seguir
+    custodiando. Los documentos ya firmados con él siguen siendo válidos —la
+    firma viaja dentro del XML—, así que no se pierde nada emitido.
+
+    Borrar el último no se impide: dejar al cliente sin certificado es
+    reversible subiendo otro, y bloquearlo obligaría a subir uno falso para
+    poder limpiar. Quien llama avisa de lo que implica.
+    """
+    row = db.get(CustomerCertificate, cert_id)
+    if row is None or row.customer_id != customer.id:
+        raise DomainError(f"El certificado {cert_id} no existe o no pertenece a este cliente.")
+    db.delete(row)
+    if commit:
+        db.commit()
+    return row
+
+
+def retire_caf(db: Session, customer: Customer, caf_id: int, *, commit: bool = True) -> Caf:
+    """Deja de usar un CAF aunque le queden folios libres.
+
+    Hace falta cuando el SII entrega un CAF nuevo que debe reemplazar al que
+    está en uso —el caso típico es la certificación de boletas, que exige emitir
+    con un CAF recién pedido—. Sin esto, el asignador seguiría entregando folios
+    del CAF viejo, porque siempre toma el rango vigente más bajo.
+
+    Marcarlo agotado basta: ``next_folio`` salta al siguiente rango con
+    ``max(objetivo, folio_from)``, así que el próximo folio sale del CAF nuevo.
+    Los folios ya emitidos con el CAF retirado siguen siendo válidos; lo que se
+    corta es que se emitan más.
+    """
+    row = db.get(Caf, caf_id)
+    if row is None or row.customer_id != customer.id:
+        raise DomainError(f"El CAF {caf_id} no existe o no pertenece a este cliente.")
+    if row.exhausted:
+        raise DomainError(f"El CAF {caf_id} ya estaba fuera de uso.")
+    row.exhausted = True
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    return row
 
 
 def add_caf(db: Session, customer: Customer, xml_base64: str, *, commit: bool = True) -> Caf:

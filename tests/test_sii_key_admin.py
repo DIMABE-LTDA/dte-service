@@ -20,9 +20,7 @@ def test_sii_key_lifecycle(client, db):
         ).status_code
         == 200
     )
-    assert (
-        client.get(f"/admin/customers/{cid}/sii-key", headers=ADMIN).json()["configured"] is True
-    )
+    assert client.get(f"/admin/customers/{cid}/sii-key", headers=ADMIN).json()["configured"] is True
     assert client.delete(f"/admin/customers/{cid}/sii-key", headers=ADMIN).status_code == 200
     assert (
         client.get(f"/admin/customers/{cid}/sii-key", headers=ADMIN).json()["configured"] is False

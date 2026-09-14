@@ -1,0 +1,227 @@
+# Despliegue en Dokploy: tres superficies, tres dominios, un solo backend.
+#
+#   boletas.dimabe.cl  sitio público y anónimo donde el comprador recupera su
+#                      boleta. Su nginx sólo proxya /api/public/.
+#   dte.dimabe.cl      portal de administración. Custodia certificados y CAF:
+#                      quien entra ahí puede timbrar a nombre de la empresa.
+#   api.dimabe.cl      el API para clientes máquina (Odoo). Autentica con
+#                      apiKey + customerCode, no con la cookie del portal.
+#
+# Cada uno en su dominio a propósito: el sitio público no debe compartir origen
+# con el portal, y el API de máquinas no debe compartirlo con el navegador.
+# La base nunca sale de la red interna.
+#
+# El API no se publica salvo que pongas API_PUBLIC=true, y aun entonces sale
+# sólo su superficie de máquina: la administración vive únicamente en el dominio
+# del portal. Si Odoo corre en este mismo servidor, lo más seguro es no
+# publicarlo y conectarlo a la red interna: ahí le habla a http://api:8000 sin
+# pasar por internet.
+#
+# Variables que hay que definir en Dokploy (Environment):
+#   DTE_FERNET_KEYS      clave(s) Fernet con que se cifran certificados y CAF
+#   DTE_ADMIN_API_KEY    clave de administración (>= 16 caracteres). Es la de
+#                        bootstrap: sirve para crear las claves de máquina y
+#                        después conviene apagarla (ver opcionales)
+#   DTE_JWT_SECRET       secreto de sesión del portal (>= 32 caracteres)
+#   POSTGRES_PASSWORD    contraseña de la base
+#   BOLETAS_DOMAIN       boletas.dimabe.cl
+#   PORTAL_DOMAIN        dte.dimabe.cl
+#   DTE_SUPERADMIN_EMAIL / DTE_SUPERADMIN_PASSWORD
+#                        primer usuario del portal. Si van vacíos no se siembra
+#                        nadie y el portal queda sin forma de entrar.
+# Opcionales:
+#   API_PUBLIC               'true' publica el API en Traefik. Por omisión NO se
+#                            publica: si Odoo corre en este servidor, déjalo así
+#                            y conéctalo a la red interna (http://api:8000)
+#   API_DOMAIN               api.dimabe.cl, sólo si API_PUBLIC=true
+#   API_ALLOWED_IPS          lista blanca del API, si se publica
+#   PORTAL_ALLOWED_IPS       si la defines, sólo esas IP alcanzan el portal
+#   DTE_REDIS_URL            redis://redis:6379/0 para compartir el estado de los
+#                            límites de tasa entre workers y réplicas. Arranca
+#                            el servicio con --profile escalado
+#   DTE_ADMIN_BOOTSTRAP_KEY_ENABLED
+#                            false apaga DTE_ADMIN_API_KEY (que entonces puede
+#                            ir vacía). Hazlo cuando Odoo y los demás ya usen
+#                            claves de máquina: ésas son revocables y quedan
+#                            identificadas en la auditoría; la de entorno no
+#   DTE_BOLETAS_ISSUER_RUT   vacío = el comprador elige la empresa;
+#                            con un RUT, el sitio queda dedicado a esa empresa
+#   DTE_RECEIPT_VERIFICATION_URL  lo que se imprime en la boleta
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dte
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?definir POSTGRES_PASSWORD}
+      POSTGRES_DB: dte_service
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [interna]
+    healthcheck:
+      # El API corre 'alembic upgrade' al arrancar: no debe hacerlo contra una
+      # base que todavía no acepta conexiones.
+      test: ["CMD-SHELL", "pg_isready -U dte -d dte_service"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DTE_DATABASE_URL: postgresql+psycopg://dte:${POSTGRES_PASSWORD:?}@db:5432/dte_service
+      DTE_FERNET_KEYS: ${DTE_FERNET_KEYS:?definir DTE_FERNET_KEYS}
+      DTE_ADMIN_API_KEY: ${DTE_ADMIN_API_KEY:-}
+      DTE_ADMIN_BOOTSTRAP_KEY_ENABLED: ${DTE_ADMIN_BOOTSTRAP_KEY_ENABLED:-true}
+      DTE_JWT_SECRET: ${DTE_JWT_SECRET:?definir DTE_JWT_SECRET (>=32 chars)}
+      DTE_COOKIE_SECURE: "true"          # hay TLS delante (Traefik)
+      DTE_SCHEMAS_DIR: /srv/schemas
+      DTE_RECEIPT_VERIFICATION_URL: ${DTE_RECEIPT_VERIFICATION_URL:-}
+      # La IP real del comprador llega en X-Forwarded-For por la cadena
+      # Traefik -> nginx del sitio -> API. Sin confiar en esos proxys, el
+      # límite de consultas por minuto se aplicaría a todos en un mismo balde.
+      # Es seguro confiar en el rango privado porque el API no publica puertos:
+      # nadie fuera de estas redes puede hablarle directamente.
+      DTE_FORWARDED_ALLOW_IPS: ${DTE_FORWARDED_ALLOW_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # Primer usuario del portal. Vacíos = no se siembra nadie y no hay forma
+      # de entrar; cámbiale la contraseña apenas ingreses.
+      DTE_SUPERADMIN_EMAIL: ${DTE_SUPERADMIN_EMAIL:-}
+      DTE_SUPERADMIN_PASSWORD: ${DTE_SUPERADMIN_PASSWORD:-}
+      # Vacía = los límites de tasa cuentan en la memoria de cada worker, así
+      # que con N workers el tope efectivo es ~N x. Apuntando a Redis el estado
+      # se comparte y el límite vale para todo el despliegue. Necesario si algún
+      # día hay más de una réplica: sin esto la cuota por cliente se multiplica.
+      DTE_REDIS_URL: ${DTE_REDIS_URL:-}
+      # Cuota de un cliente ya autenticado, por minuto. 0 = sin cuota.
+      DTE_CUSTOMER_REQUESTS_PER_MINUTE: ${DTE_CUSTOMER_REQUESTS_PER_MINUTE:-120}
+    volumes:
+      # Los XSD oficiales del SII, para validar libros y documentos.
+      - ./schemas:/srv/schemas:ro
+    networks: [interna, dokploy-network]
+    # Sin 'ports': no se publica en el host.
+    #
+    # Y por omisión tampoco en Traefik: API_PUBLIC=false. OJO — Traefik enruta
+    # por la cabecera Host, NO por DNS: con traefik.enable=true bastaría apuntar
+    # a la IP del servidor mandando `Host: api.dimabe.cl` para alcanzarlo,
+    # exista o no el registro. Por eso publicarlo es una decisión explícita.
+    #
+    # Cuando se publica, sale SÓLO la superficie de máquina. /admin, /auth,
+    # /users, /machine-keys y /audit no se enrutan aquí: viven en el dominio del
+    # portal, que sí tiene lista blanca de IP. Si no fuera así, la lista blanca
+    # del portal sería decorativa — la misma administración quedaría abierta por
+    # este otro dominio.
+    #
+    # El filtro por prefijo aguanta porque NADIE colapsa '..' en el camino:
+    # Traefik enruta con la ruta cruda y uvicorn la entrega igual, así que
+    # /dte/../admin/customers casa con PathPrefix(/dte) pero la app no lo
+    # resuelve a /admin y devuelve 404 (verificado). Si algún día se mete un
+    # proxy que normalice ENTRE Traefik y el API, ese filtro deja de valer.
+    #
+    # /me va con Path exacto y no PathPrefix: es donde el ERP lee y corrige su
+    # propia configuración (resolución, datos del emisor), y un prefijo "/me"
+    # dejaría pasar cualquier ruta futura que empiece igual —/metrics, /members—.
+    labels:
+      - traefik.enable=${API_PUBLIC:-false}
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.dteapi.rule=Host(`${API_DOMAIN:-api.dimabe.cl}`) && (PathPrefix(`/dte`) || PathPrefix(`/boletas`) || PathPrefix(`/rcv`) || PathPrefix(`/books`) || PathPrefix(`/bhe`) || PathPrefix(`/exchange`) || PathPrefix(`/health`) || Path(`/me`))
+      - traefik.http.routers.dteapi.entrypoints=websecure
+      - traefik.http.routers.dteapi.tls=true
+      - traefik.http.routers.dteapi.tls.certresolver=letsencrypt
+      - traefik.http.services.dteapi.loadbalancer.server.port=8000
+      # Lista blanca propia del API. Vacía deja pasar a todos: si Odoo sale por
+      # una IP fija, fíjala aquí.
+      - traefik.http.middlewares.api-ips.ipallowlist.sourcerange=${API_ALLOWED_IPS:-0.0.0.0/0}
+      - traefik.http.routers.dteapi.middlewares=api-ips
+
+  # Estado compartido de los límites de tasa. Sólo arranca con el perfil
+  # 'escalado' (docker compose --profile escalado up): con un único worker el
+  # limitador en memoria basta y esto sería un servicio de más.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    profiles: ["escalado"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks: [interna]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Portal de administración: clientes, certificados, CAF, servicios.
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks: [interna, dokploy-network]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.portal.rule=Host(`${PORTAL_DOMAIN:?definir PORTAL_DOMAIN}`)
+      - traefik.http.routers.portal.entrypoints=websecure
+      - traefik.http.routers.portal.tls=true
+      - traefik.http.routers.portal.tls.certresolver=letsencrypt
+      - traefik.http.services.portal.loadbalancer.server.port=80
+      # Lista blanca de IP. Con PORTAL_ALLOWED_IPS vacía deja pasar a todos y
+      # la única barrera es el login; conviene fijarla a la salida de la oficina
+      # o a la VPN, porque desde acá se administra el material tributario.
+      - traefik.http.middlewares.portal-ips.ipallowlist.sourcerange=${PORTAL_ALLOWED_IPS:-0.0.0.0/0}
+      - traefik.http.routers.portal.middlewares=portal-ips
+      # HTTP sólo para redirigir a HTTPS.
+      - traefik.http.routers.portal-http.rule=Host(`${PORTAL_DOMAIN}`)
+      - traefik.http.routers.portal-http.entrypoints=web
+      - traefik.http.routers.portal-http.middlewares=portal-https
+      - traefik.http.middlewares.portal-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.portal-https.redirectscheme.permanent=true
+
+  boletas:
+    build:
+      context: ./boletas-web
+      args:
+        VITE_ISSUER_RUT: ${DTE_BOLETAS_ISSUER_RUT:-}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # A qué API consulta el sitio. Apunta al del propio stack; cámbialo si
+      # las boletas las emite otra instancia.
+      API_UPSTREAM: ${API_UPSTREAM:-http://api:8000}
+      NGINX_ENVSUBST_FILTER: API_UPSTREAM
+    networks: [interna, dokploy-network]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      # Router HTTPS con certificado de Let's Encrypt.
+      - traefik.http.routers.boletas.rule=Host(`${BOLETAS_DOMAIN:?definir BOLETAS_DOMAIN}`)
+      - traefik.http.routers.boletas.entrypoints=websecure
+      - traefik.http.routers.boletas.tls=true
+      - traefik.http.routers.boletas.tls.certresolver=letsencrypt
+      - traefik.http.services.boletas.loadbalancer.server.port=80
+      # HTTP sólo para redirigir a HTTPS.
+      - traefik.http.routers.boletas-http.rule=Host(`${BOLETAS_DOMAIN}`)
+      - traefik.http.routers.boletas-http.entrypoints=web
+      - traefik.http.routers.boletas-http.middlewares=boletas-https
+      - traefik.http.middlewares.boletas-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.boletas-https.redirectscheme.permanent=true
+
+networks:
+  # La crea Dokploy al instalarse; es por donde Traefik alcanza los servicios.
+  dokploy-network:
+    external: true
+  # Aísla el API y la base: no están en dokploy-network, así que Traefik no
+  # puede enrutarles nada aunque alguien agregue una etiqueta por error.
+  interna:
+    driver: bridge
+
+volumes:
+  pgdata:

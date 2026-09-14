@@ -1,0 +1,42 @@
+# Sitio público de consulta de boletas. Vive en su propio contenedor y su propio
+# subdominio a propósito: es anónimo y está expuesto a internet, así que no debe
+# compartir origen con el portal de administración, que custodia certificados.
+#
+# ${API_UPSTREAM} lo reemplaza nginx al arrancar (envsubst). Se sustituye sólo
+# esa variable —lo fija NGINX_ENVSUBST_FILTER— para no tocar las de nginx como
+# $host o $remote_addr, que se escriben igual.
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Sólo se expone la superficie pública del API. El resto no se proxya.
+    location /api/public/ {
+        proxy_pass ${API_UPSTREAM}/public/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Cualquier otra ruta bajo /api/ no existe en este sitio. Sin esto caería en
+    # el bloque de abajo y devolvería el index del SPA con un 200, que hace
+    # parecer que el endpoint existe. nginx elige el prefijo más largo, así que
+    # /api/public/ sigue ganando sobre este bloque.
+    location /api/ {
+        return 404;
+    }
+
+    # Cabeceras de seguridad del sitio. Van aquí y no en el server porque bajo
+    # /api/public/ las pone el propio API y nginx las duplicaría. 'always'
+    # porque add_header, por omisión, no toca las respuestas de error.
+    location / {
+        add_header X-Frame-Options "DENY" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+        try_files $uri $uri/ /index.html;
+    }
+}
