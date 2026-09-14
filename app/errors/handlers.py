@@ -95,7 +95,6 @@ _MOTIVOS = {
     "missing": "falta",
     "string_too_short": "es demasiado corta (mínimo {min_length} caracteres)",
     "string_too_long": "es demasiado larga (máximo {max_length} caracteres)",
-    "value_error": "no es válida",
     "string_pattern_mismatch": "no tiene el formato esperado",
     "greater_than": "debe ser mayor que {gt}",
     "greater_than_equal": "debe ser {ge} o más",
@@ -122,6 +121,21 @@ def _motivo(error: dict) -> str:
         return plantilla
 
 
+def _detalle(error: dict) -> str:
+    """Una línea que diga qué corregir.
+
+    Un `value_error` viene de un validador nuestro, así que su `msg` ya está
+    escrito para quien lo va a leer —«el período termina antes de empezar»— y es
+    mejor que cualquier traducción genérica. Lo demás son fallos de tipo o de
+    longitud que Pydantic redacta en inglés y sin nombrar el campo.
+    """
+    if str(error.get("type")) == "value_error":
+        propio = str(error.get("msg", "")).removeprefix("Value error, ").strip()
+        if propio:
+            return propio if propio.endswith(".") else propio + "."
+    return f"{_campo(error['loc']).capitalize()} {_motivo(error)}."
+
+
 async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
     """Explica qué corregir, sin repetir lo que el operador escribió.
 
@@ -132,7 +146,7 @@ async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
     a mano justo por eso.
     """
     errores: list[dict] = list(exc.errors())  # type: ignore[attr-defined]
-    details = [f"{_campo(e['loc']).capitalize()} {_motivo(e)}." for e in errores]
+    details = [_detalle(e) for e in errores]
     if len(details) == 1:
         mensaje = details[0]
         details = []

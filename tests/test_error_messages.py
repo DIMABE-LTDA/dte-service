@@ -48,3 +48,9 @@ def test_con_varios_campos_malos_los_lista_todos(client, db):
     assert "campos que corregir" in cuerpo["message"]
     assert any("correo" in d for d in cuerpo["details"])
     assert any("contraseña" in d for d in cuerpo["details"])
+
+
+# El caso de un `value_error` con mensaje propio —«el período termina antes de
+# empezar»— ya lo cubre test_receipts.py::test_backwards_period_is_rejected, que
+# es donde vive ese validador. Duplicarlo aquí obligaría a montar el cliente y la
+# autenticación de boletas para comprobar lo mismo.
