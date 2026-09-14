@@ -51,11 +51,11 @@ def _status_for(exc: Exception) -> int:
     return 500
 
 
-def _body(exc: Exception, details: list[str]) -> dict:
+def _body(exc: Exception, details: list[str], message: str | None = None) -> dict:
     return ErrorResponse(
         error=ErrorBody(
             type=type(exc).__name__,
-            message=str(exc),
+            message=message if message is not None else str(exc),
             details=details,
             request_id=request_id_var.get(),
         )
@@ -72,9 +72,73 @@ def _dte_error_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=_status_for(exc), content=_body(exc, details))
 
 
+#: Nombre del campo tal como lo ve quien rellena el formulario. Lo que trae
+#: Pydantic —`body.password`— es el camino en el JSON, no una etiqueta.
+_CAMPOS = {
+    "password": "la contraseña",
+    "email": "el correo",
+    "role": "el rol",
+    "name": "el nombre",
+    "rut": "el RUT",
+    "code": "el código",
+    "customer_code": "el código de cliente",
+    "apikey": "la apiKey",
+    "totp_code": "el código de verificación",
+    "recovery_code": "el código de recuperación",
+    "resolution_number": "el número de resolución",
+    "resolution_date": "la fecha de resolución",
+}
+
+#: Qué dice Pydantic → qué se le dice al operador. El mensaje en inglés se usa
+#: de reserva, que es mejor que no decir nada.
+_MOTIVOS = {
+    "missing": "falta",
+    "string_too_short": "es demasiado corta (mínimo {min_length} caracteres)",
+    "string_too_long": "es demasiado larga (máximo {max_length} caracteres)",
+    "value_error": "no es válida",
+    "string_pattern_mismatch": "no tiene el formato esperado",
+    "greater_than": "debe ser mayor que {gt}",
+    "greater_than_equal": "debe ser {ge} o más",
+    "less_than_equal": "debe ser {le} o menos",
+    "int_parsing": "debe ser un número entero",
+    "date_from_datetime_parsing": "no es una fecha válida",
+}
+
+
+def _campo(loc) -> str:
+    """El último tramo del camino, que es el campo del formulario."""
+    partes = [str(p) for p in loc if p != "body"]
+    nombre = partes[-1] if partes else "el dato"
+    return _CAMPOS.get(nombre, f"«{nombre}»")
+
+
+def _motivo(error: dict) -> str:
+    plantilla = _MOTIVOS.get(str(error.get("type")))
+    if plantilla is None:
+        return str(error.get("msg", "no es válida"))
+    try:
+        return plantilla.format(**(error.get("ctx") or {}))
+    except (KeyError, IndexError):
+        return plantilla
+
+
 async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
-    details = [f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()]  # type: ignore[attr-defined]
-    return JSONResponse(status_code=422, content=_body(exc, details))
+    """Explica qué corregir, sin repetir lo que el operador escribió.
+
+    `str(exc)` de un RequestValidationError trae la lista cruda de Pydantic, con
+    el valor recibido en `input` y la ruta del archivo del servidor. Eso llegaba
+    tal cual a la pantalla: creando un usuario, el error mostraba **la
+    contraseña en claro** y `/srv/app/routers/users.py`. Aquí se arma el mensaje
+    a mano justo por eso.
+    """
+    errores: list[dict] = list(exc.errors())  # type: ignore[attr-defined]
+    details = [f"{_campo(e['loc']).capitalize()} {_motivo(e)}." for e in errores]
+    if len(details) == 1:
+        mensaje = details[0]
+        details = []
+    else:
+        mensaje = f"Hay {len(details)} campos que corregir."
+    return JSONResponse(status_code=422, content=_body(exc, details, message=mensaje))
 
 
 #: Qué mirar cuando el SII no entrega token. El mensaje del motor —"rechazó la
