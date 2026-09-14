@@ -750,24 +750,42 @@ ol.steps-list li {
     grid-template-columns: repeat(3, 1fr);
   }
 }
-/* Guía de la respuesta del SII bajo el envío. Va dentro de la tabla y no en un
-   modal: es lo que hay que leer justo cuando se ve el rechazo, no un clic
-   después. */
-tr.guia td {
-  padding-top: 0;
-  border-bottom: 1px solid var(--line);
+/* Guía de la respuesta del SII. Una sola vez por set, bajo la tabla: el texto
+   sale del catálogo del código, así que tres envíos con la misma respuesta
+   traían el mismo párrafo tres veces. Y va sin color de urgencia a propósito —
+   es instructivo, no un diagnóstico del envío; lo que sí urge se ve en la fila,
+   que es donde está el conteo que lo justifica. */
+.guia-nota {
+  margin-top: 0.8rem;
+}
+.guia-nota > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  list-style: none;
+}
+.guia-nota > summary::-webkit-details-marker {
+  display: none;
+}
+.guia-nota > summary:hover {
+  color: var(--text);
+}
+.guia-nota > summary svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 .guia-caja {
-  border-left: 3px solid var(--bad);
-  background: rgba(239, 68, 68, 0.07);
+  border-left: 3px solid var(--line);
+  background: var(--panel-2);
   border-radius: 0 6px 6px 0;
   padding: 0.6rem 0.8rem;
   font-size: 0.87rem;
   line-height: 1.5;
-}
-.guia-caja.ok {
-  border-left-color: var(--ok);
-  background: rgba(34, 197, 94, 0.07);
+  margin-top: 0.5rem;
 }
 .guia-caja em {
   color: var(--warn);
@@ -1001,6 +1019,13 @@ textarea.json {
   font-size: 0.78rem;
   margin-top: 0.3rem;
   line-height: 1.35;
+}
+/* La glosa del código junto a la insignia: "EPR" no le dice nada a nadie, y sin
+   ella el estado del envío quedaba cifrado en el color. */
+.estado-glosa {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-left: 0.4rem;
 }
 
 /* ----------------------------------------------------------------- */

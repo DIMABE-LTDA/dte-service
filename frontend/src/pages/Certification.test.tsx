@@ -289,6 +289,69 @@ describe("Expediente de certificación", () => {
     expect(filas[0]).toHaveTextContent("DNK");
   });
 
+  it("no repite la guía del SII bajo cada envío", async () => {
+    // El texto sale del catálogo del código, así que tres envíos con la misma
+    // respuesta traían el MISMO párrafo tres veces, y con distinto color —
+    // porque el `ok` sí se calcula por envío—. Un instructivo genérico se leía
+    // como urgente en un envío y no en otro.
+    const causa = {
+      label: "Envío procesado",
+      meaning: "El sobre se procesó. Ojo: puede traer documentos con reparos dentro.",
+      usually: "",
+      check: ["Revisa el detalle del envío en Mi SII.", "El SII también avisa por correo."],
+      ok: true,
+    };
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            submissions: [10, 11, 12].map((id) => ({
+              id,
+              set_id: 1,
+              track_id: `02572598${id}`,
+              sent_at: "2026-09-02T15:42:00",
+              envelope_kind: "EnvioDTE",
+              sii_state: "EPR",
+              sii_detail: "Envio Procesado",
+              checked_at: "2026-09-02T15:50:00",
+              documents: [{ doc_type: 33, folio: 19 }],
+              // El del medio no quedó entregado: el backend le pone ok=false a
+              // ESE, y antes eso pintaba de rojo un texto idéntico a los otros.
+              cause: { ...causa, ok: id !== 11 },
+              stats: [],
+            })),
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    await screen.findByText("5038170");
+    expect(screen.getAllByText(/puede traer documentos con reparos dentro/)).toHaveLength(1);
+    expect(screen.getAllByText(/El SII también avisa por correo/)).toHaveLength(1);
+  });
+
+  it("dice en texto cuántos documentos aceptó el SII, no sólo con el color", async () => {
+    // El color de la insignia era el único canal que distinguía un sobre
+    // entregado de uno que sólo se pudo leer.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            submissions: [
+              {
+                ...set().submissions[0],
+                stats: [{ doc_type: 110, informed: 3, accepted: 2, rejected: 0, flagged: 1 }],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    mount();
+    expect(await screen.findByText("2 de 3 aceptados")).toBeInTheDocument();
+  });
+
   it("abre un solo set: el primero que queda por trabajar", async () => {
     // Con los diez expandidos la página medía varios miles de píxeles y no
     // había forma de ver dónde estabas.

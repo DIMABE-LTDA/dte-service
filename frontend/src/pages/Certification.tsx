@@ -10,7 +10,7 @@ import CertTemplateCard from "../components/CertTemplateCard";
 import ConfirmModal from "../components/ConfirmModal";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
-import type { CertDocStatus, CertPreview, CertSet, CertSubmission } from "../types";
+import type { CertCause, CertDocStatus, CertPreview, CertSet, CertSubmission } from "../types";
 import { useToast } from "../toast";
 
 /** Expediente de certificación de un cliente.
@@ -106,20 +106,46 @@ function fecha(iso: string | null) {
 function colorEstado(e: CertSubmission): string {
   const aceptable = e.sii_state === "EPR" || e.sii_state === "LOK";
   if (!aceptable) return "error";
-  // `?? []` no es por el contrato —el API siempre lo manda— sino por el modo de
-  // fallo: sin esto, un despliegue contra un API anterior tumbaría el
-  // expediente entero por un campo que falta.
-  const stats = e.stats ?? [];
-  const informados = stats.reduce((n, s) => n + s.informed, 0);
+  // `?? []` dentro de `conteo` no es por el contrato —el API siempre lo manda—
+  // sino por el modo de fallo: sin eso, un despliegue contra un API anterior
+  // tumbaría el expediente entero por un campo que falta.
+  const { informados, aceptados, reparos } = conteo(e);
   if (!informados) return "ok";
-  const aceptados = stats.reduce((n, s) => n + s.accepted, 0);
   // Un documento «aceptado con reparo» está aceptado: el SII lo registró y
   // anotó una observación. Cuenta como entregado, pero pinta ámbar porque la
   // observación hay que leerla —los rechazados van en su propia columna—.
-  const reparos = stats.reduce((n, s) => n + s.flagged, 0);
   if (aceptados + reparos === 0) return "error";
   if (reparos > 0) return "warn";
   return aceptados < informados ? "warn" : "ok";
+}
+
+/** Cuántos documentos informó el SII de un envío, y cómo le fue a cada uno. */
+function conteo(e: CertSubmission) {
+  const stats = e.stats ?? [];
+  return {
+    informados: stats.reduce((n, s) => n + s.informed, 0),
+    aceptados: stats.reduce((n, s) => n + s.accepted, 0),
+    rechazados: stats.reduce((n, s) => n + s.rejected, 0),
+    reparos: stats.reduce((n, s) => n + s.flagged, 0),
+  };
+}
+
+/** Las guías del catálogo del set, una por código y no una por envío.
+ *
+ * El texto sale de `sii_state`, así que tres envíos con la misma respuesta
+ * traían el MISMO párrafo tres veces —y con distinto color, porque el `ok` sí
+ * se calcula por envío—. Eso hacía que un instructivo genérico («revisa el
+ * detalle en Mi SII») se leyera como si fuera urgente en un envío y no en otro.
+ * Aquí se deduplica por código; la urgencia de cada envío vive en su fila.
+ */
+function guias(envios: CertSubmission[]): CertCause[] {
+  const porCodigo = new Map<string, CertCause>();
+  for (const e of envios) {
+    const c = e.cause;
+    if (!c || (!c.usually && !c.check.length)) continue;
+    if (!porCodigo.has(c.label)) porCodigo.set(c.label, c);
+  }
+  return [...porCodigo.values()];
 }
 
 /** Pesos: sin decimales y con separador de miles, que es como se leen. */
@@ -468,7 +494,7 @@ export default function Certification() {
                       </tr>
                     </thead>
                     <tbody>
-                      {s.submissions.flatMap((e) => [
+                      {s.submissions.map((e) => (
                         <tr key={e.id}>
                           <td>
                             {e.track_id ? (
@@ -487,12 +513,19 @@ export default function Certification() {
                               <>
                                 {/* El color sale del CONTENIDO, no del estado del
                                 sobre: EPR dice que el sobre se pudo leer, y
-                                puede traer todos sus documentos rechazados. */}
+                                puede traer todos sus documentos rechazados.
+                                Aquí es el único sitio donde ese color significa
+                                algo, porque aquí está el conteo que lo explica. */}
                                 <span className={`badge ${colorEstado(e)}`}>{e.sii_state}</span>
+                                {e.cause && <span className="estado-glosa">{e.cause.label}</span>}
                                 {(e.stats ?? []).length > 0 && (
                                   <div className="conteo">
-                                    {(e.stats ?? []).reduce((n, s) => n + s.accepted, 0)} de{" "}
-                                    {(e.stats ?? []).reduce((n, s) => n + s.informed, 0)} aceptados
+                                    {/* El dato que distingue un sobre entregado de
+                                    uno que sólo se pudo leer. Va en texto, no
+                                    sólo en el color de la insignia. */}
+                                    <strong>
+                                      {conteo(e).aceptados} de {conteo(e).informados} aceptados
+                                    </strong>
                                     {(e.stats ?? []).map((s) => (
                                       <div className="muted" key={s.doc_type}>
                                         tipo {s.doc_type}: {s.accepted}/{s.informed}
@@ -579,35 +612,43 @@ export default function Certification() {
                               </button>
                             </div>
                           </td>
-                        </tr>,
-                        // La guía aparece sólo cuando aporta: un aceptado sin nada
-                        // que revisar no necesita una fila que empuje la tabla.
-                        e.cause && (e.cause.usually || e.cause.check.length) ? (
-                          <tr key={`${e.id}-guia`} className="guia">
-                            <td colSpan={6}>
-                              <div className={`guia-caja ${e.cause.ok ? "ok" : "error"}`}>
-                                <strong>{e.cause.label}.</strong> {e.cause.meaning}
-                                {e.cause.usually && (
-                                  <>
-                                    {" "}
-                                    <em>{e.cause.usually}</em>
-                                  </>
-                                )}
-                                {e.cause.check.length > 0 && (
-                                  <ol className="guia-pasos">
-                                    {e.cause.check.map((paso) => (
-                                      <li key={paso}>{paso}</li>
-                                    ))}
-                                  </ol>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ) : null,
-                      ])}
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
+
+                {/* La guía del SII, una sola vez por código y no una por envío.
+                    Es instructivo del catálogo —depende de la respuesta, no del
+                    envío—, así que repetirlo bajo cada fila sólo alejaba la
+                    tabla. Se abre sola cuando hay algo que corregir; el
+                    instructivo de un envío correcto se queda plegado. */}
+                {guias(s.submissions).length > 0 && (
+                  <details className="guia-nota" open={guias(s.submissions).some((c) => !c.ok)}>
+                    <summary>
+                      <Icon name="info" />
+                      Qué dice el SII de estas respuestas
+                    </summary>
+                    {guias(s.submissions).map((c) => (
+                      <div className="guia-caja" key={c.label}>
+                        <strong>{c.label}.</strong> {c.meaning}
+                        {c.usually && (
+                          <>
+                            {" "}
+                            <em>{c.usually}</em>
+                          </>
+                        )}
+                        {c.check.length > 0 && (
+                          <ol className="guia-pasos">
+                            {c.check.map((paso) => (
+                              <li key={paso}>{paso}</li>
+                            ))}
+                          </ol>
+                        )}
+                      </div>
+                    ))}
+                  </details>
+                )}
 
                 {writable && (
                   <div className="actions" style={{ marginTop: "0.8rem" }}>
