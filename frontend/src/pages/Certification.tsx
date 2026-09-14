@@ -33,6 +33,27 @@ const ESTADO: Record<string, { color: string; texto: string }> = {
   sin_dar_de_alta: { color: "neutral", texto: "sin dar de alta" },
 };
 
+/** El estado de una etapa, en una palabra.
+ *
+ * Con las etapas en una línea el color de un punto de 8px pasa a ser el único
+ * canal si no se dice también en texto, y hay quien no lo distingue. `atencion`
+ * es un valor interno del API: aquí se traduce, no se filtra a la pantalla.
+ */
+const ETAPA: Record<string, string> = {
+  ok: "cumplida",
+  pendiente: "pendiente",
+  atencion: "requiere atención",
+  error: "con error",
+};
+
+/** El mismo estado en un glifo, para quien lee la forma antes que el color. */
+const GLIFO: Record<string, string> = {
+  ok: "✓",
+  pendiente: "•",
+  atencion: "!",
+  error: "✕",
+};
+
 /** Estado registral de un documento ante el SII (servicio `getEstDte`).
  *
  * Describe la SITUACIÓN del documento, no si tuvo reparos. Confundir las dos
@@ -469,17 +490,38 @@ export default function Certification() {
 
             {expandido !== s.id ? null : (
               <>
-                <div className="etapas">
+                {/* Las cinco etapas en una línea, no en cinco cajas con borde.
+                    Ocupaban una banda entera para decir cinco palabras, y el
+                    porqué de cada una —que es lo único que no cabe— se consulta
+                    abajo, cuando hace falta. El estado no se comunica sólo por
+                    color: cada etapa lleva su glifo y su palabra. */}
+                <ul className="etapas-linea">
                   {s.stages.map((e) => (
-                    <div className={`etapa ${e.state}`} key={e.key}>
-                      <div className="etapa-titulo">
-                        <span className="etapa-punto" aria-hidden="true" />
-                        {e.label}
-                      </div>
-                      {e.detail && <div className="etapa-detalle">{e.detail}</div>}
-                    </div>
+                    <li className={e.state} key={e.key}>
+                      <span className="etapa-punto" aria-hidden="true" />
+                      <span aria-hidden="true" className="etapa-glifo">
+                        {GLIFO[e.state] ?? "•"}
+                      </span>
+                      {e.label}
+                      <span className="etapa-estado">{ETAPA[e.state] ?? e.state}</span>
+                    </li>
                   ))}
-                </div>
+                </ul>
+                {s.stages.some((e) => e.detail) && (
+                  <details className="etapas-detalle">
+                    <summary>Por qué está así cada etapa</summary>
+                    <dl>
+                      {s.stages
+                        .filter((e) => e.detail)
+                        .map((e) => (
+                          <div key={e.key}>
+                            <dt>{e.label}</dt>
+                            <dd>{e.detail}</dd>
+                          </div>
+                        ))}
+                    </dl>
+                  </details>
+                )}
 
                 <div className="tabla-scroll">
                   <table>

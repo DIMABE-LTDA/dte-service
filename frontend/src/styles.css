@@ -702,6 +702,86 @@ ol.steps-list li {
 .tabla-scroll {
   overflow-x: auto;
 }
+
+/* Las cinco etapas de un set, en una línea de metadatos y no en cinco cajas con
+   borde: ocupaban una banda entera de la tarjeta para decir cinco palabras. El
+   porqué de cada una vive en el desplegable de abajo, que es donde se consulta
+   cuando hace falta y no cada vez que se abre un set. */
+.etapas-linea {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  list-style: none;
+  margin: 0.2rem 0 0.7rem;
+  padding: 0;
+  font-size: 0.85rem;
+}
+.etapas-linea li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+}
+.etapas-linea li.ok {
+  color: var(--text);
+}
+.etapas-linea .etapa-glifo {
+  font-weight: 700;
+  width: 0.9em;
+  text-align: center;
+}
+/* La palabra del estado, para que no dependa del color de un punto de 8px. */
+.etapas-linea .etapa-estado {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+.etapas-linea li.ok .etapa-punto {
+  background: var(--ok);
+}
+.etapas-linea li.atencion .etapa-punto {
+  background: var(--warn);
+}
+.etapas-linea li.error .etapa-punto {
+  background: var(--bad);
+}
+.etapas-linea li.ok .etapa-glifo {
+  color: var(--ok);
+}
+.etapas-linea li.atencion .etapa-glifo {
+  color: var(--warn);
+}
+.etapas-linea li.error .etapa-glifo {
+  color: var(--bad);
+}
+
+.etapas-detalle {
+  margin: 0 0 0.9rem;
+}
+.etapas-detalle > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.etapas-detalle > summary:hover {
+  color: var(--text);
+}
+.etapas-detalle dl {
+  margin: 0.5rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.6rem 1.2rem;
+}
+.etapas-detalle dt {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.etapas-detalle dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
 /* Barra de avance del expediente. Da de un vistazo lo que la tabla cuenta en
    detalle; sin ella hay que sumar filas para saber cómo va el trámite. */
 .barra {
