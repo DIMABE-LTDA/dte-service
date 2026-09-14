@@ -33,6 +33,32 @@ const ESTADO: Record<string, { color: string; texto: string }> = {
   sin_dar_de_alta: { color: "neutral", texto: "sin dar de alta" },
 };
 
+/** Estado registral de un documento ante el SII (servicio `getEstDte`).
+ *
+ * Describe la SITUACIÓN del documento, no si tuvo reparos. Confundir las dos
+ * cosas hizo reemitir un set que estaba correcto: `MMC` y `AND` son lo que se
+ * espera de una factura corregida y de una nota anulada.
+ *
+ * Tres niveles, no dos: `DOK` es "sin novedad"; `MMC` y `AND` son normales pero
+ * con novedad —hay otro documento relacionado—, y esa diferencia sí le sirve al
+ * operador. Ninguno es rojo: ninguno es un fallo del envío.
+ */
+const ESTADO_DOC: Record<string, { color: string; texto: string }> = {
+  DOK: { color: "ok", texto: "recibido, sin novedad" },
+  MMC: { color: "neutral", texto: "modificado por una nota de crédito" },
+  AND: { color: "neutral", texto: "anulado por una nota de débito" },
+  DNK: { color: "warn", texto: "la consulta no calza con lo registrado" },
+};
+
+/** Primero lo que pide acción. */
+function orden(status: string): number {
+  const color = ESTADO_DOC[status]?.color;
+  if (color === "warn") return 0;
+  if (color === undefined) return 1; // sin catalogar: conviene verlo
+  if (color === "neutral") return 2;
+  return 3;
+}
+
 /** Los `kind` vienen en snake_case porque son valores del modelo. */
 const TIPO: Record<string, string> = {
   basico: "Set básico",
@@ -1079,35 +1105,55 @@ export default function Certification() {
       {docsSii && (
         <Modal
           wide
-          title={`Qué dice el SII de cada documento — sobre #${docsSii.sid}`}
+          title={`Situación registral de cada documento — sobre #${docsSii.sid}`}
           onClose={() => setDocsSii(null)}
         >
           <p className="muted" style={{ marginTop: 0 }}>
-            El recuento del TrackID dice cuántos con reparo; esto dice cuál y por qué.
+            Esto es lo que el SII tiene registrado de cada documento. <strong>No</strong> es el
+            motivo de un reparo.
           </p>
           <table>
             <thead>
               <tr>
                 <th>Tipo</th>
                 <th>Folio</th>
-                <th>Estado</th>
-                <th>Glosa</th>
+                <th>Estado registral</th>
+                <th>Respuesta del SII</th>
               </tr>
             </thead>
             <tbody>
-              {docsSii.filas.map((f) => (
-                <tr key={`${f.doc_type}-${f.folio}`}>
-                  <td>{f.doc_type}</td>
-                  <td className="num">{f.folio}</td>
-                  <td>
-                    <span className="code">{f.status}</span>
-                    {f.label ? <div className="muted">{f.label}</div> : null}
-                  </td>
-                  <td>{f.error_label || <span className="muted">—</span>}</td>
-                </tr>
-              ))}
+              {[...docsSii.filas]
+                // Primero lo que pide acción; lo normal, al final. Con tres o
+                // cuatro filas el orden por folio no aporta nada y esconde la
+                // única que hay que mirar.
+                .sort((a, b) => orden(a.status) - orden(b.status))
+                .map((f) => {
+                  const e = ESTADO_DOC[f.status] ?? {
+                    color: "neutral",
+                    texto: "estado no catalogado",
+                  };
+                  return (
+                    <tr key={`${f.doc_type}-${f.folio}`}>
+                      <td>{f.doc_type}</td>
+                      <td className="num">{f.folio}</td>
+                      <td>
+                        <span className={`badge ${e.color}`}>{f.status}</span>{" "}
+                        <span>{e.texto}</span>
+                      </td>
+                      {/* La glosa del Servicio va de dato secundario, no de
+                          explicación: es la que hacía leer un MMC como un fallo.
+                          Se conserva porque es el texto que el operador cita
+                          cuando llama al SII. */}
+                      <td className="muted">{f.error_label || f.label || "—"}</td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
+          <p className="muted">
+            El motivo de un reparo llega por <strong>correo del SII</strong>, no por esta consulta.
+            Pídelo en la página de estado del envío en Mi SII, con «Enviar Correo».
+          </p>
         </Modal>
       )}
     </>

@@ -17,6 +17,8 @@ vi.mock("../api", () => ({
     certAddNote: vi.fn(),
     certSetup: vi.fn(),
     certStep: vi.fn(),
+    certDocStatuses: vi.fn(),
+    certChecks: vi.fn(),
   },
 }));
 vi.mock("../auth", async (orig) => {
@@ -256,5 +258,34 @@ describe("Expediente de certificación", () => {
     );
     mount();
     expect(await screen.findByText("3 de 10 sets declarados")).toBeInTheDocument();
+  });
+
+  it("la situación registral no se presenta como el motivo de un reparo", async () => {
+    // MMC y AND son lo esperado en una factura corregida y en una nota anulada.
+    // Presentarlos bajo «esto dice cuál y por qué» hizo reemitir un set que
+    // estaba correcto, gastando folios.
+    (api.certDossier as Mock).mockResolvedValue(dossier({ sets: [set()] }));
+    (api.certDocStatuses as Mock).mockResolvedValue([
+      { doc_type: 46, folio: 2, status: "MMC", label: "", error_label: "" },
+      { doc_type: 56, folio: 7, status: "DOK", label: "", error_label: "" },
+      { doc_type: 110, folio: 8, status: "DNK", label: "", error_label: "" },
+    ]);
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole("button", { name: /Ver cada documento/ }));
+    const dialogo = await screen.findByRole("dialog");
+
+    // Ya no promete el motivo del reparo; dice dónde está de verdad.
+    expect(dialogo).toHaveTextContent(/No.*es el motivo de un reparo/i);
+    expect(dialogo).toHaveTextContent(/correo del SII/);
+
+    // Y traduce los códigos sin esconderlos.
+    expect(dialogo).toHaveTextContent("modificado por una nota de crédito");
+    expect(dialogo).toHaveTextContent("MMC");
+
+    // Lo que pide acción va primero, aunque su folio sea el mayor.
+    const filas = dialogo.querySelectorAll("tbody tr");
+    expect(filas[0]).toHaveTextContent("DNK");
   });
 });
