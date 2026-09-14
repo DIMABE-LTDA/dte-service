@@ -831,7 +831,7 @@
             }
           ],
           "other_currency": {
-            "exchange_rate": "1",
+            "exchange_rate": "1265",
             "currency": "PESO CL"
           }
         },
@@ -877,7 +877,7 @@
             }
           ],
           "other_currency": {
-            "exchange_rate": "1",
+            "exchange_rate": "1265",
             "currency": "PESO CL"
           }
         },
@@ -921,7 +921,7 @@
             }
           ],
           "other_currency": {
-            "exchange_rate": "1",
+            "exchange_rate": "1265",
             "currency": "PESO CL"
           }
         }
@@ -982,7 +982,7 @@
             }
           ],
           "other_currency": {
-            "exchange_rate": "1",
+            "exchange_rate": "940.91",
             "currency": "PESO CL"
           }
         },
@@ -1082,7 +1082,7 @@
             }
           ],
           "other_currency": {
-            "exchange_rate": "1",
+            "exchange_rate": "940.91",
             "currency": "PESO CL"
           }
         },
@@ -1117,7 +1117,7 @@
           "service_indicator": 4,
           "receiver_nationality": 563,
           "other_currency": {
-            "exchange_rate": "1",
+            "exchange_rate": "940.91",
             "currency": "PESO CL"
           }
         }

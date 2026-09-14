@@ -247,7 +247,8 @@ SETS: list[dict[str, Any]] = [
         "endpoint": "issue-export-batch",
         "help": (
             "Factura de exportación de mercancías con flete y seguro, su nota de"
-            " débito y la nota de crédito que la anula."
+            " débito y la nota de crédito que la anula. Pon el tipo de cambio real:"
+            " el SII exige los montos también en pesos y viene de relleno en 1."
         ),
         "payload": {
             "documents": [
@@ -290,7 +291,8 @@ SETS: list[dict[str, Any]] = [
         "help": (
             "Tres facturas de exportación: servicios con resolución del SNA,"
             " mercancías con DUS y AWB, y servicios a un receptor extranjero"
-            " del que se declara la nacionalidad."
+            " del que se declara la nacionalidad. Pon el tipo de cambio real:"
+            " el SII exige los montos también en pesos y viene de relleno en 1."
         ),
         "payload": {
             "documents": [
