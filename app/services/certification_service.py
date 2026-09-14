@@ -411,6 +411,12 @@ def set_state(etapas: list[dict]) -> str:
         return "rechazado"
     if por_clave.get("estado") == "ok":
         return "aceptado"
+    # Un set con reparos tiene respuesta del SII: no es "enviado, sin
+    # respuesta", que es donde caía antes y hacía parecer que el Servicio no
+    # había contestado. Tampoco es "aceptado" a secas: hay observaciones que
+    # leer antes de declarar el avance.
+    if por_clave.get("estado") == "atencion":
+        return "con_reparos"
     if por_clave.get("envio") == "ok":
         return "enviado"
     return "pendiente"
@@ -495,7 +501,9 @@ def progress(sets: list[dict]) -> dict:
     return {
         "sets_total": len(del_tramite),
         "sets_declared": sum(1 for s in del_tramite if s["state"] == "declarado"),
-        "sets_accepted": sum(1 for s in del_tramite if s["state"] in ("aceptado", "declarado")),
+        "sets_accepted": sum(
+            1 for s in del_tramite if s["state"] in ("aceptado", "con_reparos", "declarado")
+        ),
         "sets_pending": sum(
             1 for s in del_tramite if s["state"] in ("sin_dar_de_alta", "pendiente", "enviado")
         ),

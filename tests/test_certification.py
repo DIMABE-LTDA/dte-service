@@ -212,3 +212,25 @@ def test_la_consulta_por_documento_usa_el_monto_del_documento_no_el_de_pesos():
     assert fila["date"] == "2026-09-14"
     # El del documento, truncado: NO los 203.257.189 de OtraMoneda.
     assert fila["total_amount"] == 160677
+
+
+def test_un_set_con_reparos_no_se_muestra_como_sin_respuesta():
+    """Caía en «enviado», que es el estado de un sobre que el SII no contestó.
+
+    Un set con reparos SÍ tiene respuesta: el Servicio lo procesó y anotó
+    observaciones. Mostrarlo como sin respuesta hacía pensar que faltaba
+    consultar, cuando lo que falta es leer los reparos.
+    """
+    etapas = [
+        {"key": "envio", "state": "ok"},
+        {"key": "estado", "state": "atencion"},
+        {"key": "declaracion", "state": "atencion"},
+    ]
+    assert certification_service.set_state(etapas) == "con_reparos"
+
+
+def test_un_set_con_reparos_cuenta_como_entregado_en_el_avance():
+    sets = [{"kind": "basico", "state": "con_reparos"}, {"kind": "exenta", "state": "aceptado"}]
+    avance = certification_service.progress(sets)
+    assert avance["sets_accepted"] == 2
+    assert avance["sets_pending"] == 0

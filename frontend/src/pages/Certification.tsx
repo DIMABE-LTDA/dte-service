@@ -27,6 +27,7 @@ const ESTADO: Record<string, { color: string; texto: string }> = {
   pendiente: { color: "neutral", texto: "pendiente" },
   enviado: { color: "neutral", texto: "enviado, sin respuesta" },
   aceptado: { color: "warn", texto: "aceptado, falta declarar" },
+  con_reparos: { color: "warn", texto: "aceptado con reparos" },
   rechazado: { color: "error", texto: "rechazado" },
   declarado: { color: "ok", texto: "declarado" },
   sin_dar_de_alta: { color: "neutral", texto: "sin dar de alta" },
