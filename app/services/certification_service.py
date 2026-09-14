@@ -587,6 +587,31 @@ def draft_for(db, cert_set) -> CertificationSubmission | None:
     )
 
 
+def discard(db, envio: CertificationSubmission) -> None:
+    """Descarta un sobre emitido que nunca se envió.
+
+    Sirve para corregir la definición y volver a emitir sin arrastrar el sobre
+    viejo, que si no bloquea la emisión. Es seguro porque el SII nunca lo vio:
+    no hay TrackID, no hay nada que contradecir.
+
+    Lo que NO devuelve son los folios. El puntero ya avanzó y rebobinarlo es la
+    operación más peligrosa del sistema —dos procesos entregando el mismo folio
+    es el peor error posible acá—, así que los folios de un sobre descartado
+    quedan sin usar. Para el SII eso no es problema: un folio que nunca llegó no
+    existe, y el timbraje los sigue contando como disponibles.
+
+    Un sobre CON TrackID no se borra nunca: es el registro de lo que se le
+    entregó al Servicio, y su respuesta se consulta contra él.
+    """
+    if envio.track_id:
+        raise EmissionError(
+            f"el sobre #{envio.id} ya se envió al SII (TrackID {envio.track_id})."
+            " Lo enviado no se borra: es el registro de lo que recibió el Servicio."
+        )
+    db.delete(envio)
+    db.commit()
+
+
 def emit(db, customer: Customer, cert, cert_set, *, force: bool = False) -> CertificationSubmission:
     """Emite el set según su definición **sin enviarlo** al SII.
 

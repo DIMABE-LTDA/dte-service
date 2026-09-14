@@ -142,6 +142,10 @@ export const api = {
     req<CertSubmission>(`/admin/customers/${cid}/certification/sets/${setId}/emit?force=${force}`, {
       method: "POST",
     }),
+  certDiscard: (cid: number, sid: number) =>
+    req<CertDossier>(`/admin/customers/${cid}/certification/submissions/${sid}`, {
+      method: "DELETE",
+    }),
   certSend: (cid: number, sid: number) =>
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
       method: "POST",

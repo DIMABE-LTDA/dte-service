@@ -1099,3 +1099,55 @@ def test_consultar_un_sobre_sin_enviar_dice_que_no_hay_trackid(client, db):
     )
     assert r.status_code == 409
     assert "no tiene TrackID" in r.json()["detail"]
+
+
+def _borrador(db, customer, code="5038170"):
+    """Un sobre emitido y sin enviar: sin TrackID, que es lo que lo define."""
+    cert_set = certification_service.find_or_create_set(db, customer.id, code)
+    row = CertificationSubmission(
+        customer_id=customer.id,
+        set_id=cert_set.id,
+        envelope_kind="EnvioDTE",
+        envelope_encrypted=b"",
+        track_id=None,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def test_descartar_un_sobre_sin_enviar_libera_el_set(client, db):
+    """Sin esto, corregir la definición obligaba a emitir de nuevo con el sobre
+    viejo estorbando, o a dejarlo ahí bloqueando el botón."""
+    c = make_customer(db)
+    h = _op(client, db)
+    envio = _borrador(db, c)
+    assert envio.track_id is None
+
+    r = client.delete(f"{_base(c.id)}/submissions/{envio.id}", headers=h)
+    assert r.status_code == 200
+    assert db.query(CertificationSubmission).filter_by(customer_id=c.id).count() == 0
+
+
+def test_un_sobre_ya_enviado_no_se_borra(client, db):
+    """Es el registro de lo que recibió el SII: su respuesta se consulta contra él."""
+    c = make_customer(db)
+    h = _op(client, db)
+    _con_envio(db, c, code="5038170", track="0258716370")
+    envio = db.query(CertificationSubmission).filter_by(customer_id=c.id).one()
+
+    r = client.delete(f"{_base(c.id)}/submissions/{envio.id}", headers=h)
+    assert r.status_code == 409
+    assert "no se borra" in r.text
+    assert db.query(CertificationSubmission).filter_by(customer_id=c.id).count() == 1
+
+
+def test_no_se_puede_borrar_el_sobre_de_otro_cliente(client, db):
+    c1 = make_customer(db)
+    c2 = make_customer(db, rut="77005183-5", key="cust-2")
+    h = _op(client, db)
+    ajeno = _borrador(db, c1)
+
+    r = client.delete(f"{_base(c2.id)}/submissions/{ajeno.id}", headers=h)
+    assert r.status_code == 404
+    assert db.query(CertificationSubmission).filter_by(id=ajeno.id).count() == 1

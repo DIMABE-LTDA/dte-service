@@ -706,6 +706,36 @@ def emit_set(
     return _envio(envio)
 
 
+@router.delete("/submissions/{submission_id}", response_model=CertificationDossierOut)
+def discard_submission(
+    customer_id: int,
+    submission_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDossierOut:
+    """Descarta un sobre emitido que nunca se envió.
+
+    Sin esto, corregir la definición de un set obligaba a emitir "de nuevo"
+    arrastrando el sobre viejo, o a dejarlo ahí bloqueando el botón. Un sobre
+    que el SII nunca vio no es un registro de nada.
+    """
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    try:
+        certification_service.discard(db, row)
+    except certification_service.EmissionError as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.discard",
+        "certification_submission",
+        str(submission_id),
+        "sobre emitido y sin enviar, descartado",
+    )
+    return dossier(customer_id, actor, db)
+
+
 @router.post("/submissions/{submission_id}/send", response_model=CertificationSubmissionOut)
 def send_submission(
     customer_id: int,

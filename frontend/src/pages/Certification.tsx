@@ -7,6 +7,7 @@ import CertReadinessPanel from "../components/CertReadiness";
 import CertImportCard from "../components/CertImportCard";
 import CertReceiversCard from "../components/CertReceiversCard";
 import CertTemplateCard from "../components/CertTemplateCard";
+import ConfirmModal from "../components/ConfirmModal";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import type { CertPreview, CertSet, CertSubmission } from "../types";
@@ -120,6 +121,7 @@ export default function Certification() {
   const [payload, setPayload] = useState("");
   const [clonarDe, setClonarDe] = useState("");
   const [vista, setVista] = useState<{ setId: number; datos: CertPreview } | null>(null);
+  const [descartando, setDescartando] = useState<number | null>(null);
 
   /** Ejecuta la acción y dice si salió bien.
    *
@@ -442,6 +444,18 @@ export default function Certification() {
                             >
                               <Icon name="upload" />
                               Enviar al SII
+                            </button>
+                          )}
+                          {writable && !e.track_id && (
+                            <button
+                              className="btn-link danger"
+                              type="button"
+                              disabled={busy}
+                              title="Lo borra sin enviarlo. Los folios que gastó no vuelven."
+                              onClick={() => setDescartando(e.id)}
+                            >
+                              <Icon name="trash" />
+                              Descartar
                             </button>
                           )}
                           {writable && e.track_id && (
@@ -1011,6 +1025,32 @@ export default function Certification() {
             </form>
           )}
         </div>
+      )}
+      {descartando !== null && (
+        <ConfirmModal
+          title="Descartar el sobre sin enviar"
+          confirmLabel="Descartar"
+          danger
+          busy={busy}
+          onClose={() => setDescartando(null)}
+          onConfirm={() => {
+            const sid = descartando;
+            setDescartando(null);
+            void correr(() => api.certDiscard(cid, sid), "Sobre descartado.");
+          }}
+          message={
+            <>
+              <p>
+                El sobre se borra y el set queda libre para emitir de nuevo. El SII nunca lo vio,
+                así que no hay nada que corregir de su lado.
+              </p>
+              <p className="muted">
+                Los folios que gastó no vuelven: el siguiente sobre usará folios nuevos. Para el SII
+                eso da igual, porque un folio que nunca le llegó lo sigue contando como disponible.
+              </p>
+            </>
+          }
+        />
       )}
     </>
   );
