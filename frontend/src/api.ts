@@ -23,6 +23,7 @@ import type {
   CertReadiness,
   CertSet,
   CertSubmission,
+  CertTemplateSet,
   Token,
   TotpSetup,
   TotpStatus,
@@ -147,6 +148,10 @@ export const api = {
     }),
   certImport: (cid: number, sets: Record<string, unknown>) =>
     req<CertDossier>(`/admin/customers/${cid}/certification/import`, body({ sets })),
+  certTemplate: (cid: number) =>
+    req<CertTemplateSet[]>(`/admin/customers/${cid}/certification/template`),
+  certCreateFromTemplate: (cid: number, codes: Record<string, string>) =>
+    req<CertDossier>(`/admin/customers/${cid}/certification/template`, body({ codes })),
   certReceivers: (cid: number) =>
     req<CertReceiver[]>(`/admin/customers/${cid}/certification/receivers`),
   certSaveReceivers: (cid: number, receivers: CertReceiver[]) =>

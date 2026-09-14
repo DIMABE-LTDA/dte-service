@@ -57,6 +57,8 @@ from app.schemas.certification import (
     ReceiversRequest,
     SetupRequest,
     StepRequest,
+    TemplateRequest,
+    TemplateSetOut,
 )
 from app.security.auth import admin_access, admin_read_access
 from app.services import (
@@ -67,6 +69,7 @@ from app.services import (
     certification_fill,
     certification_preview,
     certification_service,
+    certification_template,
 )
 
 router = APIRouter(prefix="/admin/customers/{customer_id}/certification", tags=["Certificación"])
@@ -807,21 +810,10 @@ def contents(
     )
 
 
-@router.post("/import", response_model=CertificationDossierOut)
-def import_definitions(
-    customer_id: int,
-    data: ImportRequest,
-    actor: User | None = Depends(admin_access),
-    db: Session = Depends(get_db),
-) -> CertificationDossierOut:
-    """Carga en bloque los sets de un contribuyente con su definición.
-
-    Da de alta el set si hace falta y guarda qué emitir, en una sola operación:
-    es como se pone en marcha una certificación nueva.
-    """
-    customer = _customer(db, customer_id)
+def _apply_sets(db: Session, customer: Customer, sets: dict[str, dict]) -> int:
+    """Da de alta los sets con su definición. Devuelve cuántos quedaron."""
     cargados = 0
-    for kind, entrada in data.sets.items():
+    for kind, entrada in sets.items():
         code = str(entrada.get("code") or "").strip()
         if not code:
             continue  # sin número de atención el set no se puede identificar
@@ -838,6 +830,23 @@ def import_definitions(
         row.endpoint = entrada["endpoint"]
         row.payload = certification_fill.strip(entrada["endpoint"], kind, entrada["payload"])
         cargados += 1
+    return cargados
+
+
+@router.post("/import", response_model=CertificationDossierOut)
+def import_definitions(
+    customer_id: int,
+    data: ImportRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDossierOut:
+    """Carga en bloque los sets de un contribuyente con su definición.
+
+    Da de alta el set si hace falta y guarda qué emitir, en una sola operación:
+    es como se pone en marcha una certificación nueva.
+    """
+    customer = _customer(db, customer_id)
+    cargados = _apply_sets(db, customer, data.sets)
     audit_service.record_change(
         db,
         actor.id if actor else None,
@@ -845,5 +854,62 @@ def import_definitions(
         "customer",
         str(customer.id),
         f"{cargados} set(s) cargados con su definición",
+    )
+    return dossier(customer_id, actor, db)
+
+
+@router.get("/template", response_model=list[TemplateSetOut])
+def template(
+    customer_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> list[TemplateSetOut]:
+    """Los diez sets que define el SII, con qué hay que transcribir de cada uno.
+
+    Es el catálogo que necesita la pantalla para pedir los números de atención:
+    sin él, empezar una certificación exigía conocer de memoria los diez sets.
+    """
+    _customer(db, customer_id)
+    return [
+        TemplateSetOut(
+            kind=s["kind"],
+            label=s["label"],
+            endpoint=s["endpoint"],
+            help=s["help"],
+            transcribe=s["kind"] not in certification_fill.GENERATED_BOOKS,
+        )
+        for s in certification_template.SETS
+    ]
+
+
+@router.post("/template", response_model=CertificationDossierOut)
+def create_from_template(
+    customer_id: int,
+    data: TemplateRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationDossierOut:
+    """Crea los sets desde la plantilla, con los números de atención del PDF.
+
+    Deja el expediente con la estructura correcta —qué documentos, en qué orden
+    y qué referencia a qué— y montos de relleno que el operador reemplaza con
+    los de su set. Antes de esto, un contribuyente nuevo obligaba a clonar el
+    expediente de otro o a pegar el JSON a mano.
+    """
+    customer = _customer(db, customer_id)
+    sets = certification_template.sets_for_import(data.codes)
+    if not sets:
+        raise HTTPException(
+            status_code=400,
+            detail="Indica al menos un número de atención: es lo que identifica cada set.",
+        )
+    cargados = _apply_sets(db, customer, sets)
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.template",
+        "customer",
+        str(customer.id),
+        f"{cargados} set(s) creados desde la plantilla",
     )
     return dossier(customer_id, actor, db)

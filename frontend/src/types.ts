@@ -336,3 +336,13 @@ export interface CertReceiver {
   commune: string;
   city: string;
 }
+
+/** Un set de la plantilla del SII: qué es y si hay que transcribirlo. */
+export interface CertTemplateSet {
+  kind: string;
+  label: string;
+  endpoint: string;
+  help: string;
+  /** Falso en los libros cuyas líneas arma el sistema: sólo piden su número. */
+  transcribe: boolean;
+}

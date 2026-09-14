@@ -276,6 +276,28 @@ class ImportRequest(BaseModel):
     sets: dict[str, dict]
 
 
+class TemplateSetOut(BaseModel):
+    """Un set de la plantilla: qué es y qué hay que transcribir de él."""
+
+    kind: str
+    label: str
+    endpoint: str
+    help: str
+    #: Falso en los libros de ventas y de guías, cuyas líneas arma el sistema:
+    #: al operador sólo le piden su número de atención.
+    transcribe: bool
+
+
+class TemplateRequest(BaseModel):
+    """Crea los sets desde la plantilla con los números de atención del PDF.
+
+    kind → número de atención. Los que vengan vacíos se omiten: el SII no
+    siempre asigna los diez de una vez.
+    """
+
+    codes: dict[str, str]
+
+
 class CheckOut(BaseModel):
     """Una comprobación: qué pasa y qué hacer."""
 

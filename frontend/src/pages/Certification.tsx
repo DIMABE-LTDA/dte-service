@@ -6,6 +6,7 @@ import Icon from "../components/Icon";
 import CertReadinessPanel from "../components/CertReadiness";
 import CertImportCard from "../components/CertImportCard";
 import CertReceiversCard from "../components/CertReceiversCard";
+import CertTemplateCard from "../components/CertTemplateCard";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import type { CertPreview, CertSet, CertSubmission } from "../types";
@@ -195,6 +196,16 @@ export default function Certification() {
         error={verificacion.error}
         reload={verificacion.reload}
         writable={writable}
+      />
+
+      <CertTemplateCard
+        cid={cid}
+        writable={writable}
+        hasSets={sets.length > 0}
+        onCreated={async () => {
+          await reload();
+          await verificacion.reload();
+        }}
       />
 
       <CertImportCard
