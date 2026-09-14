@@ -4,6 +4,8 @@ Lo que se fija aquí es que no se vuelva a perder lo que se perdió: el TrackID,
 el sobre enviado y qué venía dentro.
 """
 
+from types import SimpleNamespace
+
 import pytest
 from dte_chile.sii_client import SubmissionResult
 
@@ -148,3 +150,32 @@ def test_el_enganche_esta_en_el_unico_punto_de_envio(db, monkeypatch):
     sii_upload.upload(c, cert, _SOBRE, c.rut, 30)
 
     assert db.query(CertificationSubmission).one().track_id == "0257259806"
+
+
+def test_un_documento_aceptado_con_reparo_cuenta_como_entregado():
+    """El SII lo aceptó y lo registró; el reparo es una observación.
+
+    Contarlo como no entregado dejaba fuera del Libro de Ventas documentos que
+    el Servicio sí tiene, que es justo el descuadre que el libro viene a evitar.
+    El set de exportación volvió con 1 aceptado y 2 con reparo, ninguno
+    rechazado.
+    """
+    envio = SimpleNamespace(
+        sii_state="EPR",
+        sii_stats=[
+            {"doc_type": 110, "informed": 1, "accepted": 0, "rejected": 0, "flagged": 1},
+            {"doc_type": 111, "informed": 1, "accepted": 0, "rejected": 0, "flagged": 1},
+            {"doc_type": 112, "informed": 1, "accepted": 1, "rejected": 0, "flagged": 0},
+        ],
+    )
+    assert certification_service.entregado(envio) is True
+
+
+def test_un_sobre_con_todo_rechazado_no_esta_entregado():
+    """EPR describe al sobre, no a su contenido: ésta es la distinción que
+    hizo que nadie mirara durante una semana."""
+    envio = SimpleNamespace(
+        sii_state="EPR",
+        sii_stats=[{"doc_type": 33, "informed": 4, "accepted": 0, "rejected": 4, "flagged": 0}],
+    )
+    assert certification_service.entregado(envio) is False

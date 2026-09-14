@@ -70,7 +70,12 @@ function colorEstado(e: CertSubmission): string {
   const informados = stats.reduce((n, s) => n + s.informed, 0);
   if (!informados) return "ok";
   const aceptados = stats.reduce((n, s) => n + s.accepted, 0);
-  if (!aceptados) return "error";
+  // Un documento «aceptado con reparo» está aceptado: el SII lo registró y
+  // anotó una observación. Cuenta como entregado, pero pinta ámbar porque la
+  // observación hay que leerla —los rechazados van en su propia columna—.
+  const reparos = stats.reduce((n, s) => n + s.flagged, 0);
+  if (aceptados + reparos === 0) return "error";
+  if (reparos > 0) return "warn";
   return aceptados < informados ? "warn" : "ok";
 }
 

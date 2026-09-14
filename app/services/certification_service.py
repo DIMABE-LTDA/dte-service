@@ -207,13 +207,19 @@ def entregado(envio) -> bool:
     Un sobre procesado con todos sus documentos rechazados NO lo está, por
     mucho que su estado sea EPR. Cuando no hay desglose se cree al estado: es
     el caso de los libros, cuyo LOK sí es el veredicto entero.
+
+    Los documentos **aceptados con reparo** cuentan como entregados: el SII los
+    aceptó y quedaron registrados; el reparo es una observación sobre el
+    contenido, no un rechazo —los rechazados van en su propia columna—. Contarlos
+    como no entregados dejaba fuera del Libro de Ventas documentos que el SII sí
+    tiene, que es justo el descuadre que el libro viene a evitar.
     """
     if envio.sii_state not in _ACEPTADOS:
         return False
-    informados, aceptados, _rechazados, _reparos = doc_counts(envio)
+    informados, aceptados, _rechazados, reparos = doc_counts(envio)
     if not informados:
         return True
-    return aceptados > 0
+    return (aceptados + reparos) > 0
 
 
 _ETAPAS = (
