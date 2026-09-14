@@ -288,4 +288,62 @@ describe("Expediente de certificación", () => {
     const filas = dialogo.querySelectorAll("tbody tr");
     expect(filas[0]).toHaveTextContent("DNK");
   });
+
+  it("abre un solo set: el primero que queda por trabajar", async () => {
+    // Con los diez expandidos la página medía varios miles de píxeles y no
+    // había forma de ver dónde estabas.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "5038170", state: "declarado", declared_at: "2026-09-14" }),
+          set({ id: 2, code: "5038175", state: "con_reparos" }),
+          set({ id: 3, code: "5038173", state: "pendiente" }),
+        ],
+      }),
+    );
+    mount();
+
+    // Los tres se listan siempre: el que falta es el que importa.
+    expect(await screen.findByText("5038170")).toBeInTheDocument();
+    expect(screen.getByText("5038173")).toBeInTheDocument();
+
+    const abiertos = screen.getAllByRole("button", { expanded: true });
+    expect(abiertos).toHaveLength(1);
+    expect(abiertos[0]).toHaveTextContent("5038175");
+  });
+
+  it("dice qué toca hacer con cada set, sin tener que deducirlo", async () => {
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "5038170", state: "aceptado" }),
+          set({ id: 2, code: "5038175", state: "rechazado" }),
+        ],
+      }),
+    );
+    mount();
+
+    expect(await screen.findByText("Declarar el avance en Mi SII")).toBeInTheDocument();
+    expect(screen.getByText("Corregir y reenviar")).toBeInTheDocument();
+  });
+
+  it("abrir un set cierra el anterior", async () => {
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "5038170", state: "aceptado" }),
+          set({ id: 2, code: "5038175", state: "aceptado" }),
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+
+    await screen.findByText("5038170");
+    await user.click(screen.getByRole("button", { name: /5038175/ }));
+
+    const abiertos = screen.getAllByRole("button", { expanded: true });
+    expect(abiertos).toHaveLength(1);
+    expect(abiertos[0]).toHaveTextContent("5038175");
+  });
 });

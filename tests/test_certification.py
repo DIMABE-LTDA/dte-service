@@ -210,8 +210,9 @@ def test_la_consulta_por_documento_usa_el_monto_del_documento_no_el_de_pesos():
     assert fila["folio"] == 6
     assert fila["rut"] == "55555555-5"
     assert fila["date"] == "2026-09-14"
-    # El del documento, truncado: NO los 203.257.189 de OtraMoneda.
-    assert fila["total_amount"] == 160677
+    # El del documento, con sus decimales: NO los 203.257.189 de OtraMoneda,
+    # y sin recortar —el SII compara contra lo que registró—.
+    assert fila["total_amount"] == "160677.62"
 
 
 def test_un_set_con_reparos_no_se_muestra_como_sin_respuesta():

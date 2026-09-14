@@ -1126,3 +1126,16 @@ dl.perfil dd {
   background: rgba(245, 158, 11, 0.08);
   margin-bottom: 0.8rem;
 }
+
+/* Cabecera desplegable de un set. El botón ocupa el ancho del título para que
+   toda la zona sea clicable, no sólo la flecha. */
+.set-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 1rem;
+  padding: 0;
+}
+.set-toggle strong {
+  font-weight: 600;
+}
