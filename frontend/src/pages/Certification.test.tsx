@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ToastProvider } from "../toast";
@@ -235,6 +235,44 @@ describe("Expediente de certificación", () => {
     expect(screen.getByText("Libro de ventas")).toBeInTheDocument();
   });
 
+  it("pliega la preparación cuando ya no queda nada que hacer ahí", async () => {
+    // Verificación, plantilla, importación y receptores se hacen una vez y
+    // luego ocupaban ~1200px antes del primer set.
+    (api.certChecks as Mock).mockResolvedValue({
+      ready: true,
+      errors: 0,
+      warnings: 0,
+      groups: [],
+    });
+    (api.certDossier as Mock).mockResolvedValue(dossier({ sets: [set()] }));
+    mount();
+
+    await screen.findByText("5038170");
+    const prep = screen.getByRole("button", { name: /Preparación/ });
+    await waitFor(() => expect(prep).toHaveAttribute("aria-expanded", "false"));
+    // Plegar no esconde el estado: el veredicto sigue en la cabecera.
+    expect(screen.getByText("Verificación OK")).toBeInTheDocument();
+  });
+
+  it("deja la preparación abierta mientras la verificación no dé el visto bueno", async () => {
+    // No se puede afirmar que esté todo listo si aún no respondió; esconderlo
+    // sería afirmarlo.
+    (api.certChecks as Mock).mockResolvedValue({
+      ready: false,
+      errors: 2,
+      warnings: 0,
+      groups: [],
+    });
+    (api.certDossier as Mock).mockResolvedValue(dossier({ sets: [set()] }));
+    mount();
+
+    await screen.findByText("5038170");
+    expect(screen.getByRole("button", { name: /Preparación/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
   it("deja cerrar y reabrir los pasos que ocurren fuera del servicio", async () => {
     (api.certDossier as Mock).mockResolvedValue(dossier());
     (api.certStep as Mock).mockResolvedValue(dossier());
@@ -426,7 +464,10 @@ describe("Expediente de certificación", () => {
     expect(await screen.findByText("5038170")).toBeInTheDocument();
     expect(screen.getByText("5038173")).toBeInTheDocument();
 
-    const abiertos = screen.getAllByRole("button", { expanded: true });
+    // Acotado a la lista: "Preparación" también es un acordeón, y su botón
+    // expone aria-expanded igual que el de un set.
+    const lista = within(document.querySelector(".lista-sets") as HTMLElement);
+    const abiertos = lista.getAllByRole("button", { expanded: true });
     expect(abiertos).toHaveLength(1);
     expect(abiertos[0]).toHaveTextContent("5038175");
   });
@@ -546,7 +587,10 @@ describe("Expediente de certificación", () => {
     await screen.findByText("5038170");
     await user.click(screen.getByRole("button", { name: /5038175/ }));
 
-    const abiertos = screen.getAllByRole("button", { expanded: true });
+    // Acotado a la lista: "Preparación" también es un acordeón, y su botón
+    // expone aria-expanded igual que el de un set.
+    const lista = within(document.querySelector(".lista-sets") as HTMLElement);
+    const abiertos = lista.getAllByRole("button", { expanded: true });
     expect(abiertos).toHaveLength(1);
     expect(abiertos[0]).toHaveTextContent("5038175");
   });

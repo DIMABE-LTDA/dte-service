@@ -294,6 +294,10 @@ export default function Certification() {
   // vuelve a abrirse porque el expediente se recargue.
   const [tocado, setTocado] = useState(false);
   const [filtro, setFiltro] = useState("todos");
+  // Igual que el acordeón de los sets: hasta que el operador toca, manda el
+  // estado del expediente; después manda él.
+  const [prepAbierto, setPrepAbierto] = useState(false);
+  const [prepTocada, setPrepTocada] = useState(false);
 
   /** Ejecuta la acción y dice si salió bien.
    *
@@ -345,6 +349,12 @@ export default function Certification() {
   // nada.
   const corte = FILTROS.find((f) => f.clave === filtro) ?? FILTROS[0];
   const visibles = conAlta.filter((s) => corte.incluye(s.state));
+
+  // Plegada sólo cuando de verdad no queda nada que hacer en preparación. Si la
+  // verificación aún no respondió, `ready` es undefined y la sección se abre:
+  // no se puede afirmar que esté todo listo, y esconderlo sería afirmarlo.
+  const prepLista = verificacion.data?.ready === true && conAlta.length > 0 && faltan.length === 0;
+  const prepAbierta = prepTocada ? prepAbierto : !prepLista;
 
   // El primero que no está declarado: es el que toca. Si están todos cerrados,
   // no se abre ninguno.
@@ -405,112 +415,177 @@ export default function Certification() {
         </p>
       </div>
 
-      <CertReadinessPanel
-        cid={cid}
-        data={verificacion.data}
-        loading={verificacion.loading}
-        error={verificacion.error}
-        reload={verificacion.reload}
-        writable={writable}
-      />
+      {/* Preparación: lo que se hace UNA vez, antes de trabajar los sets.
+          Ocupaba ~1200px antes del primer set, en una pantalla a la que se
+          entra a mirar sets. Va plegada cuando ya no hay nada que hacer aquí
+          —la verificación pasa y los sets existen— y abierta si falta algo.
 
-      <CertTemplateCard
-        cid={cid}
-        writable={writable}
-        hasSets={sets.length > 0}
-        onCreated={async () => {
-          await reload();
-          await verificacion.reload();
-        }}
-      />
+          Las tarjetas se quedan montadas y sólo se oculta el contenedor: cada
+          una trae su propio `useApi`, y desmontarlas al plegar convertiría un
+          clic en una tanda de refetches. */}
+      <section className="preparacion">
+        <div className="card-head prep-head">
+          <button
+            className="btn-link prep-toggle"
+            type="button"
+            aria-expanded={prepAbierta}
+            aria-controls="preparacion-cuerpo"
+            onClick={() => {
+              setPrepTocada(true);
+              setPrepAbierto(!prepAbierta);
+            }}
+          >
+            <span aria-hidden="true" className="set-flecha">
+              {prepAbierta ? "▾" : "▸"}
+            </span>
+            <h2>Preparación</h2>
+          </button>
+          <span className="spacer" />
+          {/* Plegar no puede esconder el estado: el resumen va en la cabecera. */}
+          {!prepAbierta && (
+            <span className="prep-resumen">
+              {verificacion.data && (
+                <span className={`badge ${verificacion.data.ready ? "ok" : "error"} con-punto`}>
+                  <span className="punto" aria-hidden="true" />
+                  {verificacion.data.ready
+                    ? "Verificación OK"
+                    : `${verificacion.data.errors} problema(s)`}
+                </span>
+              )}
+              <span className="muted">
+                {sets.length} set(s) cargados
+                {faltan.length > 0 ? ` · ${faltan.length} sin dar de alta` : ""}
+              </span>
+            </span>
+          )}
+        </div>
 
-      <CertImportCard
-        cid={cid}
-        writable={writable}
-        onImported={async () => {
-          await reload();
-          await verificacion.reload();
-        }}
-      />
+        <div id="preparacion-cuerpo" hidden={!prepAbierta}>
+          <CertReadinessPanel
+            cid={cid}
+            data={verificacion.data}
+            loading={verificacion.loading}
+            error={verificacion.error}
+            reload={verificacion.reload}
+            writable={writable}
+          />
 
-      <CertReceiversCard cid={cid} writable={writable} onSaved={() => void verificacion.reload()} />
+          <CertTemplateCard
+            cid={cid}
+            writable={writable}
+            hasSets={sets.length > 0}
+            onCreated={async () => {
+              await reload();
+              await verificacion.reload();
+            }}
+          />
+
+          <CertImportCard
+            cid={cid}
+            writable={writable}
+            onImported={async () => {
+              await reload();
+              await verificacion.reload();
+            }}
+          />
+
+          <CertReceiversCard
+            cid={cid}
+            writable={writable}
+            onSaved={() => void verificacion.reload()}
+          />
+        </div>
+      </section>
 
       <div className="card">
         <div className="card-head">
           <h2>Pasos del trámite</h2>
         </div>
-        <div className="etapas pasos">
+        {/* Un checklist secuencial, no seis tarjetas del mismo peso en una
+            rejilla: los pasos dependen unos de otros y lo que se viene a ver es
+            cuál está cumplido y cuál sigue. En vertical y numerado eso se lee
+            de arriba abajo; en 3+3 había que reconstruirlo. */}
+        <ol className="pasos-lista">
           {(data?.dossier.steps ?? []).map((p, i) => (
-            <div className={`etapa ${p.state}`} key={p.key}>
-              <div className="etapa-titulo">
-                <span className="etapa-punto" aria-hidden="true" />
-                {i + 1}. {p.label}
+            <li className={p.state} key={p.key}>
+              <span className="paso-n" aria-hidden="true">
+                {p.done_at || p.state === "ok" ? "✓" : i + 1}
+              </span>
+              <div className="paso-cuerpo">
+                <div className="paso-titulo">
+                  {p.label}
+                  <span className="paso-estado">
+                    {p.done_at ? `cumplido el ${p.done_at}` : (ETAPA[p.state] ?? p.state)}
+                  </span>
+                </div>
+                <div className="etapa-detalle">{p.detail}</div>
               </div>
-              <div className="etapa-detalle">{p.detail}</div>
-              {/* El paso 5 se arma desde los sobres guardados: el botón va aquí,
+              <div className="paso-acciones">
+                {/* El paso 5 se arma desde los sobres guardados: el botón va aquí,
                   que es donde el operador lo busca. */}
-              {p.key === "impresion" && writable && (
-                <button
-                  className="btn-link"
-                  type="button"
-                  style={{ padding: 0, marginTop: "0.35rem" }}
-                  disabled={busy}
-                  onClick={() =>
-                    correr(async () => {
-                      const r = await api.certPrintSamples(cid);
-                      const partes = r.documents.map((d) => String(d.html ?? ""));
-                      const blob = new Blob(
-                        [
-                          `<!doctype html><meta charset="utf-8"><title>Muestras de impresión</title>${partes.join("<hr>")}`,
-                        ],
-                        { type: "text/html" },
-                      );
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "muestras-impresion.html";
-                      a.click();
-                      URL.revokeObjectURL(url);
-                      if (r.skipped.length) {
-                        setActionError(
-                          `Se saltaron ${r.skipped.length} sobre(s): ${r.skipped
-                            .map((x) => `${x.track_id} (${x.reason})`)
-                            .join(", ")}`,
+                {p.key === "impresion" && writable && (
+                  <button
+                    className="btn-link"
+                    type="button"
+                    style={{ padding: 0 }}
+                    disabled={busy}
+                    onClick={() =>
+                      correr(async () => {
+                        const r = await api.certPrintSamples(cid);
+                        const partes = r.documents.map((d) => String(d.html ?? ""));
+                        const blob = new Blob(
+                          [
+                            `<!doctype html><meta charset="utf-8"><title>Muestras de impresión</title>${partes.join("<hr>")}`,
+                          ],
+                          { type: "text/html" },
                         );
-                      }
-                    }, "Muestras generadas: ábrelas e imprímelas a PDF.")
-                  }
-                >
-                  <Icon name="download" />
-                  Generar muestras
-                </button>
-              )}
-              {!p.automatic && writable && (
-                <button
-                  className="btn-link"
-                  type="button"
-                  style={{ padding: 0, marginTop: "0.35rem" }}
-                  disabled={busy}
-                  onClick={() =>
-                    correr(
-                      () =>
-                        api.certStep(
-                          cid,
-                          p.key,
-                          p.done_at ? null : new Date().toISOString().slice(0, 10),
-                          p.note,
-                        ),
-                      p.done_at ? `Paso "${p.label}" reabierto.` : `Paso "${p.label}" cerrado.`,
-                    )
-                  }
-                >
-                  <Icon name={p.done_at ? "restore" : "check"} />
-                  {p.done_at ? `Reabrir (${p.done_at})` : "Marcar cumplido"}
-                </button>
-              )}
-            </div>
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "muestras-impresion.html";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        if (r.skipped.length) {
+                          setActionError(
+                            `Se saltaron ${r.skipped.length} sobre(s): ${r.skipped
+                              .map((x) => `${x.track_id} (${x.reason})`)
+                              .join(", ")}`,
+                          );
+                        }
+                      }, "Muestras generadas: ábrelas e imprímelas a PDF.")
+                    }
+                  >
+                    <Icon name="download" />
+                    Generar muestras
+                  </button>
+                )}
+                {!p.automatic && writable && (
+                  <button
+                    className="btn-link"
+                    type="button"
+                    style={{ padding: 0 }}
+                    disabled={busy}
+                    onClick={() =>
+                      correr(
+                        () =>
+                          api.certStep(
+                            cid,
+                            p.key,
+                            p.done_at ? null : new Date().toISOString().slice(0, 10),
+                            p.note,
+                          ),
+                        p.done_at ? `Paso "${p.label}" reabierto.` : `Paso "${p.label}" cerrado.`,
+                      )
+                    }
+                  >
+                    <Icon name={p.done_at ? "restore" : "check"} />
+                    {p.done_at ? "Reabrir" : "Marcar cumplido"}
+                  </button>
+                )}
+              </div>
+            </li>
           ))}
-        </div>
+        </ol>
         <p className="muted" style={{ marginBottom: 0 }}>
           El primero lo lleva el sistema con los sets. Los otros cinco ocurren en el sitio del SII o
           por correo, así que los confirmas tú.

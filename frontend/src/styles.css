@@ -1248,6 +1248,109 @@ dl.perfil dd {
 }
 
 /* ----------------------------------------------------------------- */
+/*  Preparación (plegable)                                            */
+/* ----------------------------------------------------------------- */
+/* Verificación, plantilla, importación y receptores se hacen UNA vez y luego
+   estorban: ocupaban ~1200px antes del primer set, en una pantalla a la que se
+   entra a trabajar sets. Plegados cuando ya no hay nada que hacer ahí. */
+.preparacion {
+  display: block;
+  margin-bottom: 1rem;
+}
+.prep-head {
+  padding: 0 0.2rem;
+}
+.prep-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0;
+}
+.prep-toggle h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.prep-resumen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+/* ----------------------------------------------------------------- */
+/*  Pasos del trámite                                                 */
+/* ----------------------------------------------------------------- */
+/* Un checklist secuencial, no seis tarjetas del mismo peso: los pasos dependen
+   unos de otros, y en una rejilla 3+3 el orden había que reconstruirlo. */
+.pasos-lista {
+  list-style: none;
+  margin: 0.3rem 0 0.8rem;
+  padding: 0;
+}
+.pasos-lista > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.2rem 0.7rem;
+  padding: 0.55rem 0.2rem;
+}
+.pasos-lista > li + li {
+  border-top: 1px solid var(--line);
+}
+/* El número pasa a ✓ al cumplirse: la casilla y su estado son la misma cosa. */
+.paso-n {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  flex: none;
+}
+.pasos-lista > li.ok .paso-n {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.pasos-lista > li.atencion .paso-n {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.paso-titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+/* El estado en palabras, para que no dependa del color del círculo. */
+.paso-estado {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.pasos-lista > li.ok .paso-estado {
+  color: var(--ok);
+}
+.paso-acciones {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .pasos-lista > li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .paso-acciones {
+    grid-column: 2;
+  }
+}
+
+/* ----------------------------------------------------------------- */
 /*  Cabecera de avance del expediente                                 */
 /* ----------------------------------------------------------------- */
 /* El avance era un badge gris arriba a la derecha, del mismo tamaño que el
