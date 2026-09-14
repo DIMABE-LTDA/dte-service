@@ -169,7 +169,7 @@ describe("Expediente de certificación", () => {
     mount();
     // Ni 'libro_ventas' ni 'aceptado' a secas: son valores del modelo.
     expect(await screen.findByText("Libro de ventas")).toBeInTheDocument();
-    expect(screen.getByText("aceptado, falta declarar")).toBeInTheDocument();
+    expect(screen.getByText("Falta declarar")).toBeInTheDocument();
   });
 
   it("muestra los envíos sin clasificar y deja asignarlos", async () => {
@@ -386,8 +386,93 @@ describe("Expediente de certificación", () => {
     );
     mount();
 
-    expect(await screen.findByText("Declarar el avance en Mi SII")).toBeInTheDocument();
-    expect(screen.getByText("Corregir y reenviar")).toBeInTheDocument();
+    // El verbo va en un botón, corto y con affordance; la frase entera se
+    // conserva en su título, que es donde no estorba.
+    const declarar = await screen.findByRole("button", { name: "Declarar" });
+    expect(declarar).toHaveAttribute("title", "Declarar el avance en Mi SII");
+    expect(screen.getByRole("button", { name: "Corregir" })).toHaveAttribute(
+      "title",
+      "Corregir y reenviar",
+    );
+  });
+
+  it("declara desde la fila plegada, sin tener que abrir el set", async () => {
+    // El diálogo vivía dentro del cuerpo expandido: disparado desde una fila
+    // plegada cambiaba el estado y no renderizaba nada.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "5038170", state: "con_reparos" }), // éste se abre solo
+          set({ id: 2, code: "5038175", state: "aceptado" }), // éste queda plegado
+        ],
+      }),
+    );
+    (api.certDeclare as Mock).mockResolvedValue({});
+    const user = userEvent.setup();
+    mount();
+
+    await screen.findByText("5038175");
+    const fila = screen.getByRole("button", { name: /5038175/ });
+    expect(fila).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(screen.getByRole("button", { name: "Declarar" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("5038175");
+  });
+
+  it("la fila plegada dice cuántos documentos lleva y cómo le fue", async () => {
+    // Sin esto había que abrir el set para saber si valía la pena abrirlo.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            id: 1,
+            code: "5038170",
+            state: "declarado",
+            declared_at: "2026-09-14",
+            submissions: [
+              {
+                ...set().submissions[0],
+                documents: [33, 34, 56].map((t, i) => ({ doc_type: t, folio: i })),
+                stats: [{ doc_type: 33, informed: 3, accepted: 2, rejected: 1, flagged: 0 }],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    expect(await screen.findByText("3 docs")).toBeInTheDocument();
+    expect(screen.getByText("2 aceptados")).toBeInTheDocument();
+    expect(screen.getByText("1 rechazados")).toBeInTheDocument();
+  });
+
+  it("no suma dos veces los documentos de un set reenviado", async () => {
+    // Un set rechazado y reenviado tiene dos envíos con los MISMOS documentos
+    // dentro: sumarlos diría "6 docs, 6 aceptados" donde hay tres.
+    const envio = (id: number, accepted: number) => ({
+      ...set().submissions[0],
+      id,
+      documents: [33, 34, 56].map((t, i) => ({ doc_type: t, folio: i })),
+      stats: [{ doc_type: 33, informed: 3, accepted, rejected: 3 - accepted, flagged: 0 }],
+    });
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            id: 1,
+            code: "5038170",
+            state: "declarado",
+            submissions: [envio(10, 0), envio(11, 3)],
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    expect(await screen.findByText("3 docs")).toBeInTheDocument();
+    // El vigente es el último, no la suma.
+    expect(screen.getByText("3 aceptados")).toBeInTheDocument();
   });
 
   it("abrir un set cierra el anterior", async () => {

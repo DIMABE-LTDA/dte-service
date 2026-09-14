@@ -1238,9 +1238,106 @@ dl.perfil dd {
   display: inline-flex;
   align-items: baseline;
   gap: 0.45rem;
-  font-size: 1rem;
+  font-size: 0.95rem;
   padding: 0;
+  min-width: 0;
+  text-align: left;
 }
 .set-toggle strong {
   font-weight: 600;
+}
+
+/* ----------------------------------------------------------------- */
+/*  Lista de sets                                                     */
+/* ----------------------------------------------------------------- */
+/* Una lista, no diez tarjetas: cada set plegado gastaba ~60px de alto y un
+   borde redondeado para mostrar tres datos. Con divisores finos las filas se
+   escanean de arriba abajo y las columnas quedan alineadas entre sets. */
+.lista-sets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lista-sets > li + li {
+  border-top: 1px solid var(--line);
+}
+/* El set abierto se despega del resto: sin esto, con la fila de arriba y la de
+   abajo pegadas, no se ve dónde empieza y dónde acaba lo desplegado. */
+.lista-sets > li.abierto {
+  background: var(--panel-2);
+  border-radius: 8px;
+}
+.set-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  padding: 0.5rem 0.6rem;
+}
+.set-flecha {
+  color: var(--muted);
+  flex: none;
+}
+.set-tipo {
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Cuántos documentos y cómo le fue a cada uno: es lo que decide si vale la pena
+   abrir el set, y antes sólo se sabía abriéndolo. */
+.set-cifras {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  justify-content: flex-end;
+}
+.set-cifras .ok {
+  color: var(--ok);
+}
+.set-cifras .mal {
+  color: var(--bad);
+}
+.set-cifras .ojo {
+  color: var(--warn);
+}
+/* El punto delante del texto del badge: da un ancla de color constante en la
+   misma abscisa de todas las filas, que es lo que permite leer la columna de
+   estado en vertical sin leer las palabras. */
+.badge.con-punto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+.badge.con-punto .punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.set-accion {
+  min-width: 6.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+.set-cuerpo {
+  padding: 0.2rem 0.6rem 0.8rem;
+}
+/* En pantalla angosta la fila se parte en dos: identificación arriba, cifras y
+   estado abajo. Apilar las cuatro columnas dejaría filas de 120px. */
+@media (max-width: 720px) {
+  .set-fila {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .set-toggle {
+    grid-column: 1 / -1;
+  }
+  .set-cifras {
+    justify-content: flex-start;
+  }
 }
