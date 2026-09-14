@@ -905,8 +905,10 @@
           "currency": "LIBRA EST",
           "items": [
             {
-              "name": "ANULA NOTA DE CREDITO",
-              "amount": "0"
+              "name": "CHATARRA DE ALUMINIO",
+              "quantity": "291",
+              "unit_price": "177",
+              "unit": "LT"
             }
           ],
           "customs": {
@@ -1515,9 +1517,14 @@
           },
           "items": [
             {
-              "name": "ANULA NOTA DE CREDITO",
-              "quantity": 1,
-              "unit_price": 0
+              "name": "Producto 1",
+              "quantity": 236,
+              "unit_price": 5610
+            },
+            {
+              "name": "Producto 2",
+              "quantity": 10,
+              "unit_price": 3045
             }
           ],
           "retentions": [

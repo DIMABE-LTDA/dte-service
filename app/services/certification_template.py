@@ -158,7 +158,10 @@ SETS: list[dict[str, Any]] = [
                 },
                 {
                     "type": 56,
-                    "items": [_item("ANULA NOTA DE CREDITO ELECTRONICA")],
+                    # Mismo monto que la nota que anula (0): si difieren, el
+                    # SII acepta con reparo «(REF-2-780) Anulación presenta
+                    # diff. de monto con doc. referenciado».
+                    "items": [_item("ANULA NOTA DE CREDITO ELECTRONICA", precio=0)],
                     "references": [_ref(5, 1, "ANULA NOTA DE CREDITO ELECTRONICA")],
                 },
             ]
@@ -218,7 +221,8 @@ SETS: list[dict[str, Any]] = [
                 },
                 {
                     "type": 56,
-                    "items": [_item("ANULA NOTA DE CREDITO ELECTRONICA", exento=True)],
+                    # Mismo monto que la nota que anula (0).
+                    "items": [_item("ANULA NOTA DE CREDITO ELECTRONICA", exento=True, precio=0)],
                     "references": [_ref(4, 1, "ANULA NOTA DE CREDITO ELECTRONICA")],
                 },
                 {
@@ -277,7 +281,10 @@ SETS: list[dict[str, Any]] = [
                     "receiver": dict(_IMPORTADOR),
                     "currency": "DOLAR USA",
                     "other_currency": {"exchange_rate": 1},
-                    "items": [_item("ANULA NOTA DE CREDITO")],
+                    # Mismas líneas que la nota de crédito que anula: con montos
+                    # distintos el SII responde «(REF-2-780) Anulación presenta
+                    # diff. de monto con doc. referenciado».
+                    "items": [_item("DEVOLUCION DE MERCADERIA")],
                     "customs": _aduana(),
                     "references": [_ref(2, 1, "ANULA NOTA DE CREDITO")],
                 },
@@ -420,7 +427,11 @@ SETS: list[dict[str, Any]] = [
                 },
                 {
                     "type": 56,
-                    "items": [_item("ANULA NOTA DE CREDITO ELECTRONICA")],
+                    # Una anulación revierte el documento entero, así que lleva
+                    # sus mismas líneas: si el total no coincide, el SII acepta
+                    # con reparo «(REF-2-780) Anulación presenta diff. de monto
+                    # con doc. referenciado».
+                    "items": _afectos(2),
                     "retentions": {"code": 15},
                     "references": [_ref(2, 1, "ANULA NOTA DE CREDITO ELECTRONICA")],
                 },

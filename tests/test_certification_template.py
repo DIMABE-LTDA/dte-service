@@ -153,3 +153,34 @@ def test_la_plantilla_no_pisa_el_numero_de_atencion_de_otro_set(client, db):
         r = client.post(f"{_base(c.id)}/template", json={"codes": {"basico": "5038170"}}, headers=h)
         assert r.status_code == 200
     assert db.query(CertificationSet).filter_by(customer_id=c.id, code="5038170").count() == 1
+
+
+def _total(doc: dict) -> float:
+    return sum(
+        float(i["quantity"]) * float(i["unit_price"])
+        for i in (doc.get("items") or [])
+        if i.get("quantity") is not None and i.get("unit_price") is not None
+    )
+
+
+@pytest.mark.parametrize("plantilla", certification_template.SETS, ids=lambda p: p["kind"])
+def test_una_nota_que_anula_vale_lo_mismo_que_lo_que_anula(plantilla):
+    """Si no, no lo revierte, y el SII lo acepta con reparo.
+
+    «(REF-2-780) Anulación presenta diff. de monto con doc. referenciado». Pasó
+    en los sets de exportación y de factura de compra: la nota que anulaba valía
+    0 y su objetivo 51.507 y 1.354.410.
+    """
+    docs = _documentos(plantilla)
+    for n, doc in enumerate(docs, start=1):
+        anula = next(
+            (r for r in doc.get("references", []) if r.get("code") == 1 and r.get("batch_index")),
+            None,
+        )
+        if not anula:
+            continue
+        objetivo = docs[anula["batch_index"] - 1]
+        assert _total(doc) == _total(objetivo), (
+            f"doc{n} anula el doc{anula['batch_index']} con otro monto: "
+            f"{_total(doc)} != {_total(objetivo)}"
+        )
