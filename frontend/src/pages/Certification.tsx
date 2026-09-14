@@ -113,6 +113,42 @@ const VERBO: Record<string, string> = {
   rechazado: "Corregir",
 };
 
+/** En qué estado está lo que aún no se ha declarado.
+ *
+ * Se cuenta sobre los sets y no sobre `progress`, que sólo trae declarados y
+ * aceptados: los reparos y los rechazos —justo los que piden trabajo— no vienen
+ * contados desde el API, y eran invisibles hasta abrir set por set.
+ */
+const CUENTAS: { clave: string; texto: string; color: string; incluye: (e: string) => boolean }[] =
+  [
+    { clave: "aceptados", texto: "aceptados", color: "ok", incluye: (e) => e === "aceptado" },
+    { clave: "reparos", texto: "con reparos", color: "warn", incluye: (e) => e === "con_reparos" },
+    { clave: "rechazados", texto: "rechazados", color: "error", incluye: (e) => e === "rechazado" },
+    {
+      clave: "sin_declarar",
+      texto: "sin enviar o sin respuesta",
+      color: "neutral",
+      incluye: (e) => e === "pendiente" || e === "enviado",
+    },
+  ];
+
+/** Los tres cortes con que se mira el expediente.
+ *
+ * "Requieren acción" es lo que no avanza solo: emitir, consultar, corregir. Un
+ * set aceptado NO entra ahí —ya está bien— pero sí en "listos para declarar",
+ * que es exactamente cuando aparece el botón de declarar.
+ */
+const FILTROS: { clave: string; texto: string; incluye: (e: string) => boolean }[] = [
+  { clave: "todos", texto: "Todos", incluye: () => true },
+  {
+    clave: "accion",
+    texto: "Requieren acción",
+    incluye: (e) =>
+      e === "pendiente" || e === "enviado" || e === "con_reparos" || e === "rechazado",
+  },
+  { clave: "listos", texto: "Listos para declarar", incluye: (e) => e === "aceptado" },
+];
+
 /** Los `kind` vienen en snake_case porque son valores del modelo. */
 const TIPO: Record<string, string> = {
   basico: "Set básico",
@@ -257,6 +293,7 @@ export default function Certification() {
   // queda por trabajar. Después manda el operador, y un set que él cerró no
   // vuelve a abrirse porque el expediente se recargue.
   const [tocado, setTocado] = useState(false);
+  const [filtro, setFiltro] = useState("todos");
 
   /** Ejecuta la acción y dice si salió bien.
    *
@@ -301,7 +338,13 @@ export default function Certification() {
   // Los que ya tienen número de atención: los que se trabajan. Los otros viven
   // en su propia tarjeta, porque lo único que admiten es que les peguen el
   // número.
-  const visibles = sets.filter((s): s is CertSet & { id: number } => s.id !== null);
+  const conAlta = sets.filter((s): s is CertSet & { id: number } => s.id !== null);
+  // El filtro es sólo de presentación: se aplica sobre lo que ya está cargado,
+  // sin volver a pedir el expediente. Las cuentas de arriba se calculan sobre
+  // `conAlta` a propósito — un contador que cambiara con el filtro no contaría
+  // nada.
+  const corte = FILTROS.find((f) => f.clave === filtro) ?? FILTROS[0];
+  const visibles = conAlta.filter((s) => corte.incluye(s.state));
 
   // El primero que no está declarado: es el que toca. Si están todos cerrados,
   // no se abre ninguno.
@@ -317,21 +360,48 @@ export default function Certification() {
       <div className="card">
         <div className="card-head">
           <h2>Expediente de certificación</h2>
-          <span className="spacer" />
-          <span className={`badge ${prog.sets_declared === prog.sets_total ? "ok" : "neutral"}`}>
-            {prog.sets_declared} de {prog.sets_total} sets declarados
-          </span>
         </div>
-        {/* Barra de avance: da de un vistazo lo que la tabla cuenta en detalle. */}
-        <div className="barra" aria-hidden="true">
+        {/* El avance del trámite, no un badge gris del tamaño del texto
+            secundario: es el dato por el que se entra a esta pantalla. */}
+        <p className="avance-cifra">
+          <strong>
+            {prog.sets_declared} de {prog.sets_total} sets declarados
+          </strong>
+          {prog.sets_declared === prog.sets_total && prog.sets_total > 0 && (
+            <span className="badge ok con-punto">
+              <span className="punto" aria-hidden="true" />
+              Trámite completo
+            </span>
+          )}
+        </p>
+        <div
+          className="barra"
+          role="progressbar"
+          aria-valuenow={prog.sets_declared}
+          aria-valuemin={0}
+          aria-valuemax={prog.sets_total}
+          aria-label="Sets declarados"
+        >
           <div
             className="barra-relleno"
             style={{ width: `${(prog.sets_declared / Math.max(prog.sets_total, 1)) * 100}%` }}
           />
         </div>
-        <p className="muted" style={{ marginTop: "0.6rem", marginBottom: 0 }}>
-          {prog.sets_accepted} aceptados por el SII · {prog.sets_pending} sin cerrar. Cada envío
-          queda guardado con su TrackID y su sobre.
+        {/* Los cuatro estados en que puede estar lo que falta. Salen de los sets
+            reales y no de `progress`, que sólo trae declarados/aceptados: los
+            reparos y los rechazos —que son los que piden trabajo— no vienen
+            contados desde el API. */}
+        <ul className="avance-cuentas">
+          {CUENTAS.map((c) => (
+            <li key={c.clave} className={c.color}>
+              <span className="punto" aria-hidden="true" />
+              <strong>{conAlta.filter((s) => c.incluye(s.state)).length}</strong>
+              {c.texto}
+            </li>
+          ))}
+        </ul>
+        <p className="muted" style={{ marginTop: "0.7rem", marginBottom: 0 }}>
+          Cada envío queda guardado con su TrackID y su sobre.
         </p>
       </div>
 
@@ -501,6 +571,34 @@ export default function Certification() {
           media pantalla de marco. Filas con divisor, densas y alineadas en
           columna para que el estado se escanee vertical. */}
       <div className="card">
+        <div className="card-head">
+          <h2>Sets</h2>
+          <span className="spacer" />
+          {/* Filtrado en cliente: son diez sets ya cargados, y volver a pedir el
+              expediente para esconder filas sería gastar una llamada en nada. */}
+          <div className="chips" role="group" aria-label="Filtrar los sets">
+            {FILTROS.map((f) => {
+              const n = conAlta.filter((x) => f.incluye(x.state)).length;
+              return (
+                <button
+                  key={f.clave}
+                  type="button"
+                  className={`chip${filtro === f.clave ? " activo" : ""}`}
+                  aria-pressed={filtro === f.clave}
+                  onClick={() => setFiltro(f.clave)}
+                >
+                  {f.texto} <span className="chip-n">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {visibles.length === 0 && (
+          <p className="muted" style={{ margin: "0.4rem 0" }}>
+            Ningún set en este corte. Los {conAlta.length} sets del expediente siguen ahí: quita el
+            filtro para verlos.
+          </p>
+        )}
         <ul className="lista-sets">
           {visibles.map((s) => {
             const est = ESTADO[s.state] ?? ESTADO.pendiente;

@@ -260,6 +260,62 @@ describe("Expediente de certificación", () => {
     expect(await screen.findByText("3 de 10 sets declarados")).toBeInTheDocument();
   });
 
+  it("cuenta los reparos y los rechazos, que no vienen en progress", async () => {
+    // `progress` sólo trae declarados y aceptados: los sets que piden trabajo
+    // eran invisibles hasta abrirlos uno por uno.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "a", state: "aceptado" }),
+          set({ id: 2, code: "b", state: "con_reparos" }),
+          set({ id: 3, code: "c", state: "rechazado" }),
+          set({ id: 4, code: "d", state: "rechazado" }),
+          set({ id: 5, code: "e", state: "declarado" }),
+        ],
+      }),
+    );
+    mount();
+
+    await screen.findByText("a");
+    const cuentas = [...document.querySelectorAll(".avance-cuentas li")].map((li) =>
+      li.textContent?.trim(),
+    );
+    expect(cuentas).toEqual([
+      "1aceptados",
+      "1con reparos",
+      "2rechazados",
+      "0sin enviar o sin respuesta",
+    ]);
+  });
+
+  it("filtra los sets en cliente, sin volver a pedir el expediente", async () => {
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "5038170", state: "aceptado" }),
+          set({ id: 2, code: "5038175", state: "rechazado" }),
+          set({ id: 3, code: "5038173", state: "declarado" }),
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+
+    await screen.findByText("5038170");
+    expect(api.certDossier).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: /Requieren acción/ }));
+    expect(screen.queryByText("5038170")).not.toBeInTheDocument();
+    expect(screen.getByText("5038175")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Listos para declarar/ }));
+    expect(screen.getByText("5038170")).toBeInTheDocument();
+    expect(screen.queryByText("5038175")).not.toBeInTheDocument();
+
+    // Filtrar es presentación: no se vuelve a llamar al API.
+    expect(api.certDossier).toHaveBeenCalledTimes(1);
+  });
+
   it("la situación registral no se presenta como el motivo de un reparo", async () => {
     // MMC y AND son lo esperado en una factura corregida y en una nota anulada.
     // Presentarlos bajo «esto dice cuál y por qué» hizo reemitir un set que

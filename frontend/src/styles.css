@@ -1248,6 +1248,88 @@ dl.perfil dd {
 }
 
 /* ----------------------------------------------------------------- */
+/*  Cabecera de avance del expediente                                 */
+/* ----------------------------------------------------------------- */
+/* El avance era un badge gris arriba a la derecha, del mismo tamaño que el
+   texto secundario. Es el dato por el que se entra a esta pantalla. */
+.avance-cifra {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+.avance-cuentas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.3rem;
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  font-size: 0.85rem;
+}
+.avance-cuentas li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  color: var(--muted);
+}
+.avance-cuentas strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+/* El punto es el ancla de color; la palabra que lo sigue dice lo mismo, así que
+   el conteo nunca depende sólo del color. */
+.avance-cuentas .punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--muted);
+}
+.avance-cuentas li.ok .punto {
+  background: var(--ok);
+}
+.avance-cuentas li.warn .punto {
+  background: var(--warn);
+}
+.avance-cuentas li.error .punto {
+  background: var(--bad);
+}
+
+/* Chips de filtro sobre la lista. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.chip {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.22rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.chip:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+/* El chip activo no se distingue sólo por color: lleva borde marcado y el
+   estado va además en `aria-pressed`. */
+.chip.activo {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.chip-n {
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------- */
 /*  Lista de sets                                                     */
 /* ----------------------------------------------------------------- */
 /* Una lista, no diez tarjetas: cada set plegado gastaba ~60px de alto y un
