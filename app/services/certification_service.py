@@ -603,10 +603,13 @@ def _documentos_para_consultar(xml: bytes) -> list[dict]:
     el documento esté perfectamente aceptado. Se detectó así, y despistó: DNK
     parecía un reparo y era la consulta mal armada.
 
-    Redondea porque ``MontoDte`` es entero y un documento en moneda extranjera
-    lleva decimales.
+    ``MontoDte`` es entero y un documento en moneda extranjera lleva decimales,
+    así que hay que recortarlos. Se **trunca**, no se redondea: con redondeo,
+    160677.62 se consultaba como 160678 y el SII respondía DNK, mientras que los
+    documentos de monto entero coincidían. Que sólo fallaran los que tenían
+    decimales fue lo que delató el criterio.
     """
-    from decimal import ROUND_HALF_UP, Decimal
+    from decimal import Decimal
 
     raiz = etree.fromstring(xml)
     salida = []
@@ -627,7 +630,7 @@ def _documentos_para_consultar(xml: bytes) -> list[dict]:
                 "folio": int(campos["Folio"]),
                 "date": campos.get("FchEmis", ""),
                 "rut": campos.get("RUTRecep", ""),
-                "total_amount": int(Decimal(bruto).quantize(Decimal(1), rounding=ROUND_HALF_UP)),
+                "total_amount": int(Decimal(bruto)),
             }
         )
     return salida

@@ -210,5 +210,5 @@ def test_la_consulta_por_documento_usa_el_monto_del_documento_no_el_de_pesos():
     assert fila["folio"] == 6
     assert fila["rut"] == "55555555-5"
     assert fila["date"] == "2026-09-14"
-    # El del documento, redondeado: NO los 203.257.189 de OtraMoneda.
-    assert fila["total_amount"] == 160678
+    # El del documento, truncado: NO los 203.257.189 de OtraMoneda.
+    assert fila["total_amount"] == 160677

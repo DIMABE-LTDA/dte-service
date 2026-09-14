@@ -3,38 +3,56 @@
 Estado y plan de la certificación como emisor de documentos tributarios
 electrónicos. **Actualizar este archivo al avanzar**: es el punto de retome.
 
-Última actualización: **2026-09-02**
+Última actualización: **2026-09-14**
 
 ---
 
 ## 1. Dónde estamos
 
-En Mi SII → *Ver Avance de la Postulación*, la empresa está en el paso
-**SET DE PRUEBAS** y los 10 sets figuran **POR REALIZAR**.
+Todo el trámite se hace ya **desde el portal**, no con scripts. El expediente
+vive en `/customers/9/certification`, con su verificación previa, la emisión y
+el envío.
 
-Eso **no** significa que no se haya enviado nada: los envíos están hechos y
-aceptados. Significa que falta el paso de **Declarar Avance**, que es manual y
-lo hace el Usuario Administrador informando fecha y TrackID de cada envío. El
-SII no da un set por realizado hasta que se lo declaran.
+Los envíos de agosto quedaron **obsoletos**: los 32 documentos de aquella tanda
+fueron rechazados, aunque el sobre volviera `EPR`. Lo que sigue es la tanda de
+hoy, con el motor ya corregido (§4).
 
-### Envíos aceptados (ambiente de certificación, Maullín)
+| Set | N° atención | TrackID | Resultado |
+|-----|-------------|---------|-----------|
+| Set básico | 5038170 | `0258723732` | **8 de 8 aceptados** |
+| Documentos de exportación (1) | 5038176 | `0258731398` | 1 aceptado, 2 con reparo → corregido, falta reenviar |
+| Caso general factura de compra | 5038180 | `0258732820` | 3 con reparo → corregido, falta reenviar |
+| Guía de despacho | 5038173 | — | por enviar |
+| Factura exenta | 5038175 | — | por enviar |
+| Documentos de exportación (2) | 5038177 | — | por enviar |
+| Liquidación factura | 5038178 | — | por enviar |
+| Libro de ventas | 5038171 | — | al final: se arma con los documentos aceptados |
+| Libro de compras | 5038172 | — | al final |
+| Libro de guías | 5038174 | — | al final |
 
-| Set | N° atención | TrackID | Estado |
-|-----|-------------|---------|--------|
-| Set básico | 5038170 | `0257259806` | EPR Envío Procesado |
-| Guía de despacho | 5038173 | `0257259812` | EPR |
-| Factura exenta | 5038175 | `0257259816` | EPR |
-| Documentos de exportación (1) | 5038176 | `0257259820` | EPR |
-| Documentos de exportación (2) | 5038177 | `0257259824` | EPR |
-| Liquidación factura | 5038178 | `0257259826` | EPR |
-| Caso general factura de compra | 5038180 | `0257259828` | EPR |
-| Libro de guías | 5038174 | `0257259954` | LOK Aceptado - Cuadrado |
-| Libro de compras | 5038172 | `0257260578` | LOK Aceptado - Cuadrado |
-| Libro de ventas | 5038171 | `0257264862` | LOK, pero con contenido incompleto (§3) |
+**`EPR` describe al sobre, no a su contenido.** Un sobre procesado puede traer
+todos sus documentos rechazados dentro. El portal ya lo distingue: pinta rojo si
+no hay ninguno aceptado y ámbar si hay reparos.
 
-`EPR` = el **sobre** fue procesado. Puede haber documentos con reparos dentro:
-conviene revisar el detalle en Mi SII o en el correo que el SII envía a la
-casilla de contacto de la empresa.
+**Un documento «aceptado con reparo» está aceptado.** El SII lo registra y anota
+una observación; los rechazados van en su propia columna. Cuenta para el Libro
+de Ventas.
+
+### Cómo saber por qué el SII objetó algo
+
+Dos caminos, y conviene conocer los dos:
+
+1. **Por documento, desde el portal** — botón «Ver cada documento» en la fila del
+   envío. Usa `QueryEstDte.jws`, que el módulo chileno de Odoo no implementa.
+   Dice si el documento está registrado y si los datos coinciden, **pero no da
+   la glosa del reparo**.
+2. **Por correo** — en la página de estado del envío en Mi SII, *Enviar Correo*.
+   Manda el informe con la sección «Detalle de Rechazos y Reparos», que es el
+   único sitio donde aparece el motivo. **Es el camino bueno.**
+
+> Ojo con `DNK` en la consulta por documento: significa que los datos de **la
+> consulta** no coinciden con lo registrado, no que el documento tenga un
+> problema. Engaña.
 
 ---
 
@@ -85,63 +103,20 @@ autoriza a operar.
 
 ---
 
-## 3. Lo único pendiente del paso 1: el Libro de Ventas
+## 3. Los libros
 
-**Hay un libro de ventas ACEPTADO** (`LOK`, TrackID `0257264862`), pero con un
-contenido que no es el que pide el set: sólo 4 documentos. Conviene revisar en
-Mi SII si el Servicio dio el set por realizado con ése o si espera otro.
+Los tres libros van **al final**, cuando todos los sets de documentos tengan su
+envío aceptado. No se transcriben: el sistema arma las líneas de los libros de
+ventas y de guías con los documentos que el SII aceptó de cada set
+(`certification_fill.book_lines`). El de compras sí es dato del caso — sus
+documentos los entrega el SII en el propio set, no los emite el contribuyente.
 
-### Bitácora de intentos
+De cada set se toma el **último envío aceptado**, que es el que tiene los folios
+que el Servicio conoce. Un set sin envío aceptado no aporta líneas y la
+verificación lo avisa, en vez de armar un libro que declara folios inexistentes.
 
-Cada fila es un envío real. Sirve para no repetir el mismo experimento.
-
-| TrackID | Contenido | TipoLibro | Respuesta |
-|---|---|---|---|
-| `0257260576` | 8 docs del set básico | ESPECIAL | LRH descuadrado |
-| `0257260754` | + `TotMntPeriodo` | ESPECIAL | LRH descuadrado |
-| `0257261788` | 27 docs (todo el período) | ESPECIAL | LRS schema |
-| `0257262778` | + comisiones de liquidación | ESPECIAL | LRS schema |
-| `0257264456` | 17 docs, sin exportación ni 43 | ESPECIAL | LRS schema |
-| `0257264862` | **4 docs: 33/18 + 34×3** | ESPECIAL | **LOK cuadrado** |
-| `0257265434` | 27 docs + `TpoDocRef` en notas | ESPECIAL | LRS schema |
-| `0257265702` | 33/18 + 61×6 | ESPECIAL | LRH descuadrado |
-| `0257265912` | 33/18 + 56×3 | ESPECIAL | LRH descuadrado |
-| `0257266180` | 33×5 | ESPECIAL | LNC tipo de envío |
-| `0257266494` | 8 docs del set básico | ESPECIAL | LRH descuadrado |
-| `0257266994` | + montos en cero declarados | ESPECIAL | LNC tipo de envío |
-| `0257267198` | igual | RECTIFICA | LRC carátula inválida |
-
-### Lo que quedó descartado
-
-- **No es la firma.** Se verificaron con `xmlsec` los archivos enviados y todas
-  las firmas validan criptográficamente.
-- **No es el permiso.** Está habilitado (§5) y el resto de los envíos pasa.
-- **No es nuestro XSD.** El libro valida contra `LibroCV_v10.xsd` en local, y
-  ese archivo es **idéntico** al que publica el SII (se descargó y comparó).
-- **No es la exportación ni la liquidación.** Un libro sin los tipos 110/111/112
-  ni 43 igual dio `LRS`.
-- **No es el tipo 34.** El libro aceptado los incluye.
-- **No es que falten documentos del período.** El libro aceptado tiene 4 de 33,
-  así que el SII no exige declarar todo el período. *(Esto contradice una
-  hipótesis anterior de este documento, que era incorrecta.)*
-
-### Lo que sí se observó
-
-- **Todos los libros rechazados contienen documentos con total cero**; el
-  aceptado, ninguno. De ahí el cambio de declarar siempre los tres montos
-  aunque valgan cero. **Sin confirmar**: el Servicio empezó a responder por el
-  estado del período antes de volver a evaluar el contenido.
-- Después del `LOK`, los envíos siguientes del mismo período responden `LNC`
-  ("tipo de envío no corresponde"). Ojo: `RECTIFICA` es un **TipoLibro**, no un
-  TipoEnvio; enviarlo así devuelve `LRC`, así que la carátula de una
-  rectificación necesita algo más que aún no identificamos.
-
-### Cómo seguir
-
-El camino barato ya no es probar: **es leer el motivo del rechazo**. El SII lo
-detalla en Mi SII → Revisar envíos, y lo manda por correo a la casilla de
-contacto de la empresa. Ahí dice qué total no le cuadra, en vez de deducirlo a
-ciegas. Con eso se cierra en un intento.
+Los envíos de libros de agosto (`0257259954`, `0257260578`, `0257264862`)
+quedaron obsoletos: declaraban documentos de la tanda rechazada.
 
 ### Composición del libro
 
@@ -172,14 +147,56 @@ Quedan fuera a propósito:
 
 Todos verificados contra el ambiente de certificación real.
 
+### La tanda de septiembre: por qué el SII rechazaba TODO
+
+Tres causas encadenadas, y las tres daban el mismo mensaje engañoso
+—`(DTE-3-505) Firma DTE Incorrecta`— aunque la firma fuera correcta. Costaron
+tres envíos y dos diagnósticos equivocados (el timbre, el permiso).
+
+| Problema | Causa | Dónde |
+|---|---|---|
+| Timbre inválido | El CAF se incrustaba en el `<DD>` con sus saltos de línea. El DD se firma **plano y en ISO-8859-1** | `ted.py` (v0.4.1) |
+| `DTE-3-505` | lxml quitaba el `xmlns` del `<DTE>` por redundante. El SII valida cada `<DTE>` **como fragmento suelto**, donde el namespace heredado no existe | `envelope.py` (v0.4.2) |
+| `DTE-3-505` (de fondo) | El `<DTE>` declaraba `xmlns:xsi`. La C14N **inclusiva** lo mete en el digest, y en el fragmento no está | `signer.py` (v0.4.3) |
+
+**Cómo se verifica un sobre como lo hace el SII.** Ésta es la lección que evita
+repetirlo: la firma de un `<DTE>` se verifica con **ese `<DTE>` aislado**, no
+con el sobre entero. `signer.verify_signatures` ya lo hace. Verificar contra el
+sobre completo daba por buenas justo las firmas que el SII rechaza, y fue lo que
+dejó pasar dos envíos malos con luz verde.
+
+Odoo (`l10n_cl_edi`, certificado) confirma el criterio: su plantilla escribe
+`<DTE xmlns="http://www.sii.cl/SiiDte" version="1.0">` —sin `xsi`— y calcula el
+digest sobre el `<Documento>` serializado por separado.
+
+### Reparos: aceptado, pero con observación
+
+| Código | Causa | Dónde |
+|---|---|---|
+| `HED-3-834` | Exportación sin `<OtraMoneda>`. El XSD la declara opcional; el SII la exige | `export_invoice.py` (v0.4.4) |
+| `HED-2-804` | Exportación sin `Marcas` en el grupo de bultos. Igual: opcional en el XSD, obligatoria para el Servicio | `export_invoice.py` (v0.4.4) |
+| `HED-2-302` / `HED-2-300` | La retención total (código 15) no declaraba su tasa. Retiene el IVA entero, así que su tasa **es** la del IVA | `xml_builder.py` (v0.4.6) |
+| `HED-1-803` | Con forma de pago `S/PAGO` (21), los montos en otra moneda deben ir en **cero** | `export_invoice.py` (v0.4.6) |
+| `REF-2-780` | Una nota que anula debe valer **lo mismo** que el documento que anula. El set no le da ítems propios: hereda los de su objetivo | definiciones |
+
+### Errores anteriores (agosto)
+
 | Problema | Causa | Dónde |
 |---|---|---|
 | Envíos rechazados (`RFR`) | El RUT que firma no tenía permiso de **envío** en la empresa. El SII lo reporta como error de firma | Mi SII (§5) |
 | Libro descuadrado (`LRH`) | Campos cruzados entre libros: `TotOpIVARec` es (LC) y se emitía en ventas; `IVARetTotal` es (LV) y se emitía en compras | `book.py` |
 | Carátula inválida (`LRC`) | El IECV se enviaba siempre como `MENSUAL`. El set se entrega como **ESPECIAL** con su número de atención | `book.py`, API |
-| Línea de liquidación que no cierra | Faltaban las comisiones, que se descuentan del total. Van dentro de `<Liquidaciones>`, no colgando del `<Detalle>` | `book.py` |
-| Libro mal formado llegaba al SII | Los libros no se validaban contra el XSD antes de enviarse, a diferencia de los documentos | `book_service.py` |
-| Consulta de estado imposible | `getEstUp` mandaba los parámetros como `Rut`/`Dv`; el WSDL declara `RutCompania`/`DvCompania` | `sii_client.py` |
+| Línea de liquidación que no cierra | Faltaban las comisiones, que se descuentan del total. Van dentro de `<Liquidaciones>` | `book.py` |
+| Libro mal formado llegaba al SII | Los libros no se validaban contra el XSD antes de enviarse | `book_service.py` |
+| Consulta de estado imposible | `getEstUp` mandaba `Rut`/`Dv`; el WSDL declara `RutCompania`/`DvCompania` | `sii_client.py` |
+
+### La regla que resume todo
+
+**El XSD describe la forma del documento, no las reglas del Servicio.** Van
+cinco veces que un documento válido contra el esquema oficial se rechaza o se
+objeta igual. Por eso las reglas que el SII no publica en el XSD se exigen en
+`validate_content()`: es el único punto donde se ven **antes de gastar un
+folio**.
 
 ---
 
@@ -198,23 +215,20 @@ y lo informa como error de firma. Costó 10 envíos rechazados descubrirlo.
 
 ---
 
-## 6. Herramientas del servicio
+## 6. Herramientas del portal
 
-| Para qué | Endpoint |
+Todo el trámite se opera desde `/customers/9/certification`.
+
+| Para qué | Dónde |
 |---|---|
-| Estado de un envío | `GET /dte/status/{track_id}` |
-| Conciliar SII contra el ERP | `POST /rcv/reconcile` |
-| Documentos registrados en el SII | `POST /rcv/documents` |
-| Sacar un CAF de circulación | `POST /admin/customers/{id}/cafs/{caf_id}/retire` |
-| Impresos (con copias cedibles) | `POST /dte/print` |
-
-`/rcv/reconcile` existe justamente por el problema del §3: cruza lo que el SII
-tiene registrado contra lo que trae Odoo y separa qué falta en cada lado y qué
-está en ambos con montos distintos.
-
-> Ojo: en certificación el RCV viene **vacío** (`count: 0`). La conciliación
-> sirve en producción; para armar los libros de certificación hay que leer los
-> sobres enviados.
+| Ver qué falta antes de emitir | **Verificación antes de emitir** (firma un timbre por CAF, prueba el token; no gasta folios) |
+| Empezar un contribuyente nuevo | **Empezar desde la plantilla del SII** — crea los 10 sets con su estructura; sólo se piden los números de atención |
+| Cargar sets desde archivo | **Cargar los sets del contribuyente** |
+| Ver qué se va a emitir | **Revisar y emitir** en cada set |
+| Descartar un sobre sin enviar | **Descartar** en la fila del sobre (los folios no vuelven; para el SII siguen disponibles) |
+| Motivo de un reparo | **Ver cada documento**, y sobre todo el correo del SII (§1) |
+| Impresos con copias cedibles | `POST /dte/print` |
+| Conciliar SII contra el ERP | `POST /rcv/reconcile` (en certificación el RCV viene vacío) |
 
 ---
 
@@ -222,11 +236,15 @@ está en ambos con montos distintos.
 
 | Qué | Dónde |
 |---|---|
-| Scripts de los sets | scratchpad de la sesión, `set_50381*.py` |
-| Sobres enviados y TrackIDs | `C:\desarrollo\caf\envios-prueba\` |
+| Definiciones de los sets | `docs/certificacion/definiciones-77262159-0.json` |
+| Plantilla de los 10 sets | `app/services/certification_template.py` |
+| Lo que el sistema completa al emitir | `app/services/certification_fill.py` |
+| Verificación previa | `app/services/certification_checks.py` |
+| Set de pruebas del SII | `SIISetDePruebas772621590.txt` (Descargas). **Es la fuente de los montos**: dice qué ítems y cantidades lleva cada caso, y cuándo un documento hereda los de otro |
 | CAF y certificado | `C:\desarrollo\caf\` (fuera de todo repo) |
-| Set de pruebas del SII | `SIISetDePruebas772621590.txt`, `Set Prueba BE.txt` |
 | Manual del ambiente | https://www.sii.cl/servicios_online/docs/manual_certificacion.pdf |
+| Mantención de usuarios en Maullín | https://maullin.sii.cl/cvc_cgi/dte/eu_enrola_usuarios |
 
-Cliente en el servicio: **id 9**, RUT 77262159-0, ambiente `CERTIFICATION`,
-con los 11 CAF y el certificado de **12291733-9** (vence 2029-08-18).
+Cliente en el servicio: **id 9**, RUT 77262159-0, ambiente `CERTIFICATION`, los
+11 CAF (rangos 1-50, el 39 hasta 100) y el certificado de **12291733-9**, que
+tiene los seis atributos en Maullín y vence el 2029-08-18.
