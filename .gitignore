@@ -6,9 +6,11 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .env
-vendor/
-schemas/*/
-schemas/*.xsd
+# vendor/ SÍ va en git: el repo del motor es privado y Dokploy no puede
+# instalarlo durante el build. Lo genera scripts/vendor_engine.sh desde el tag
+# que fija pyproject, y scripts/check_vendor.py lo verifica en CI.
+# Los XSD del SII SÍ van en git: el compose los monta en el contenedor y sin
+# ellos toda validación responde 503. Son archivos públicos del Servicio.
 
 # Material criptográfico: NUNCA versionar.
 # El .pfx trae la llave privada de firma; el CAF, la llave RSA de timbraje.

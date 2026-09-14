@@ -145,6 +145,8 @@ export const api = {
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/send`, {
       method: "POST",
     }),
+  certImport: (cid: number, sets: Record<string, unknown>) =>
+    req<CertDossier>(`/admin/customers/${cid}/certification/import`, body({ sets })),
   certReceivers: (cid: number) =>
     req<CertReceiver[]>(`/admin/customers/${cid}/certification/receivers`),
   certSaveReceivers: (cid: number, receivers: CertReceiver[]) =>

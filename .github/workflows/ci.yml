@@ -19,13 +19,18 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxmlsec1-dev pkg-config
 
       # El motor (cl_dte_lib) es privado: el extra `engine` lo instala desde
-      # git@v0.1.0. ENGINE_TOKEN = PAT fine-grained / deploy key con lectura a
+      # el tag fijado en pyproject. ENGINE_TOKEN = PAT fine-grained / deploy key con lectura a
       # cl_dte_lib (el github.token por defecto no alcanza otro repo privado).
       - name: Auth git para el repo privado del motor
         run: git config --global url."https://x-access-token:${{ secrets.ENGINE_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
       - name: Instalar servicio + motor (pineado al tag)
         run: pip install -e ".[dev,engine]"
+
+      # Docker construye con el motor vendorizado, no con el instalado: si esa
+      # copia no es el tag fijado, se despliega algo que no se probó.
+      - name: El motor vendorizado es el tag fijado
+        run: python scripts/check_vendor.py
 
       - name: Lint (ruff)
         run: ruff check .

@@ -4,6 +4,7 @@ import { api, type ApiError } from "../api";
 import { canWrite, useAuth } from "../auth";
 import Icon from "../components/Icon";
 import CertReadinessPanel from "../components/CertReadiness";
+import CertImportCard from "../components/CertImportCard";
 import CertReceiversCard from "../components/CertReceiversCard";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
@@ -194,6 +195,15 @@ export default function Certification() {
         error={verificacion.error}
         reload={verificacion.reload}
         writable={writable}
+      />
+
+      <CertImportCard
+        cid={cid}
+        writable={writable}
+        onImported={async () => {
+          await reload();
+          await verificacion.reload();
+        }}
       />
 
       <CertReceiversCard cid={cid} writable={writable} onSaved={() => void verificacion.reload()} />
