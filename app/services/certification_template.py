@@ -103,7 +103,18 @@ def _aduana() -> dict:
         "gross_weight_unit": 9,
         "net_weight_unit": 9,
         "total_packages": 1,
-        "packages": [{"kind_code": 13, "quantity": 1, "marks": "SIN MARCAS"}],
+        # IdContainer y Sello: el XSD los declara opcionales (minOccurs="0")
+        # pero el SII los exige igual —«(HED-2-804) Exportacion : Campo
+        # obligatorio»— apenas el documento trae un grupo de bultos.
+        "packages": [
+            {
+                "kind_code": 13,
+                "quantity": 1,
+                "marks": "SIN MARCAS",
+                "container_id": "CONTENEDOR RELLENO",
+                "seal": "SELLO DE RELLENO",
+            }
+        ],
         "freight": "100",
         "insurance": "50",
         "receiver_country": 517,

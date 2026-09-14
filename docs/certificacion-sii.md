@@ -24,7 +24,7 @@ hoy, con el motor ya corregido (§4).
 | Caso general factura de compra | 5038180 | `0258732820` | 3 con reparo → corregido, falta reenviar |
 | Guía de despacho | 5038173 | — | por enviar |
 | Factura exenta | 5038175 | — | por enviar |
-| Documentos de exportación (2) | 5038177 | — | por enviar |
+| Documentos de exportación (2) | 5038177 | `0258738264` | 2 aceptados, 1 con reparo (folio 8) → corregido, falta reenviar |
 | Liquidación factura | 5038178 | — | por enviar |
 | Libro de ventas | 5038171 | — | al final: se arma con los documentos aceptados |
 | Libro de compras | 5038172 | — | al final |
@@ -178,6 +178,9 @@ digest sobre el `<Documento>` serializado por separado.
 | `HED-2-302` / `HED-2-300` | La retención total (código 15) no declaraba su tasa. Retiene el IVA entero, así que su tasa **es** la del IVA | `xml_builder.py` (v0.4.6) |
 | `HED-1-803` | Con forma de pago `S/PAGO` (21), los montos en otra moneda deben ir en **cero** | `export_invoice.py` (v0.4.6) |
 | `REF-2-780` | Una nota que anula debe valer **lo mismo** que el documento que anula. El set no le da ítems propios: hereda los de su objetivo | definiciones |
+| `DET L[n] -2-200` | El motor restaba el descuento de línea del `MontoItem`. El SII lo contrasta literal contra `PrcItem × QtyItem`, sin descuento — si el descuento afecta el total, va como `DscRcgGlobal` (tipo "D"), no descontado del detalle | `export_invoice.py` en `cl_dte_lib` (fix aún sin tag; ver vendor/) |
+| `HED-2-220` | Consecuencia directa del anterior: `MntExe` no cuadraba porque sumaba el detalle ya descontado | mismo fix |
+| `HED-2-804` (Sello / Id. Container) | Grupo de bultos sin `IdContainer`/`Sello`: opcionales en el XSD, obligatorios para el Servicio en cuanto se informa `<TipoBultos>`. El motor ya sabe serializarlos (`_transport()`); faltaban en el dato del set | `docs/certificacion/definiciones-77262159-0.json` (set exportación 2, folio 8) y la plantilla `_aduana()` en `certification_template.py`, para que no se repita con otro contribuyente |
 
 ### Errores anteriores (agosto)
 

@@ -1041,7 +1041,9 @@
               {
                 "kind_code": 75,
                 "quantity": 24,
-                "marks": "CHATARRA DE ALUMINIO"
+                "marks": "CHATARRA DE ALUMINIO",
+                "container_id": "TCLU1234567",
+                "seal": "SL-4471209"
               }
             ],
             "freight": "115.14",
@@ -1067,6 +1069,12 @@
               "kind": "R",
               "value_type": "$",
               "reason": "COMISIONES EN EL EXTERIOR"
+            },
+            {
+              "value": 1362.30,
+              "kind": "D",
+              "value_type": "$",
+              "reason": "DESCUENTO LINEA 1 (5% CAJAS CIRUELAS)"
             }
           ],
           "references": [
