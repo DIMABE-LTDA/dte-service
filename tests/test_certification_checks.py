@@ -414,3 +414,61 @@ def test_el_libro_de_ventas_espera_documentos_aceptados(db):
     c = _check(certification_checks.run(db, customer), "def_libro_ventas")
     assert c["state"] == "atencion"
     assert "documentos aceptados" in c["detail"]
+
+
+def _con_certificado_real(db, customer, monkeypatch):
+    """Como `_con_certificado`, pero el doble sí puede firmar.
+
+    El otro entrega sólo metadatos: sirve para los chequeos que miran emisor y
+    vigencia, no para los que construyen y firman un documento de verdad.
+    """
+    from dte_chile.certificate import Certificate
+
+    fila = db.query(CustomerCertificate).filter_by(customer_id=customer.id).one()
+    fila.rut, fila.holder = "12291733-9", "ARTURO LENIN MUNOZ VERGARA"
+    fila.issuer = "E-CERTCHILE CA FES 02"
+    fila.thumbprint = "huella-actual"
+    db.commit()
+
+    clave = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    sujeto = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "PRUEBA 12291733-9")])
+    emisor = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "E-CERTCHILE CA FES 02")])
+    ahora = dt.datetime.now(dt.UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(sujeto)
+        .issuer_name(emisor)
+        .public_key(clave.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(ahora)
+        .not_valid_after(ahora + dt.timedelta(days=900))
+        .sign(clave, hashes.SHA256())
+    )
+    resuelto = Certificate(
+        private_key_pem=clave.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        ),
+        cert_pem=cert.public_bytes(serialization.Encoding.PEM),
+        rut="12291733-9",
+    )
+    monkeypatch.setattr(certificate_service, "resolve_certificate", lambda db, c: resuelto)
+
+
+def test_la_prueba_de_firma_valida_como_el_sii_y_no_bloquea(db, monkeypatch):
+    """Firmas correctas tienen que dar «ok», no bloquear la emisión.
+
+    Este chequeo llevaba su propia copia de la verificación, y comprobaba TODAS
+    las firmas contra el sobre completo. Con eso daba por buenas las que el SII
+    rechaza —la de un <DTE> se valida con ese <DTE> aislado— y, al corregir el
+    motor, pasó a dar por malas las correctas y bloqueó la emisión. Ahora
+    delega en el motor, que sabe qué contexto corresponde a cada firma.
+    """
+    customer = make_customer(db)
+    _con_certificado_real(db, customer, monkeypatch)
+    _cargar_caf(db, customer, _caf_real(33), 33)
+
+    c = _check(certification_checks.run(db, customer), "firma")
+    assert c["state"] == "ok", c["detail"]
+    assert "2 de 2" in c["detail"]  # el <Documento> y el <SetDTE>

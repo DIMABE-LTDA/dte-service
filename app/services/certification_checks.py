@@ -714,13 +714,10 @@ def _firma_documento(customer: Customer, cert, validos: dict) -> list[dict]:
     if cert is None or 33 not in validos:
         return []
     try:
-        import xmlsec
-        from cryptography import x509
-        from cryptography.hazmat.primitives.serialization import Encoding
         from dte_chile.document_types import DTEType
         from dte_chile.envelope import Cover, build_envelope, serialize
         from dte_chile.models import DTE, Issuer, Item, Receiver
-        from dte_chile.signer import sign_document
+        from dte_chile.signer import sign_document, verify_signatures
         from dte_chile.xml_builder import build_document
     except ImportError:
         return [
@@ -776,21 +773,14 @@ def _firma_documento(customer: Customer, cert, validos: dict) -> list[dict]:
             )
         ]
 
-    ds = "http://www.w3.org/2000/09/xmldsig#"
-    xmlsec.tree.add_ids(raiz, ["ID"])
-    firmas = raiz.findall(f".//{{{ds}}}Signature")
-    validas = 0
-    for s in firmas:
-        der = base64.b64decode(s.find(f".//{{{ds}}}X509Certificate").text)
-        pem = x509.load_der_x509_certificate(der).public_bytes(Encoding.PEM)
-        ctx = xmlsec.SignatureContext()
-        # KeyFormat existe en tiempo de ejecución; los stubs de xmlsec no lo declaran.
-        ctx.key = xmlsec.Key.from_memory(pem, xmlsec.KeyFormat.CERT_PEM, None)  # type: ignore[attr-defined]
-        try:
-            ctx.verify(s)
-            validas += 1
-        except xmlsec.Error:
-            pass
+    # La verificación la hace el motor, que sabe con qué contexto corresponde
+    # comprobar cada firma: la de un <DTE> con ese <DTE> aislado —que es como lo
+    # lee el SII— y la del sobre con el árbol entero. Aquí había una copia de esa
+    # lógica que verificaba TODO contra el sobre completo, y por eso daba por
+    # buenos documentos que el SII rechazaba con «Firma DTE Incorrecta».
+    resultados = verify_signatures(raiz)
+    validas = sum(resultados)
+    firmas = resultados
     if firmas and validas == len(firmas):
         return [
             _check(
