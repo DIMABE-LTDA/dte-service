@@ -18,6 +18,7 @@ from dte_chile.export_invoice import (
     Customs,
     ExportDocument,
     ExportItem,
+    OtherCurrency,
     PackageGroup,
     build_export,
 )
@@ -400,6 +401,10 @@ def _domain_export(req) -> ExportDocument:
         packages = data.pop("packages")
         customs = Customs(**data, packages=[PackageGroup(**p) for p in packages])
 
+    otra = None
+    if getattr(req, "other_currency", None) is not None:
+        otra = OtherCurrency(**req.other_currency.model_dump())
+
     return ExportDocument(
         type=DTEType(req.type),
         folio=0,
@@ -411,6 +416,7 @@ def _domain_export(req) -> ExportDocument:
         global_charges=[GlobalDiscount(**d.model_dump()) for d in req.global_charges],
         references=[_reference(r) for r in req.references],
         customs=customs,
+        other_currency=otra,
         payment_mode=req.payment_mode,
         service_indicator=req.service_indicator,
         foreign_id=req.foreign_id,

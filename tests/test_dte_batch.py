@@ -422,6 +422,7 @@ def _export(doc_type, **over):
         "issuer": _ISSUER,
         "receiver": _RECEIVER,
         "currency": "LIBRA EST",
+        "other_currency": {"exchange_rate": "1200"},
         "items": [{"name": "CHATARRA DE ALUMINIO", "quantity": "872", "unit_price": "177"}],
     }
     doc.update(over)

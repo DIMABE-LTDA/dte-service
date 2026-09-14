@@ -798,7 +798,8 @@
             "packages": [
               {
                 "kind_code": 13,
-                "quantity": 87
+                "quantity": 87,
+                "marks": "CHATARRA DE ALUMINIO"
               }
             ],
             "freight": "3574.57",
@@ -828,7 +829,11 @@
               "date": "2026-09-01",
               "reason": "MIC"
             }
-          ]
+          ],
+          "other_currency": {
+            "exchange_rate": "1",
+            "currency": "PESO CL"
+          }
         },
         {
           "type": 112,
@@ -870,7 +875,11 @@
               "code": 3,
               "reason": "DEVOLUCION DE MERCADERIA"
             }
-          ]
+          ],
+          "other_currency": {
+            "exchange_rate": "1",
+            "currency": "PESO CL"
+          }
         },
         {
           "type": 111,
@@ -910,7 +919,11 @@
               "code": 1,
               "reason": "ANULA NOTA DE CREDITO"
             }
-          ]
+          ],
+          "other_currency": {
+            "exchange_rate": "1",
+            "currency": "PESO CL"
+          }
         }
       ],
       "validate_xsd": true
@@ -967,7 +980,11 @@
               "date": "2026-09-01",
               "reason": "RESOLUCION SNA"
             }
-          ]
+          ],
+          "other_currency": {
+            "exchange_rate": "1",
+            "currency": "PESO CL"
+          }
         },
         {
           "type": 110,
@@ -1021,7 +1038,8 @@
             "packages": [
               {
                 "kind_code": 75,
-                "quantity": 24
+                "quantity": 24,
+                "marks": "CHATARRA DE ALUMINIO"
               }
             ],
             "freight": "115.14",
@@ -1062,7 +1080,11 @@
               "date": "2026-09-01",
               "reason": "AWB"
             }
-          ]
+          ],
+          "other_currency": {
+            "exchange_rate": "1",
+            "currency": "PESO CL"
+          }
         },
         {
           "type": 110,
@@ -1093,7 +1115,11 @@
             }
           ],
           "service_indicator": 4,
-          "receiver_nationality": 563
+          "receiver_nationality": 563,
+          "other_currency": {
+            "exchange_rate": "1",
+            "currency": "PESO CL"
+          }
         }
       ],
       "validate_xsd": true

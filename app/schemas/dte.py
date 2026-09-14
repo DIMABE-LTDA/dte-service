@@ -353,6 +353,21 @@ class CustomsIn(BaseModel):
     destination_country: int | None = None
 
 
+class OtherCurrencyIn(BaseModel):
+    """``<OtraMoneda>``: los mismos montos en otra moneda, normalmente pesos.
+
+    El SII la exige en exportación —«(HED-3-834) Exportacion: seccion
+    (OtraMoneda) obligatoria»— aunque el XSD la declare opcional. Sólo se indica
+    el tipo de cambio; los montos los deriva el motor de los del documento, para
+    que no puedan dejar de cuadrar con el total.
+    """
+
+    #: Pesos por unidad de la moneda del documento (TpoCambio).
+    exchange_rate: Decimal = Field(gt=0, examples=["950.50"])
+    #: Moneda de destino. Tabla de monedas de Aduana.
+    currency: str = Field("PESO CL", min_length=1)
+
+
 class ExportIssueRequest(BaseModel):
     """Emisión de factura (110) o nota (111/112) de exportación."""
 
@@ -366,6 +381,7 @@ class ExportIssueRequest(BaseModel):
     global_charges: list[GlobalDiscountIn] = []
     references: list[ReferenceIn] = []
     customs: CustomsIn | None = None
+    other_currency: OtherCurrencyIn | None = None
     payment_mode: int | None = None  # FmaPagExp
     service_indicator: int | None = None
     # <Extranjero>: identificación del comprador de fuera de Chile.
@@ -387,6 +403,7 @@ class ExportBatchItemIn(BaseModel):
     global_charges: list[GlobalDiscountIn] = []
     references: list[BatchReferenceIn] = []
     customs: CustomsIn | None = None
+    other_currency: OtherCurrencyIn | None = None
     payment_mode: int | None = None
     service_indicator: int | None = None
     foreign_id: str = Field("", max_length=20)

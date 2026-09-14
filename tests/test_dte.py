@@ -364,6 +364,9 @@ def _export_payload(**over):
         "issuer": _ISSUER,
         "receiver": _RECEIVER,
         "currency": "LIBRA EST",
+        # El SII exige <OtraMoneda> en exportación: sin ella responde
+        # «(HED-3-834) Exportacion: seccion (OtraMoneda) obligatoria».
+        "other_currency": {"exchange_rate": "1200"},
         "items": [
             {
                 "name": "CHATARRA DE ALUMINIO",
