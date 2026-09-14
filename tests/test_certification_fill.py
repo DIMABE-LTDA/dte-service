@@ -475,3 +475,43 @@ def test_con_menos_receptores_que_facturas_se_avisa(db):
     definicion = {"documents": [{"type": 33, "receiver": _SII, "items": _item()} for _ in range(3)]}
     _, notas = certification_fill.fill(db, customer, s, "issue-batch", definicion, hoy=HOY)
     assert "3 documentos y 1 receptor(es)" in notas[0]
+
+
+def test_el_giro_del_emisor_se_recorta_para_el_receptor_de_la_guia_interna(db):
+    """GiroRecep admite 40 caracteres y GiroEmis 80.
+
+    En la guía de traslado interno el emisor va también de receptor, así que un
+    giro válido en su propio campo no cabe en el del receptor y el documento se
+    caía antes de emitir. El operador no puede arreglarlo: ese giro no lo
+    escribió para este documento, lo derivó el sistema. Se recorta y se avisa.
+    """
+    customer = make_customer(db)
+    _con_receptores(db, customer)
+    customer.issuer_activity = "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION"  # 48
+    db.commit()
+    s = _set(db, customer, "guias", "5038173")
+    definicion = {"documents": [{"type": 52, "transfer_type": 5, "items": _item()}]}
+
+    cuerpo, notas = certification_fill.fill(db, customer, s, "issue-batch", definicion, hoy=HOY)
+
+    receptor = cuerpo["documents"][0]["receiver"]
+    assert len(receptor["activity"]) == 40
+    assert receptor["activity"] == "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONS"
+    # El emisor conserva el suyo entero: ahí sí cabe.
+    assert cuerpo["documents"][0]["issuer"]["activity"] == customer.issuer_activity
+    # Y el recorte no es silencioso.
+    assert any("se recortó a 40" in n for n in notas), notas
+
+
+def test_un_giro_corto_no_genera_aviso(db):
+    customer = make_customer(db)
+    _con_receptores(db, customer)
+    customer.issuer_activity = "CONSTRUCCION"
+    db.commit()
+    s = _set(db, customer, "guias", "5038173")
+    definicion = {"documents": [{"type": 52, "transfer_type": 5, "items": _item()}]}
+
+    cuerpo, notas = certification_fill.fill(db, customer, s, "issue-batch", definicion, hoy=HOY)
+
+    assert cuerpo["documents"][0]["receiver"]["activity"] == "CONSTRUCCION"
+    assert not any("recort" in n for n in notas), notas

@@ -40,6 +40,7 @@ import datetime as dt
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
+from dte_chile.text import MAX_LENGTHS
 from lxml import etree
 
 _CL = ZoneInfo("America/Santiago")
@@ -69,6 +70,10 @@ _OWN_CUSTOMER_DOCS = {33, 34, 52}
 _NATIONAL_NOTES = {56, 61}
 #: IndTraslado 5: traslado interno. No hay venta: el receptor es el emisor.
 _INTERNAL_TRANSFER = 5
+#: Tope de GiroRecep en el XSD del SII (40), la mitad que GiroEmis (80). En la
+#: guía de traslado interno el emisor va también de receptor, así que un giro
+#: que cabe en su propio campo no cabe en el del receptor.
+_GIRO_RECEP = MAX_LENGTHS["GiroRecep"]
 
 #: Notas: en el libro declaran el documento que modifican. Las de exportación
 #: (111/112) no lo llevaban en el libro que el SII aceptó.
@@ -195,20 +200,28 @@ def _receivers(customer, emisor: dict, docs: list[dict]) -> list[str]:
     ya tiene receptor.
     """
     lista = [r for r in (customer.cert_receivers or []) if r.get("rut")]
+    avisos: list[str] = []
     necesitan = 0
     siguiente = 0
     for doc in docs:
         tipo = doc.get("type")
         actual = (doc.get("receiver") or {}).get("rut")
         if tipo == 52 and doc.get("transfer_type") == _INTERNAL_TRANSFER:
+            giro = emisor.get("activity") or ""
             doc["receiver"] = {
                 "rut": emisor["rut"],
                 "business_name": emisor.get("business_name") or "",
-                "activity": emisor.get("activity") or "",
+                "activity": giro[:_GIRO_RECEP],
                 "address": emisor.get("address") or "",
                 "commune": emisor.get("commune") or "",
                 "city": emisor.get("city") or "",
             }
+            if len(giro) > _GIRO_RECEP:
+                avisos.append(
+                    f"guía de traslado interno: el giro del emisor ({len(giro)} caracteres)"
+                    f" se recortó a {_GIRO_RECEP} para GiroRecep, que es más corto que"
+                    f" GiroEmis. Quedó «{giro[:_GIRO_RECEP]}»"
+                )
         elif tipo in _OWN_CUSTOMER_DOCS and actual in (SII_RUT, None):
             necesitan += 1
             if lista:
@@ -220,19 +233,19 @@ def _receivers(customer, emisor: dict, docs: list[dict]) -> list[str]:
                 doc["receiver"] = dict(docs[ref["batch_index"] - 1].get("receiver") or {})
 
     if not necesitan:
-        return []
+        return avisos
     if not lista:
-        return [
+        avisos.append(
             f"sin receptores de prueba: {necesitan} documento(s) van al RUT del propio SII."
             " El instructivo pide «un Rut receptor de un cliente existente» y «RUT"
             " distintos para las distintas facturas»; configúralos en el expediente."
-        ]
-    if len(lista) < necesitan:
-        return [
+        )
+    elif len(lista) < necesitan:
+        avisos.append(
             f"{necesitan} documentos y {len(lista)} receptor(es) de prueba: se repiten."
             " El instructivo pide un RUT distinto por factura."
-        ]
-    return []
+        )
+    return avisos
 
 
 # --------------------------------------------------------------------------- #
