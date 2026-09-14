@@ -46,6 +46,7 @@ from app.schemas.certification import (
     DefinitionOut,
     DefinitionRequest,
     DocStatsOut,
+    DocumentStatusOut,
     EnvelopeOut,
     ImportRequest,
     NoteOut,
@@ -704,6 +705,31 @@ def emit_set(
         f"set {cert_set.code}: {len(envio.documents)} documento(s) emitidos",
     )
     return _envio(envio)
+
+
+@router.post("/submissions/{submission_id}/documents", response_model=list[DocumentStatusOut])
+def document_statuses(
+    customer_id: int,
+    submission_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> list[DocumentStatusOut]:
+    """Pregunta al SII cómo quedó cada documento del sobre, con su glosa.
+
+    El desglose del TrackID dice cuántos con reparo, no cuál ni por qué. Sin
+    esto, averiguarlo obligaba a pedirle al SII que mandara el detalle por
+    correo y esperar a que llegara.
+    """
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    cert = _cert(db, customer)
+    try:
+        filas = certification_service.document_statuses(
+            db, customer, cert, row, get_settings().request_timeout_s
+        )
+    except certification_service.EmissionError as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    return [DocumentStatusOut(**f) for f in filas]
 
 
 @router.delete("/submissions/{submission_id}", response_model=CertificationDossierOut)

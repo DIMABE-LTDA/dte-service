@@ -593,6 +593,63 @@ def draft_for(db, cert_set) -> CertificationSubmission | None:
     )
 
 
+def document_statuses(db, customer: Customer, cert, envio, timeout: int = 60) -> list[dict]:
+    """Pregunta al SII, documento por documento, cómo quedó cada uno.
+
+    El desglose que devuelve el TrackID dice cuántos con reparo, no cuál ni por
+    qué: para saberlo había que pedirle al SII el detalle por correo. Esto lo
+    consulta directamente.
+
+    Los datos del documento salen del sobre que se envió, no de la definición:
+    lo que el SII conoce es lo que recibió, y la definición pudo cambiar después.
+    """
+    from dte_chile.sii_client import Environment, SIIClient
+
+    from app.services import certification_fill
+
+    if not envio.track_id:
+        raise EmissionError("este sobre no se ha enviado: no hay nada que consultar")
+
+    lineas = certification_fill.lines_from_envelope(envelope(envio), "libro_ventas")
+    if not lineas:
+        return []
+
+    cliente = SIIClient(cert, Environment.CERTIFICATION, timeout=timeout)
+    salida = []
+    for linea in lineas:
+        try:
+            estado = cliente.query_document(
+                issuer_rut=customer.rut,
+                receiver_rut=linea["rut"],
+                doc_type=linea["doc_type"],
+                folio=linea["folio"],
+                issue_date=dt.date.fromisoformat(str(linea["date"])),
+                total_amount=linea["total_amount"],
+            )
+            salida.append(
+                {
+                    "doc_type": estado.doc_type,
+                    "folio": estado.folio,
+                    "status": estado.status,
+                    "label": estado.label,
+                    "error_label": estado.error_label,
+                }
+            )
+        except Exception as ex:  # noqa: BLE001
+            # Un documento que falla no puede dejar sin respuesta a los demás:
+            # lo habitual es que el interesante sea justo otro.
+            salida.append(
+                {
+                    "doc_type": int(linea["doc_type"]),
+                    "folio": int(linea["folio"]),
+                    "status": "?",
+                    "label": "",
+                    "error_label": f"no se pudo consultar: {ex}",
+                }
+            )
+    return salida
+
+
 def discard(db, envio: CertificationSubmission) -> None:
     """Descarta un sobre emitido que nunca se envió.
 

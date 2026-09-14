@@ -15,6 +15,7 @@ import type {
   CertContents,
   CertDefinition,
   CertCustomer,
+  CertDocStatus,
   CertDossier,
   CertEnvelope,
   CertNote,
@@ -140,6 +141,10 @@ export const api = {
     ),
   certEmit: (cid: number, setId: number, force = false) =>
     req<CertSubmission>(`/admin/customers/${cid}/certification/sets/${setId}/emit?force=${force}`, {
+      method: "POST",
+    }),
+  certDocStatuses: (cid: number, sid: number) =>
+    req<CertDocStatus[]>(`/admin/customers/${cid}/certification/submissions/${sid}/documents`, {
       method: "POST",
     }),
   certDiscard: (cid: number, sid: number) =>

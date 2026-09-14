@@ -276,6 +276,17 @@ class ImportRequest(BaseModel):
     sets: dict[str, dict]
 
 
+class DocumentStatusOut(BaseModel):
+    """Lo que el SII dice de UN documento del sobre."""
+
+    doc_type: int
+    folio: int
+    status: str
+    label: str = ""
+    #: Glosa del reparo o del rechazo. Es el dato que el recuento no da.
+    error_label: str = ""
+
+
 class TemplateSetOut(BaseModel):
     """Un set de la plantilla: qué es y qué hay que transcribir de él."""
 

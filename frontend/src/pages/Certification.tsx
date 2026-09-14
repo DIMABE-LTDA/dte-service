@@ -10,7 +10,7 @@ import CertTemplateCard from "../components/CertTemplateCard";
 import ConfirmModal from "../components/ConfirmModal";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
-import type { CertPreview, CertSet, CertSubmission } from "../types";
+import type { CertDocStatus, CertPreview, CertSet, CertSubmission } from "../types";
 import { useToast } from "../toast";
 
 /** Expediente de certificación de un cliente.
@@ -127,6 +127,7 @@ export default function Certification() {
   const [clonarDe, setClonarDe] = useState("");
   const [vista, setVista] = useState<{ setId: number; datos: CertPreview } | null>(null);
   const [descartando, setDescartando] = useState<number | null>(null);
+  const [docsSii, setDocsSii] = useState<{ sid: number; filas: CertDocStatus[] } | null>(null);
 
   /** Ejecuta la acción y dice si salió bien.
    *
@@ -474,6 +475,23 @@ export default function Certification() {
                             >
                               <Icon name="search" />
                               Consultar
+                            </button>
+                          )}
+                          {writable && e.track_id && (
+                            <button
+                              className="btn-link"
+                              type="button"
+                              disabled={busy}
+                              title="Pregunta al SII documento por documento: es donde dice el motivo del reparo"
+                              onClick={() =>
+                                correr(async () => {
+                                  const filas = await api.certDocStatuses(cid, e.id);
+                                  setDocsSii({ sid: e.id, filas });
+                                }, "")
+                              }
+                            >
+                              <Icon name="audit" />
+                              Ver cada documento
                             </button>
                           )}
                           <button
@@ -1056,6 +1074,40 @@ export default function Certification() {
             </>
           }
         />
+      )}
+      {docsSii && (
+        <Modal
+          wide
+          title={`Qué dice el SII de cada documento — sobre #${docsSii.sid}`}
+          onClose={() => setDocsSii(null)}
+        >
+          <p className="muted" style={{ marginTop: 0 }}>
+            El recuento del TrackID dice cuántos con reparo; esto dice cuál y por qué.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Folio</th>
+                <th>Estado</th>
+                <th>Glosa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {docsSii.filas.map((f) => (
+                <tr key={`${f.doc_type}-${f.folio}`}>
+                  <td>{f.doc_type}</td>
+                  <td className="num">{f.folio}</td>
+                  <td>
+                    <span className="code">{f.status}</span>
+                    {f.label ? <div className="muted">{f.label}</div> : null}
+                  </td>
+                  <td>{f.error_label || <span className="muted">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Modal>
       )}
     </>
   );

@@ -346,3 +346,13 @@ export interface CertTemplateSet {
   /** Falso en los libros cuyas líneas arma el sistema: sólo piden su número. */
   transcribe: boolean;
 }
+
+/** Lo que el SII dice de UN documento del sobre. */
+export interface CertDocStatus {
+  doc_type: number;
+  folio: number;
+  status: string;
+  label: string;
+  /** Glosa del reparo o del rechazo: el dato que el recuento no da. */
+  error_label: string;
+}
