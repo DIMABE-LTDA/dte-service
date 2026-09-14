@@ -179,3 +179,36 @@ def test_un_sobre_con_todo_rechazado_no_esta_entregado():
         sii_stats=[{"doc_type": 33, "informed": 4, "accepted": 0, "rejected": 4, "flagged": 0}],
     )
     assert certification_service.entregado(envio) is False
+
+
+def test_la_consulta_por_documento_usa_el_monto_del_documento_no_el_de_pesos():
+    """El SII compara la tupla contra lo que registró: lo que venía dentro.
+
+    Preguntar por una factura de exportación con su equivalente en pesos
+    devuelve DNK —«Datos NO Coinciden»— aunque el documento esté aceptado. Y
+    despista, porque DNK parece un reparo y es la consulta mal armada. Pasó con
+    el set de exportación: sólo coincidió el documento cuyo total era 0, donde
+    da igual la moneda.
+    """
+    sobre = b"""<?xml version="1.0" encoding="ISO-8859-1"?>
+<EnvioDTE xmlns="http://www.sii.cl/SiiDte" version="1.0"><SetDTE ID="SetDoc">
+<DTE xmlns="http://www.sii.cl/SiiDte" version="1.0"><Exportaciones ID="F6T110">
+<Encabezado>
+  <IdDoc><TipoDTE>110</TipoDTE><Folio>6</Folio><FchEmis>2026-09-14</FchEmis></IdDoc>
+  <Receptor><RUTRecep>55555555-5</RUTRecep></Receptor>
+  <Totales><TpoMoneda>LIBRA EST</TpoMoneda><MntTotal>160677.62</MntTotal></Totales>
+  <OtraMoneda><TpoMoneda>PESO CL</TpoMoneda><TpoCambio>1265</TpoCambio>
+    <MntTotOtrMnda>203257189</MntTotOtrMnda></OtraMoneda>
+</Encabezado></Exportaciones></DTE>
+</SetDTE></EnvioDTE>"""
+
+    filas = certification_service._documentos_para_consultar(sobre)
+
+    assert len(filas) == 1
+    fila = filas[0]
+    assert fila["doc_type"] == 110
+    assert fila["folio"] == 6
+    assert fila["rut"] == "55555555-5"
+    assert fila["date"] == "2026-09-14"
+    # El del documento, redondeado: NO los 203.257.189 de OtraMoneda.
+    assert fila["total_amount"] == 160678

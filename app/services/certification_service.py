@@ -593,6 +593,46 @@ def draft_for(db, cert_set) -> CertificationSubmission | None:
     )
 
 
+def _documentos_para_consultar(xml: bytes) -> list[dict]:
+    """(tipo, folio, fecha, RUT receptor, monto) de cada documento del sobre.
+
+    El monto es el ``MntTotal`` del propio documento, **en su moneda**, no su
+    equivalente en pesos. El SII compara la tupla contra lo que registró, y lo
+    que registró es lo que venía en el documento: preguntar por una factura de
+    exportación con el monto en pesos devuelve DNK —«Datos NO Coinciden»— aunque
+    el documento esté perfectamente aceptado. Se detectó así, y despistó: DNK
+    parecía un reparo y era la consulta mal armada.
+
+    Redondea porque ``MontoDte`` es entero y un documento en moneda extranjera
+    lleva decimales.
+    """
+    from decimal import ROUND_HALF_UP, Decimal
+
+    raiz = etree.fromstring(xml)
+    salida = []
+    for nodo in raiz.iter():
+        if _local(nodo.tag) not in ("Documento", "Exportaciones", "Liquidacion"):
+            continue
+        campos: dict[str, str] = {}
+        for hijo in nodo.iter():
+            nombre = _local(hijo.tag)
+            if nombre in ("TipoDTE", "Folio", "FchEmis", "RUTRecep", "MntTotal"):
+                campos.setdefault(nombre, (hijo.text or "").strip())
+        if not campos.get("TipoDTE") or not campos.get("Folio"):
+            continue
+        bruto = campos.get("MntTotal") or "0"
+        salida.append(
+            {
+                "doc_type": int(campos["TipoDTE"]),
+                "folio": int(campos["Folio"]),
+                "date": campos.get("FchEmis", ""),
+                "rut": campos.get("RUTRecep", ""),
+                "total_amount": int(Decimal(bruto).quantize(Decimal(1), rounding=ROUND_HALF_UP)),
+            }
+        )
+    return salida
+
+
 def document_statuses(db, customer: Customer, cert, envio, timeout: int = 60) -> list[dict]:
     """Pregunta al SII, documento por documento, cómo quedó cada uno.
 
@@ -605,12 +645,10 @@ def document_statuses(db, customer: Customer, cert, envio, timeout: int = 60) ->
     """
     from dte_chile.sii_client import Environment, SIIClient
 
-    from app.services import certification_fill
-
     if not envio.track_id:
         raise EmissionError("este sobre no se ha enviado: no hay nada que consultar")
 
-    lineas = certification_fill.lines_from_envelope(envelope(envio), "libro_ventas")
+    lineas = _documentos_para_consultar(envelope(envio))
     if not lineas:
         return []
 
