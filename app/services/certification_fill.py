@@ -130,6 +130,33 @@ def strip(endpoint: str, kind: str, payload: dict) -> dict:
 # --------------------------------------------------------------------------- #
 
 
+def _bultos(documents: list) -> list[str]:
+    """Avisa de un grupo de bultos sin identificación del contenedor.
+
+    El XSD declara `IdContainer` y `Sello` opcionales, pero el SII los exige en
+    cuanto el documento informa `<TipoBultos>`: sin ellos devuelve «(HED-2-804)
+    Exportacion : Campo obligatorio». Costó un sobre entero del set de
+    exportación (2) —tres folios— descubrirlo, y el reparo sólo se ve DESPUÉS de
+    enviar.
+
+    Va como nota de la previa y no como bloqueo: es lo que el Servicio pidió en
+    un caso concreto, no una regla que se pueda afirmar para todo despacho. Pero
+    aparece donde se decide gastar folios, que es donde sirve.
+    """
+    campos = (("container_id", "Id. Container"), ("seal", "Sello"))
+    avisos = []
+    for n, doc in enumerate(documents, start=1):
+        for bulto in (doc.get("customs") or {}).get("packages") or []:
+            faltan = [txt for campo, txt in campos if not str(bulto.get(campo) or "").strip()]
+            if faltan:
+                avisos.append(
+                    f"documento {n}: el grupo de bultos no informa {' ni '.join(faltan)}."
+                    " El SII los exige cuando hay bultos, aunque el esquema los dé"
+                    " por opcionales, y responde «(HED-2-804) Campo obligatorio»."
+                )
+    return avisos
+
+
 def fill(db, customer, cert_set, endpoint: str, payload: dict, *, hoy=None) -> tuple[dict, list]:
     """La definición completa, lista para emitir, y lo que conviene avisar.
 
@@ -166,6 +193,7 @@ def fill(db, customer, cert_set, endpoint: str, payload: dict, *, hoy=None) -> t
                 refs.append(ref)
             doc["references"] = refs
         notas.extend(_receivers(customer, emisor, salida.get("documents", [])))
+        notas.extend(_bultos(salida.get("documents", [])))
         faltan = customer_service.issuer_missing(customer)
         if faltan:
             notas.append("faltan datos del emisor en la ficha del cliente: " + ", ".join(faltan))

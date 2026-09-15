@@ -133,6 +133,61 @@ def test_el_sistema_pone_emisor_fecha_y_caso(db):
     assert any("sin receptores de prueba" in n for n in notas)
 
 
+def test_avisa_de_un_bulto_sin_contenedor_ni_sello(db):
+    """El reparo (HED-2-804) del set de exportación (2), folio 8.
+
+    El XSD da `IdContainer` y `Sello` por opcionales y el SII los exige igual en
+    cuanto el documento informa bultos. Descubrirlo costó un sobre entero —tres
+    folios— porque el reparo sólo aparece DESPUÉS de enviar; el aviso va en la
+    previa, que es donde se decide gastarlos.
+    """
+    customer = make_customer(db)
+    _perfil(customer)
+    s = _set(db, customer, "exportacion_2", "5038177")
+    definicion = {
+        "documents": [
+            {
+                "type": 110,
+                "items": [{"name": "CAJAS", "quantity": "239", "unit_price": "114"}],
+                "customs": {"packages": [{"kind_code": 75, "quantity": 24, "marks": "SIN MARCAS"}]},
+            }
+        ]
+    }
+
+    _, notas = certification_fill.fill(db, customer, s, "issue-export-batch", definicion, hoy=HOY)
+    aviso = next(n for n in notas if "bultos" in n)
+    assert "Id. Container" in aviso and "Sello" in aviso
+    assert "HED-2-804" in aviso
+
+
+def test_un_bulto_con_contenedor_y_sello_no_avisa(db):
+    customer = make_customer(db)
+    _perfil(customer)
+    s = _set(db, customer, "exportacion_2", "5038177")
+    definicion = {
+        "documents": [
+            {
+                "type": 110,
+                "items": [{"name": "CAJAS", "quantity": "239", "unit_price": "114"}],
+                "customs": {
+                    "packages": [
+                        {
+                            "kind_code": 75,
+                            "quantity": 24,
+                            "marks": "SIN MARCAS",
+                            "container_id": "TCLU1234567",
+                            "seal": "SL-4471209",
+                        }
+                    ]
+                },
+            }
+        ]
+    }
+
+    _, notas = certification_fill.fill(db, customer, s, "issue-export-batch", definicion, hoy=HOY)
+    assert not [n for n in notas if "bultos" in n]
+
+
 def test_un_caso_con_otra_numeracion_se_respeta(db):
     customer = make_customer(db)
     _perfil(customer)
