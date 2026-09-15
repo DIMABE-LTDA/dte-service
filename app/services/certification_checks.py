@@ -512,13 +512,22 @@ def _definiciones(db, customer: Customer, sets: dict, definiciones: dict) -> lis
         kind, etiqueta = tipo_set.kind, tipo_set.label
         s = sets.get(kind)
         if s is None:
+            # Un set que el SII no numera no se da de alta copiando un número
+            # que no existe: entra al expediente al cargar las definiciones.
+            # Y no bloquea la emisión de los demás, que son independientes.
+            sin_numero = not tipo_set.declarable
             salida.append(
                 _check(
                     f"def_{kind}",
                     etiqueta,
-                    "error",
-                    "el set no está dado de alta",
-                    "Copia su número de atención desde Mi SII en el expediente.",
+                    "atencion" if sin_numero else "error",
+                    "el set no está en el expediente"
+                    if sin_numero
+                    else "el set no está dado de alta",
+                    "Cárgalo con «Cargar los sets del contribuyente»: este set no lleva"
+                    " número de atención."
+                    if sin_numero
+                    else "Copia su número de atención desde Mi SII en el expediente.",
                 )
             )
             continue

@@ -188,6 +188,24 @@ def test_un_bulto_con_contenedor_y_sello_no_avisa(db):
     assert not [n for n in notas if "bultos" in n]
 
 
+def test_el_set_de_boletas_entra_al_expediente_sin_numero_de_atencion(db):
+    """El SII no numera el set de boletas: no está en «Declarar avance».
+
+    El import descartaba en silencio los sets sin código y la verificación
+    pedía «copia su número de atención» de un número que no existe, con
+    resultado de ERROR — lo que bloqueaba la emisión de los otros diez sets,
+    que no tienen nada que ver.
+    """
+    from app.services import certification_service
+
+    customer = make_customer(db)
+    s = certification_service.find_or_create_set_by_kind(db, customer.id, "boletas")
+    assert s.kind == "boletas"
+    assert s.code == ""
+    # Idempotente: cargar dos veces no duplica el set.
+    assert certification_service.find_or_create_set_by_kind(db, customer.id, "boletas").id == s.id
+
+
 def test_el_set_de_boletas_recibe_emisor_y_fecha_como_los_demas(db):
     """Las boletas van en `receipts`, no en `documents`.
 

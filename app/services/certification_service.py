@@ -86,6 +86,27 @@ def _contents(root: etree._Element) -> tuple[str, list[tuple[int, int]]]:
     return kind, docs
 
 
+def find_or_create_set_by_kind(db, customer_id: int, kind: str) -> CertificationSet:
+    """El set de un tipo que el SII no numera, identificado por su tipo.
+
+    El de boletas es el caso: no lleva número de atención —no está en el
+    formulario «Declarar avance», es el paso 2 del trámite— así que no hay
+    código por el que buscarlo. Sin esto el import lo descartaba en silencio y
+    la verificación pedía «copia su número de atención» de un número que el
+    Servicio nunca entrega, bloqueando la emisión de todo lo demás.
+    """
+    row = (
+        db.query(CertificationSet)
+        .filter(CertificationSet.customer_id == customer_id, CertificationSet.kind == kind)
+        .one_or_none()
+    )
+    if row is None:
+        row = CertificationSet(customer_id=customer_id, code="", kind=kind, state="pendiente")
+        db.add(row)
+        db.flush()
+    return row
+
+
 def find_or_create_set(db, customer_id: int, code: str) -> CertificationSet:
     row = (
         db.query(CertificationSet)

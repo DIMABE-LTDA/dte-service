@@ -870,10 +870,18 @@ def _apply_sets(db: Session, customer: Customer, sets: dict[str, dict]) -> int:
     """Da de alta los sets con su definición. Devuelve cuántos quedaron."""
     cargados = 0
     for kind, entrada in sets.items():
+        from app.services.certification_catalog import BY_KIND
+
         code = str(entrada.get("code") or "").strip()
-        if not code:
+        tipo = BY_KIND.get(kind)
+        if code:
+            cert_set = certification_service.find_or_create_set(db, customer.id, code)
+        elif tipo is not None and not tipo.declarable:
+            # El de boletas no lleva número de atención: el SII no lo numera.
+            # Se identifica por su tipo.
+            cert_set = certification_service.find_or_create_set_by_kind(db, customer.id, kind)
+        else:
             continue  # sin número de atención el set no se puede identificar
-        cert_set = certification_service.find_or_create_set(db, customer.id, code)
         cert_set.kind = kind
         row = (
             db.query(CertificationDefinition)
