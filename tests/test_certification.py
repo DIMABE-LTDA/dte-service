@@ -230,6 +230,50 @@ def test_un_set_con_reparos_no_se_muestra_como_sin_respuesta():
     assert certification_service.set_state(etapas) == "con_reparos"
 
 
+def test_un_set_con_todo_reparado_no_es_un_set_rechazado(db):
+    """El 5038180: 3 con reparos, 0 rechazados — y salía "rechazado".
+
+    La etapa miraba sólo `aceptados`, así que un sobre cuyos documentos el SII
+    registró CON OBSERVACIONES se pintaba de rojo igual que uno que se cayó
+    entero. Eso empuja a reemitir y a gastar folios nuevos para volver a
+    informar lo que el Servicio ya tiene. `entregado()` siempre contó los
+    reparos; esta etapa era la que se desviaba.
+    """
+    c = make_customer(db)
+    certification_service.certification_set_var.set("5038180")
+    _enviar(c, track="0258732820")
+    cert_set = db.query(CertificationSet).one()
+    envio = db.query(CertificationSubmission).one()
+    envio.sii_state = "EPR"
+    envio.sii_stats = [{"doc_type": 46, "informed": 3, "accepted": 0, "rejected": 0, "flagged": 3}]
+    db.commit()
+
+    etapas = certification_service.stages(db, c, cert_set)
+    estado = next(e for e in etapas if e["key"] == "estado")
+    assert estado["state"] == "atencion"
+    assert certification_service.set_state(etapas) == "con_reparos"
+
+
+def test_un_sobre_que_se_cayo_entero_sigue_siendo_un_rechazo(db):
+    """El otro lado del arreglo: sin aceptados NI reparos, sigue en rojo.
+
+    Es el caso que costó una semana de no mirar: EPR describe al sobre, no a su
+    contenido.
+    """
+    c = make_customer(db)
+    certification_service.certification_set_var.set("5038170")
+    _enviar(c, track="0258716370")
+    cert_set = db.query(CertificationSet).one()
+    envio = db.query(CertificationSubmission).one()
+    envio.sii_state = "EPR"
+    envio.sii_stats = [{"doc_type": 33, "informed": 8, "accepted": 0, "rejected": 8, "flagged": 0}]
+    db.commit()
+
+    etapas = certification_service.stages(db, c, cert_set)
+    assert next(e for e in etapas if e["key"] == "estado")["state"] == "error"
+    assert certification_service.set_state(etapas) == "rechazado"
+
+
 def test_un_set_con_reparos_cuenta_como_entregado_en_el_avance():
     sets = [{"kind": "basico", "state": "con_reparos"}, {"kind": "exenta", "state": "aceptado"}]
     avance = certification_service.progress(sets)

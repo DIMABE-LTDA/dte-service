@@ -326,7 +326,14 @@ def stages(db, customer: Customer, cert_set) -> list[dict]:
         )
     elif ultimo.sii_state in _ACEPTADOS:
         informados, aceptados, rechazados, reparos = doc_counts(ultimo)
-        if informados and not aceptados:
+        # Los documentos con reparo cuentan como entregados, igual que en
+        # `entregado()`: el SII los registró y anotó una observación. Mirar sólo
+        # `aceptados` pintaba de ROJO un set cuyos documentos el Servicio ya
+        # tiene —el 5038180, con 3 reparos y 0 rechazos, salía "rechazado"— y
+        # eso empuja a reemitir y gastar folios nuevos para volver a informar lo
+        # mismo. El delator era el propio detalle: con 0 rechazados decía
+        # "ninguno fue aceptado (0 rechazados)", que se contradice sola.
+        if informados and not (aceptados + reparos):
             # El sobre se procesó y su contenido entero se cayó. Verde aquí
             # sería exactamente la lectura que hizo perder una semana.
             out.append(
