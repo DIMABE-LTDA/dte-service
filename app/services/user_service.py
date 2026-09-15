@@ -104,6 +104,24 @@ def soft_delete_user(db: Session, user_id: int, *, commit: bool = True) -> User:
     return user
 
 
+def set_password(db: Session, user_id: int, password: str, *, commit: bool = True) -> User:
+    """Cambia la contraseña de otro usuario (la fija el superadmin, no el titular).
+
+    Reusa el mismo hash (argon2) que el alta: no hay dos caminos para llegar a
+    `password_hash`. El valor en claro no vuelve al llamador ni se guarda en
+    ningún lado más que aquí.
+    """
+    user = db.get(User, user_id)
+    if user is None:
+        raise UserError("usuario no encontrado")
+    user.password_hash = hash_password(password)
+    db.flush()
+    db.refresh(user)
+    if commit:
+        db.commit()
+    return user
+
+
 def restore_user(db: Session, user_id: int, *, commit: bool = True) -> User:
     """Reactiva un usuario archivado."""
     user = db.get(User, user_id)

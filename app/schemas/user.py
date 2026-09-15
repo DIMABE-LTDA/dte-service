@@ -25,6 +25,10 @@ class UserActiveUpdate(BaseModel):
     is_active: bool
 
 
+class UserPasswordUpdate(BaseModel):
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

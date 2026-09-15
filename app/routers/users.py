@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import User
 from app.db.session import get_db
-from app.schemas.user import UserActiveUpdate, UserCreate, UserOut
+from app.schemas.user import UserActiveUpdate, UserCreate, UserOut, UserPasswordUpdate
 from app.security.auth import require_superadmin
 from app.services import audit_service, totp_service, user_service
 from app.services.user_service import UserError
@@ -91,6 +91,28 @@ def restore_user(
     except UserError as ex:
         raise HTTPException(status_code=400, detail=str(ex)) from ex
     audit_service.record_change(db, actor.id, "user.restore", "user", str(user.id), user.email)
+    return user
+
+
+@router.patch("/{user_id}/password", response_model=UserOut)
+def set_password(
+    user_id: int,
+    data: UserPasswordUpdate,
+    actor: User = Depends(require_superadmin),
+    db: Session = Depends(get_db),
+) -> User:
+    """Cambia la contraseña de otro usuario (p. ej. la olvidó y no hay self-service).
+
+    La auditoría registra QUE se cambió y quién lo hizo, nunca el valor: ni en
+    la respuesta, ni en el log, ni acá. Igual que ``totp/reset``, es un cambio
+    que baja momentáneamente el control del titular sobre su cuenta, así que
+    queda anotado.
+    """
+    try:
+        user = user_service.set_password(db, user_id, data.password, commit=False)
+    except UserError as ex:
+        raise HTTPException(status_code=400, detail=str(ex)) from ex
+    audit_service.record_change(db, actor.id, "user.set_password", "user", str(user.id), user.email)
     return user
 
 

@@ -19,6 +19,8 @@ const TITULOS = {
 const ETIQUETAS = { delete: "Eliminar", restore: "Reactivar", totp: "Resetear" } as const;
 const ICONOS = { delete: "trash", restore: "restore", totp: "key" } as const;
 
+const EMPTY_PW = { password: "", confirm: "" };
+
 export default function Users() {
   const [showArchived, setShowArchived] = useState(false);
   const {
@@ -33,6 +35,10 @@ export default function Users() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const toast = useToast();
+
+  const [pwTarget, setPwTarget] = useState<User | null>(null);
+  const [pwForm, setPwForm] = useState(EMPTY_PW);
+  const [pwError, setPwError] = useState("");
 
   /** Muestra el fallo donde se está mirando y, además, como aviso global. */
   function avisar(err: unknown) {
@@ -63,6 +69,44 @@ export default function Users() {
       await reload();
     } catch (err) {
       setFormError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openPassword(u: User) {
+    setPwTarget(u);
+    setPwForm(EMPTY_PW);
+    setPwError("");
+  }
+
+  /** Cierra el diálogo y suelta lo escrito.
+   *
+   * Sin esto la contraseña en claro se queda en el estado del componente hasta
+   * que alguien vuelva a abrir el diálogo: no se ve en pantalla, pero sigue en
+   * memoria y aparece en las herramientas de desarrollo de React. Es gratis no
+   * conservarla. */
+  function closePassword() {
+    setPwTarget(null);
+    setPwForm(EMPTY_PW);
+    setPwError("");
+  }
+
+  async function changePassword(e: FormEvent) {
+    e.preventDefault();
+    if (!pwTarget) return;
+    if (pwForm.password !== pwForm.confirm) {
+      setPwError("Las dos contraseñas no coinciden.");
+      return;
+    }
+    setPwError("");
+    setBusy(true);
+    try {
+      await api.setUserPassword(pwTarget.id, pwForm.password);
+      closePassword();
+      toast.ok(`Contraseña actualizada para ${pwTarget.email}.`);
+    } catch (err) {
+      setPwError((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -160,6 +204,15 @@ export default function Users() {
                             >
                               <Icon name="key" />
                               Resetear 2FA
+                            </button>
+                            <button
+                              className="btn-link"
+                              type="button"
+                              title="Fija una contraseña nueva para este usuario"
+                              onClick={() => openPassword(u)}
+                            >
+                              <Icon name="edit" />
+                              Cambiar contraseña
                             </button>
                             <button className="btn-link" type="button" onClick={() => toggle(u)}>
                               <Icon name="power" />
@@ -261,6 +314,55 @@ export default function Users() {
                 />
               </div>
             )}
+          </form>
+        </Modal>
+      )}
+
+      {pwTarget && (
+        <Modal
+          title="Cambiar contraseña"
+          onClose={closePassword}
+          footer={
+            <>
+              <button className="secondary" type="button" onClick={closePassword}>
+                <Icon name="x" />
+                Cancelar
+              </button>
+              <button type="submit" form="password-form" disabled={busy}>
+                <Icon name="check" />
+                Guardar
+              </button>
+            </>
+          }
+        >
+          <form id="password-form" className="form-grid" onSubmit={changePassword}>
+            <p className="muted" style={{ margin: 0 }}>
+              Nueva contraseña para <strong>{pwTarget.email}</strong>. Queda anotado en la auditoría
+              de cambios que se le cambió la contraseña (no el valor).
+            </p>
+            {pwError && <p className="error">{pwError}</p>}
+            <div className="field">
+              <label htmlFor="pw-new">Contraseña nueva</label>
+              <input
+                id="pw-new"
+                type="password"
+                autoComplete="new-password"
+                value={pwForm.password}
+                onChange={(e) => setPwForm({ ...pwForm, password: e.target.value })}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="pw-confirm">Repetir contraseña</label>
+              <input
+                id="pw-confirm"
+                type="password"
+                autoComplete="new-password"
+                value={pwForm.confirm}
+                onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
+                required
+              />
+            </div>
           </form>
         </Modal>
       )}

@@ -251,6 +251,8 @@ export const api = {
   }) => req<User>("/users", body(data)),
   setUserActive: (id: number, is_active: boolean) =>
     req<User>(`/users/${id}/active`, { method: "PATCH", body: JSON.stringify({ is_active }) }),
+  setUserPassword: (id: number, password: string) =>
+    req<User>(`/users/${id}/password`, { method: "PATCH", body: JSON.stringify({ password }) }),
   deleteUser: (id: number) => req<User>(`/users/${id}`, { method: "DELETE" }),
   restoreUser: (id: number) => req<User>(`/users/${id}/restore`, { method: "POST" }),
 
