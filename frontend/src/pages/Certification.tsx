@@ -165,10 +165,47 @@ const TIPO: Record<string, string> = {
   boletas: "Boletas",
 };
 
+/** Los sets como los nombra y ORDENA el formulario de Mi SII.
+ *
+ * El orden no es el nuestro ni el de los números de atención: es el del
+ * formulario donde hay que transcribir esto. Copiar diez pares de número y
+ * fecha saltando de una fila a otra es donde se cuela el error, y un TrackID
+ * mal tecleado declara un envío que no es.
+ */
+const FORMULARIO_SII: { kind: string; etiqueta: string }[] = [
+  { kind: "basico", etiqueta: "SET BASICO" },
+  { kind: "guias", etiqueta: "SET GUIA DE DESPACHO" },
+  { kind: "exenta", etiqueta: "SET FACTURA EXENTA" },
+  { kind: "libro_ventas", etiqueta: "LIBRO DE VENTAS" },
+  { kind: "libro_compras", etiqueta: "LIBRO DE COMPRAS" },
+  { kind: "libro_guias", etiqueta: "LIBRO DE GUIAS" },
+  { kind: "exportacion_1", etiqueta: "SET DOCUMENTOS DE EXPORTACION" },
+  { kind: "exportacion_2", etiqueta: "SET DOCUMENTOS DE EXPORTACION(2)" },
+  { kind: "factura_compra", etiqueta: "SET CASO GENERAL FACTURA COMPRA" },
+  { kind: "liquidacion", etiqueta: "SET LIQUIDACION FACTURA" },
+];
+
 function fecha(iso: string | null) {
   return iso
     ? new Date(iso).toLocaleString("es-CL", { dateStyle: "medium", timeStyle: "short" })
     : "—";
+}
+
+/** dd-mm-aaaa, que es como lo pide el formulario del SII. */
+function fechaSii(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
+}
+
+/** El envío que hay que declarar de un set: el último que llegó al SII.
+ *
+ * Los intentos anteriores no se declaran —el Servicio pregunta por el envío
+ * que quedó—, y un sobre emitido sin enviar no tiene número que dar.
+ */
+function envioADeclarar(s: CertSet): CertSubmission | undefined {
+  return [...s.submissions].reverse().find((e) => e.track_id);
 }
 
 /** Color del estado de un envío, mirando dentro del sobre.
@@ -417,6 +454,84 @@ export default function Certification() {
           Cada envío queda guardado con su TrackID y su sobre.
         </p>
       </div>
+
+      {/* Lo que el formulario de Mi SII pide, en su orden y con sus nombres.
+          El expediente ya tiene estos datos, pero repartidos: había que abrir
+          set por set, desplegar la tabla de envíos y copiar el TrackID del
+          último. Diez veces, saltando de una pantalla a otra, que es donde se
+          cuela el número equivocado. */}
+      {conAlta.some((s) => envioADeclarar(s)) && (
+        <div className="card">
+          <div className="card-head">
+            <h2>Datos para el formulario de Mi SII</h2>
+            <span className="spacer" />
+            <button
+              className="secondary sm"
+              type="button"
+              onClick={() => {
+                const filas = FORMULARIO_SII.map((f) => {
+                  const s = conAlta.find((x) => x.kind === f.kind);
+                  const e = s && envioADeclarar(s);
+                  return `${f.etiqueta}\t${e?.track_id ?? ""}\t${e ? fechaSii(e.sent_at) : ""}`;
+                }).join("\n");
+                navigator.clipboard
+                  .writeText(filas)
+                  .then(() => toast.ok("Copiado: pégalo en una planilla para ir marcando."))
+                  .catch(() => setActionError("No se pudo copiar. Selecciona la tabla a mano."));
+              }}
+            >
+              <Icon name="copy" />
+              Copiar
+            </button>
+          </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            En el orden y con los nombres del formulario, para transcribir de arriba abajo sin
+            buscar. La fecha va en <span className="code">dd-mm-aaaa</span>, que es el formato que
+            pide. De cada set se muestra <strong>el último envío</strong>: es el que quedó en el
+            SII.
+          </p>
+          <div className="tabla-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Set</th>
+                  <th>N.º Envío</th>
+                  <th>Fecha Envío</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {FORMULARIO_SII.map((f) => {
+                  const s = conAlta.find((x) => x.kind === f.kind);
+                  const e = s && envioADeclarar(s);
+                  const est = s ? (ESTADO[s.state] ?? ESTADO.pendiente) : null;
+                  return (
+                    <tr key={f.kind}>
+                      <td>{f.etiqueta}</td>
+                      <td>
+                        {e?.track_id ? (
+                          <span className="code">{e.track_id}</span>
+                        ) : (
+                          <span className="muted">sin envío</span>
+                        )}
+                      </td>
+                      <td className="nowrap">{e ? fechaSii(e.sent_at) : "—"}</td>
+                      <td>
+                        {est && (
+                          <span className={`badge ${est.color} con-punto`}>
+                            <span className="punto" aria-hidden="true" />
+                            {est.texto}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Preparación: lo que se hace UNA vez, antes de trabajar los sets.
           Ocupaba ~1200px antes del primer set, en una pantalla a la que se

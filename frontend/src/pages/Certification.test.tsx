@@ -169,7 +169,9 @@ describe("Expediente de certificación", () => {
     mount();
     // Ni 'libro_ventas' ni 'aceptado' a secas: son valores del modelo.
     expect(await screen.findByText("Libro de ventas")).toBeInTheDocument();
-    expect(screen.getByText("Falta declarar")).toBeInTheDocument();
+    // Acotado a la lista: la tabla del formulario de Mi SII repite el estado.
+    const lista = within(document.querySelector(".lista-sets") as HTMLElement);
+    expect(lista.getByText("Falta declarar")).toBeInTheDocument();
   });
 
   it("muestra los envíos sin clasificar y deja asignarlos", async () => {
@@ -298,6 +300,57 @@ describe("Expediente de certificación", () => {
     expect(await screen.findByText("3 de 10 sets declarados")).toBeInTheDocument();
   });
 
+  it("da los datos del formulario de Mi SII en el orden del formulario", async () => {
+    // El SII pide N° de envío y fecha por set, en SU orden y con SUS nombres.
+    // Estaban repartidos: había que abrir set por set y copiar el TrackID del
+    // último envío, diez veces, que es donde se cuela el número equivocado.
+    const envio = (id: number, track: string, cuando: string) => ({
+      ...set().submissions[0],
+      id,
+      track_id: track,
+      sent_at: cuando,
+    });
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            id: 1,
+            code: "5038171",
+            kind: "libro_ventas",
+            submissions: [envio(30, "111", "2026-09-15T11:06:52")],
+          }),
+          set({
+            id: 2,
+            code: "5038170",
+            kind: "basico",
+            submissions: [envio(31, "222", "2026-09-14T15:50:00")],
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    await screen.findByText("Datos para el formulario de Mi SII");
+    const tabla = document.querySelectorAll(".card")[1].querySelectorAll("tbody tr");
+    const filas = [...tabla].map((r) =>
+      [...r.querySelectorAll("td")].slice(0, 3).map((c) => c.textContent),
+    );
+
+    // El orden es el del formulario, no el de los datos ni el de los códigos.
+    expect(filas[0][0]).toBe("SET BASICO");
+    expect(filas[3][0]).toBe("LIBRO DE VENTAS");
+    // El básico es el segundo set que llegó, pero va primero.
+    expect(filas[0][1]).toBe("222");
+    expect(filas[3][1]).toBe("111");
+    // Fecha en dd-mm-aaaa, que es el formato que pide el formulario.
+    expect(filas[0][2]).toBe("14-09-2026");
+    expect(filas[3][2]).toBe("15-09-2026");
+    // Un set que el contribuyente aún no tiene se muestra vacío, no se omite:
+    // el formulario lo lista igual y hay que saber que falta.
+    expect(filas[1][0]).toBe("SET GUIA DE DESPACHO");
+    expect(filas[1][1]).toBe("sin envío");
+  });
+
   it("cuenta los reparos y los rechazos, que no vienen en progress", async () => {
     // `progress` sólo trae declarados y aceptados: los sets que piden trabajo
     // eran invisibles hasta abrirlos uno por uno.
@@ -409,14 +462,19 @@ describe("Expediente de certificación", () => {
     const user = userEvent.setup();
     mount();
 
+    // Acotado a la lista: la tabla del formulario de Mi SII también muestra el
+    // TrackID del envío vigente, y aquí se mide lo que hace la tabla del set.
+    await screen.findByText("5038170");
+    const lista = () => within(document.querySelector(".lista-sets") as HTMLElement);
+
     // Sólo el último, que es el que describe la situación de hoy.
-    expect(await screen.findByText("0258723732")).toBeInTheDocument();
-    expect(screen.queryByText("0258716370")).not.toBeInTheDocument();
+    expect(lista().getByText("0258723732")).toBeInTheDocument();
+    expect(lista().queryByText("0258716370")).not.toBeInTheDocument();
 
     // Pero no se pierden: se pliegan.
     await user.click(screen.getByRole("button", { name: /2 intentos anteriores/ }));
-    expect(screen.getByText("0258716370")).toBeInTheDocument();
-    expect(screen.getByText("0258720612")).toBeInTheDocument();
+    expect(lista().getByText("0258716370")).toBeInTheDocument();
+    expect(lista().getByText("0258720612")).toBeInTheDocument();
   });
 
   it("si el último envío es el que falló, es el que se ve", async () => {
@@ -442,8 +500,10 @@ describe("Expediente de certificación", () => {
     );
     mount();
 
-    expect(await screen.findByText("0258799999")).toBeInTheDocument();
-    expect(screen.getByText("0 de 8 aceptados")).toBeInTheDocument();
+    await screen.findByText("5038170");
+    const lista = within(document.querySelector(".lista-sets") as HTMLElement);
+    expect(lista.getByText("0258799999")).toBeInTheDocument();
+    expect(lista.getByText("0 de 8 aceptados")).toBeInTheDocument();
   });
 
   it("no repite la guía del SII bajo cada envío", async () => {
