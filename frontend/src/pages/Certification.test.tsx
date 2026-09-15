@@ -544,6 +544,36 @@ describe("Expediente de certificación", () => {
     expect(screen.getByText("1 rechazados")).toBeInTheDocument();
   });
 
+  it("reserva las mismas ranuras de cifras en todas las filas", async () => {
+    // Con celdas elásticas, una fila con reparos empujaba a las de al lado y la
+    // columna de cifras se leía en diagonal. Las ranuras que no aplican van
+    // vacías, no ausentes.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "a", state: "declarado", submissions: [] }),
+          set({
+            id: 2,
+            code: "b",
+            state: "con_reparos",
+            submissions: [
+              {
+                ...set().submissions[0],
+                stats: [{ doc_type: 33, informed: 3, accepted: 1, rejected: 1, flagged: 1 }],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    await screen.findByText("a");
+    const filas = [...document.querySelectorAll(".set-cifras")];
+    expect(filas).toHaveLength(2);
+    for (const f of filas) expect(f.children).toHaveLength(4);
+  });
+
   it("no suma dos veces los documentos de un set reenviado", async () => {
     // Un set rechazado y reenviado tiene dos envíos con los MISMOS documentos
     // dentro: sumarlos diría "6 docs, 6 aceptados" donde hay tres.

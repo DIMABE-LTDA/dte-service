@@ -699,16 +699,20 @@ export default function Certification() {
                   </button>
 
                   {/* Lo que hace falta para decidir si abrir el set, que antes
-                      obligaba a expandirlo para verlo. */}
+                      obligaba a expandirlo para verlo.
+
+                      Cuatro ranuras FIJAS, y las que no aplican van vacías en vez
+                      de no estar: con celdas elásticas, una fila con reparos
+                      empujaba a las de al lado y la columna de cifras quedaba en
+                      diagonal. Una cifra sólo se compara con la de arriba si cae
+                      en la misma abscisa. */}
                   <span className="set-cifras">
-                    <span>{c.docs} docs</span>
-                    {c.informados > 0 && (
-                      <>
-                        <span className="ok">{c.aceptados} aceptados</span>
-                        {c.rechazados > 0 && <span className="mal">{c.rechazados} rechazados</span>}
-                        {c.reparos > 0 && <span className="ojo">{c.reparos} con reparos</span>}
-                      </>
-                    )}
+                    <span className="docs">{c.docs} docs</span>
+                    <span className="ok">{c.informados > 0 ? `${c.aceptados} aceptados` : ""}</span>
+                    <span className="mal">
+                      {c.rechazados > 0 ? `${c.rechazados} rechazados` : ""}
+                    </span>
+                    <span className="ojo">{c.reparos > 0 ? `${c.reparos} con reparos` : ""}</span>
                   </span>
 
                   <span className={`badge ${est.color} con-punto`}>
