@@ -332,8 +332,11 @@ describe("Expediente de certificación", () => {
 
     await screen.findByText("Datos para el formulario de Mi SII");
     const tabla = document.querySelectorAll(".card")[1].querySelectorAll("tbody tr");
+    // El valor va dentro de `.code`: la celda incluye además la pista "copiar".
     const filas = [...tabla].map((r) =>
-      [...r.querySelectorAll("td")].slice(0, 3).map((c) => c.textContent),
+      [...r.querySelectorAll("td")]
+        .slice(0, 3)
+        .map((c) => (c.querySelector(".code") ?? c).textContent),
     );
 
     // El orden es el del formulario, no el de los datos ni el de los códigos.
@@ -349,6 +352,96 @@ describe("Expediente de certificación", () => {
     // el formulario lo lista igual y hay que saber que falta.
     expect(filas[1][0]).toBe("SET GUIA DE DESPACHO");
     expect(filas[1][1]).toBe("sin envío");
+  });
+
+  it("declara varios sets de una vez, y sólo los que el SII aceptó", async () => {
+    // En Mi SII el avance se informa de una vez con el formulario entero: ir
+    // set por set aquí era repetir diez veces la misma fecha. Pero un set con
+    // reparos o rechazado NO entra: declararlo sería informar un avance que no
+    // ocurrió, y no se deshace desde aquí.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "5038170", state: "aceptado" }),
+          set({ id: 2, code: "5038175", state: "aceptado" }),
+          set({ id: 3, code: "5038180", state: "con_reparos" }),
+          set({ id: 4, code: "5038171", state: "declarado", declared_at: "2026-09-14" }),
+        ],
+      }),
+    );
+    (api.certDeclare as Mock).mockResolvedValue({});
+    const user = userEvent.setup();
+    mount();
+
+    // Sólo cuenta los dos aceptados sin declarar.
+    await user.click(await screen.findByRole("button", { name: /Declarar 2$/ }));
+    const dialogo = await screen.findByRole("dialog");
+    expect(dialogo).toHaveTextContent("5038170");
+    expect(dialogo).toHaveTextContent("5038175");
+    expect(dialogo).not.toHaveTextContent("5038180");
+
+    const fecha = dialogo.querySelector('input[type="date"]') as HTMLInputElement;
+    await user.clear(fecha);
+    await user.type(fecha, "2026-09-15");
+    await user.click(screen.getByRole("button", { name: /Confirmar/ }));
+
+    await waitFor(() => expect(api.certDeclare).toHaveBeenCalledTimes(2));
+    expect(api.certDeclare).toHaveBeenCalledWith(1, 1, "2026-09-15");
+    expect(api.certDeclare).toHaveBeenCalledWith(1, 2, "2026-09-15");
+  });
+
+  it("si un set falla al declararse en masa, lo dice en vez de cantar victoria", async () => {
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({ id: 1, code: "5038170", state: "aceptado" }),
+          set({ id: 2, code: "5038175", state: "aceptado" }),
+        ],
+      }),
+    );
+    (api.certDeclare as Mock)
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(Object.assign(new Error("el set ya estaba declarado"), { hints: [] }));
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole("button", { name: /Declarar 2$/ }));
+    await user.click(screen.getByRole("button", { name: /Confirmar/ }));
+
+    // El otro sí se intentó: un fallo no aborta el resto.
+    await waitFor(() => expect(api.certDeclare).toHaveBeenCalledTimes(2));
+    // Aparece en el diálogo y además como aviso: en los dos sitios se mira.
+    const avisos = await screen.findAllByText(/1 de 2 marcados/);
+    expect(avisos.length).toBeGreaterThan(0);
+    expect(avisos[0]).toHaveTextContent("5038175");
+  });
+
+  it("copia al portapapeles el número de envío al pulsarlo", async () => {
+    // userEvent.setup() instala su propio portapapeles de mentira, así que se
+    // lee de ahí en vez de sustituirlo: el nuestro quedaría pisado.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            id: 1,
+            code: "5038170",
+            kind: "basico",
+            submissions: [
+              { ...set().submissions[0], track_id: "0258723732", sent_at: "2026-09-14T15:50:00" },
+            ],
+          }),
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+
+    await screen.findByText("Datos para el formulario de Mi SII");
+    await user.click(screen.getByRole("button", { name: /Copiar N.º de envío de SET BASICO/ }));
+    expect(await navigator.clipboard.readText()).toBe("0258723732");
+
+    await user.click(screen.getByRole("button", { name: /Copiar fecha de envío de SET BASICO/ }));
+    expect(await navigator.clipboard.readText()).toBe("14-09-2026");
   });
 
   it("cuenta los reparos y los rechazos, que no vienen en progress", async () => {

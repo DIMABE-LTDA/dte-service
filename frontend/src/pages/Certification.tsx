@@ -292,6 +292,40 @@ function descargar(nombre: string, xmlBase64: string) {
   URL.revokeObjectURL(url);
 }
 
+/** Un valor que se copia al pulsarlo.
+ *
+ * Transcribir un TrackID de diez dígitos a mano es donde se cuela el error, y
+ * un número equivocado declara un envío que no es. Botón y no un `onClick` en
+ * el `<td>`: se alcanza con el teclado y se anuncia como lo que hace.
+ */
+function Copiable({ valor, etiqueta }: { valor: string; etiqueta: string }) {
+  const toast = useToast();
+  const [copiado, setCopiado] = useState(false);
+  return (
+    <button
+      type="button"
+      className={`copiable${copiado ? " copiado" : ""}`}
+      aria-label={`Copiar ${etiqueta}: ${valor}`}
+      onClick={() => {
+        navigator.clipboard
+          .writeText(valor)
+          .then(() => {
+            setCopiado(true);
+            // Vuelve a su estado: si se quedara marcado, con diez filas no se
+            // distinguiría lo que acabas de copiar de lo que copiaste antes.
+            setTimeout(() => setCopiado(false), 1200);
+          })
+          .catch(() => toast.error("No se pudo copiar. Selecciónalo a mano."));
+      }}
+    >
+      <span className="code">{valor}</span>
+      <span className="copiable-pista" aria-hidden="true">
+        {copiado ? "copiado" : "copiar"}
+      </span>
+    </button>
+  );
+}
+
 export default function Certification() {
   const { id } = useParams();
   const cid = Number(id);
@@ -334,6 +368,7 @@ export default function Certification() {
   // Qué set muestra además sus intentos anteriores. Plegado por omisión: la
   // historia importa, pero no es lo que se viene a mirar.
   const [historial, setHistorial] = useState<number | null>(null);
+  const [declarandoVarios, setDeclarandoVarios] = useState(false);
   // Igual que el acordeón de los sets: hasta que el operador toca, manda el
   // estado del expediente; después manda él.
   const [prepAbierto, setPrepAbierto] = useState(false);
@@ -367,6 +402,42 @@ export default function Certification() {
     }
   }
 
+  /** Marca varios sets como declarados, uno por uno.
+   *
+   * En serie y no en paralelo: si algo falla a mitad, importa saber cuáles
+   * quedaron hechos, y diez peticiones simultáneas contra el mismo expediente
+   * sólo invitan a una carrera. Un fallo no aborta el resto —los demás sets son
+   * independientes— pero se dice cuáles fallaron, en vez de un "listo" que
+   * escondería el hueco.
+   */
+  async function declararVarios(objetivo: (CertSet & { id: number })[]) {
+    setActionError("");
+    setBusy(true);
+    const fallidos: string[] = [];
+    try {
+      for (const s of objetivo) {
+        try {
+          await api.certDeclare(cid, s.id, fechaDecl);
+        } catch (err) {
+          fallidos.push(`${s.code} (${(err as ApiError).message})`);
+        }
+      }
+      await reload();
+      void verificacion.reload();
+      const hechos = objetivo.length - fallidos.length;
+      if (fallidos.length) {
+        const aviso = `${hechos} de ${objetivo.length} marcados. Falló: ${fallidos.join(", ")}`;
+        setActionError(aviso);
+        toast.error(aviso);
+        return false;
+      }
+      toast.ok(`${hechos} set(s) marcados como declarados.`);
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) return <p className="muted">Cargando…</p>;
   if (error) return <p className="error">{error}</p>;
 
@@ -393,6 +464,12 @@ export default function Certification() {
   // Plegada sólo cuando de verdad no queda nada que hacer en preparación. Si la
   // verificación aún no respondió, `ready` es undefined y la sección se abre:
   // no se puede afirmar que esté todo listo, y esconderlo sería afirmarlo.
+  // Los que se pueden declarar: sólo lo que el SII ya aceptó y todavía no está
+  // anotado. Un set con reparos o rechazado no entra —declararlo sería informar
+  // un avance que no ocurrió—, y ese criterio es el mismo del botón de cada
+  // fila: la acción masiva no puede permitir lo que la individual prohíbe.
+  const declarables = conAlta.filter((s) => s.state === "aceptado" && !s.declared_at);
+
   const prepLista = verificacion.data?.ready === true && conAlta.length > 0 && faltan.length === 0;
   const prepAbierta = prepTocada ? prepAbierto : !prepLista;
 
@@ -510,12 +587,21 @@ export default function Certification() {
                       <td>{f.etiqueta}</td>
                       <td>
                         {e?.track_id ? (
-                          <span className="code">{e.track_id}</span>
+                          <Copiable valor={e.track_id} etiqueta={`N.º de envío de ${f.etiqueta}`} />
                         ) : (
                           <span className="muted">sin envío</span>
                         )}
                       </td>
-                      <td className="nowrap">{e ? fechaSii(e.sent_at) : "—"}</td>
+                      <td className="nowrap">
+                        {e ? (
+                          <Copiable
+                            valor={fechaSii(e.sent_at)}
+                            etiqueta={`fecha de envío de ${f.etiqueta}`}
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td>
                         {est && (
                           <span className={`badge ${est.color} con-punto`}>
@@ -767,6 +853,20 @@ export default function Certification() {
         <div className="card-head">
           <h2>Sets</h2>
           <span className="spacer" />
+          {/* Declarar es anotar en el expediente lo que ya se hizo en Mi SII, y
+              allí el avance se informa de una vez con el formulario entero: ir
+              set por set aquí era repetir diez veces la misma fecha. */}
+          {writable && declarables.length > 1 && (
+            <button
+              className="secondary sm"
+              type="button"
+              disabled={busy}
+              onClick={() => setDeclarandoVarios(true)}
+            >
+              <Icon name="check" />
+              Declarar {declarables.length}
+            </button>
+          )}
           {/* Filtrado en cliente: son diez sets ya cargados, y volver a pedir el
               expediente para esconder filas sería gastar una llamada en nada. */}
           <div className="chips" role="group" aria-label="Filtrar los sets">
@@ -1659,6 +1759,66 @@ export default function Certification() {
             <div className="field">
               <label>Fecha en que se declaró el avance</label>
               <input
+                type="date"
+                value={fechaDecl}
+                onChange={(ev) => setFechaDecl(ev.target.value)}
+              />
+            </div>
+          </form>
+        </Modal>
+      )}
+      {declarandoVarios && (
+        <Modal
+          title={`Declarar el avance de ${declarables.length} sets`}
+          onClose={() => setDeclarandoVarios(false)}
+          footer={
+            <>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => setDeclarandoVarios(false)}
+              >
+                <Icon name="x" />
+                Cancelar
+              </button>
+              <button type="submit" form="declarar-varios-form" disabled={busy}>
+                <Icon name="check" />
+                Confirmar
+              </button>
+            </>
+          }
+        >
+          {actionError && <p className="error">{actionError}</p>}
+          <p className="muted" style={{ marginTop: 0 }}>
+            Anota en el expediente un avance que ya informaste en Mi SII. No envía nada al SII.
+          </p>
+          {/* Qué se va a marcar, con nombre y apellido: una acción masiva que no
+              dice sobre qué actúa obliga a confiar a ciegas. */}
+          <ul className="lista-declarables">
+            {declarables.map((s) => (
+              <li key={s.id}>
+                <span className="code">{s.code}</span> {TIPO[s.kind] ?? s.kind}
+              </li>
+            ))}
+          </ul>
+          {conAlta.some((s) => s.state !== "aceptado" && !s.declared_at) && (
+            <p className="muted">
+              Quedan fuera los sets que el SII no aceptó: declarar un avance que no ocurrió no se
+              deshace desde aquí.
+            </p>
+          )}
+          <form
+            id="declarar-varios-form"
+            className="form-grid"
+            onSubmit={(ev: FormEvent) => {
+              ev.preventDefault();
+              declararVarios(declarables).then((ok) => ok && setDeclarandoVarios(false));
+            }}
+          >
+            <div className="field">
+              <label htmlFor="fecha-varios">Fecha en que se declaró el avance</label>
+              <input
+                id="fecha-varios"
                 type="date"
                 value={fechaDecl}
                 onChange={(ev) => setFechaDecl(ev.target.value)}

@@ -835,6 +835,62 @@ ol.steps-list li {
    traían el mismo párrafo tres veces. Y va sin color de urgencia a propósito —
    es instructivo, no un diagnóstico del envío; lo que sí urge se ve en la fila,
    que es donde está el conteo que lo justifica. */
+/* Un valor que se copia al pulsarlo. Transcribir a mano un TrackID de diez
+   dígitos es donde se cuela el error, y un número equivocado declara un envío
+   que no es. Se ve pulsable sin gritar: el dato sigue mandando. */
+.copiable {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 0.15rem 0.3rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+}
+.copiable:hover:not(:disabled) {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.04);
+}
+.copiable-pista {
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+/* La pista aparece al acercarse o al enfocar con el teclado; la confirmación se
+   queda visible sola, porque es la respuesta a lo que acabas de hacer. */
+.copiable:hover .copiable-pista,
+.copiable:focus-visible .copiable-pista,
+.copiable.copiado .copiable-pista {
+  opacity: 1;
+}
+.copiable.copiado {
+  border-color: var(--ok);
+}
+.copiable.copiado .copiable-pista {
+  color: var(--ok);
+}
+@media (prefers-reduced-motion: reduce) {
+  .copiable-pista {
+    transition: none;
+  }
+}
+
+/* Qué se va a marcar en una declaración masiva: una acción sobre varios sets
+   que no dice sobre cuáles obliga a confiar a ciegas. */
+.lista-declarables {
+  list-style: none;
+  margin: 0.4rem 0 0.8rem;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.88rem;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
 /* Historial de envíos de un set. Por omisión sólo se ve el vigente —el
    último—: el set básico acumuló tres sobres y los dos primeros ocupaban dos
    tercios de la tabla repitiendo un "0 de 8 aceptados" que ya no describe nada.
