@@ -3,8 +3,8 @@
 Lo que queda por hacer fuera de la certificación ante el SII, que tiene su
 propio archivo en [`certificacion-sii.md`](certificacion-sii.md).
 
-**Actualizar al avanzar.** Última revisión: **2026-09-08**, con las tres
-auditorías cerradas y el §1 completo.
+**Actualizar al avanzar.** Última revisión: **2026-09-15**, corrigiendo el §2, que
+daba por no desplegado algo que lleva meses en producción.
 
 ---
 
@@ -93,9 +93,32 @@ consumidor, hasheadas en base y con rol propio.
 
 ---
 
-## 2. Despliegue en Dokploy
+## 2. Despliegue en Dokploy — **desplegado y con auto-deploy**
 
-`docker-compose.dokploy.yml` está listo y validado, **pero no se ha desplegado**.
+Está **en producción** en Dokploy (servidor `atlas.dimabe.cl`, compose
+`dte-dte-service-ywgfby`), y **cada push a `main` dispara un despliegue solo**, por
+el webhook de Dokploy. Un build tarda unos dos minutos.
+
+> **Empujar a `main` ES desplegar a producción.** No es un guardado: el portal, el
+> sitio de boletas y el API quedan actualizados sin que nadie apriete nada.
+> Comprobado el 2026-09-15 siguiendo un commit por su hash hasta la pestaña
+> Deployments. *(Hasta esa fecha esta sección afirmaba que el compose estaba
+> "listo y validado, pero no se ha desplegado", y llevaba meses siendo falsa.)*
+
+El auto-deploy **no** está en este repositorio: `.github/workflows/ci.yml` sólo
+corre tests y lint. Sale del webhook propio de Dokploy, que se configura en su
+panel, así que no hay forma de deducirlo leyendo el código — de ahí que este
+archivo se quedara atrás.
+
+**Las migraciones corren solas al arrancar el contenedor**: el `CMD` del Dockerfile
+es `alembic upgrade head && uvicorn …`. Encadenado con `&&`, así que si la
+migración falla el API no levanta, y no queda sirviendo contra un esquema a medias.
+El compose espera el healthcheck de Postgres antes de arrancar el API.
+
+Pendiente ahí: si algún día se levanta **más de una réplica** (el compose ya trae
+el perfil `escalado`), todas correrían `alembic upgrade head` a la vez y no hay
+ningún lock. Con una sola instancia no es un problema; con dos, lo es.
+
 Publica tres superficies en dominios separados:
 
 | Dominio | Qué es |
@@ -108,11 +131,14 @@ Separados a propósito: el sitio anónimo no comparte origen con el portal que
 custodia certificados, ni el API que autentica por `apiKey` con el navegador
 que autentica por cookie. La base nunca sale de la red interna.
 
-Al desplegar:
-- Definir `DTE_SUPERADMIN_EMAIL` / `DTE_SUPERADMIN_PASSWORD`, o el portal queda
-  sin forma de entrar.
-- Considerar `PORTAL_ALLOWED_IPS` (lista blanca en Traefik). Vacía, la única
-  barrera es el login.
+Lo que hubo que definir en el despliegue (queda como referencia para levantar otra
+instancia; **no está verificado desde el repo cómo quedó cada variable en el panel
+de Dokploy** — eso sólo se ve ahí, en Environment):
+- `DTE_SUPERADMIN_EMAIL` / `DTE_SUPERADMIN_PASSWORD`, o el portal queda sin forma
+  de entrar.
+- `PORTAL_ALLOWED_IPS` (lista blanca en Traefik). **Conviene comprobar que esté
+  puesta**: vacía, la única barrera del portal es el login, y desde ahí se
+  administra material tributario.
 - El API **no se publica** salvo que pongas `API_PUBLIC=true`, y aun entonces
   sale sólo su superficie de máquina. Si Odoo corre en el mismo servidor, deja
   eso como está y conéctalo a la red interna (`http://api:8000`).
@@ -120,11 +146,12 @@ Al desplegar:
   registro DNS de `API_DOMAIN`. Era falso —Traefik enruta por la cabecera
   `Host`— y de ahí salió el hallazgo de la segunda auditoría.)*
 
-**La instancia arranca con la base vacía**: sin clientes, certificados ni CAF.
-Hay que cargarlos por el portal o por la API de administración. Y si ese va a
-ser el backend definitivo, conviene **emitir el set de boletas desde ahí**, no
-desde la instancia local: si no, las boletas quedan en una base y el sitio
-público consulta la otra.
+**Una instancia nueva arranca con la base vacía**: sin clientes, certificados ni
+CAF. Hay que cargarlos por el portal o por la API de administración. Si el
+despliegue es el backend definitivo, conviene **emitir el set de boletas desde
+ahí**, no desde una instancia local: si no, las boletas quedan en una base y el
+sitio público consulta la otra. *(Qué tiene cargado hoy la base de producción no
+se puede saber leyendo el repo: hay que mirarlo en el portal.)*
 
 Quedó ofrecido y **sin hacer** un script que cargue empresa, certificado, los
 11 CAF y los servicios de una pasada.
