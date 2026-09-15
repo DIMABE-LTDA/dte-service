@@ -226,6 +226,51 @@ def test_el_set_de_boletas_recibe_emisor_y_fecha_como_los_demas(db):
     assert any("24 horas" in n for n in notas)
 
 
+_EXPORT_SIN_PAGO = (
+    b'<?xml version="1.0" encoding="ISO-8859-1"?>'
+    b'<EnvioDTE xmlns="http://www.sii.cl/SiiDte" version="1.0"><SetDTE ID="S">'
+    b"<DTE><Exportaciones><Encabezado>"
+    b"<IdDoc><TipoDTE>110</TipoDTE><Folio>10</Folio><FchEmis>2026-09-14</FchEmis>"
+    b"<FmaPagExp>21</FmaPagExp></IdDoc>"
+    b"<Receptor><RUTRecep>55555555-5</RUTRecep><RznSocRecep>IMPORTADORA</RznSocRecep></Receptor>"
+    b"<Totales><TpoMoneda>LIBRA EST</TpoMoneda><MntExe>154344</MntExe>"
+    b"<MntTotal>154344</MntTotal></Totales>"
+    # Con S/PAGO el SII EXIGE los montos en otra moneda en cero (HED-1-803).
+    b"<OtraMoneda><TpoMoneda>PESO CL</TpoMoneda><TpoCambio>2</TpoCambio>"
+    b"<MntExeOtrMnda>0</MntExeOtrMnda><MntTotOtrMnda>0</MntTotOtrMnda></OtraMoneda>"
+    b"</Encabezado></Exportaciones></DTE></SetDTE></EnvioDTE>"
+)
+
+
+def test_una_exportacion_sin_pago_no_entra_al_libro_en_cero():
+    """El reparo del SII: «Falta [MntTotal MntPeriodo] T:[110]-F:[10]».
+
+    Con forma de pago S/PAGO el Servicio EXIGE que los montos en otra moneda
+    vayan en cero —regla HED-1-803, ya corregida en el motor—, así que ese cero
+    no dice que el documento no valga nada: dice que ahí no se informa.
+    Copiarlo al Libro de Ventas dejaba la línea entera en cero, y el libro
+    declaraba un documento sin monto.
+    """
+    linea = certification_fill.lines_from_envelope(_EXPORT_SIN_PAGO, "libro_ventas")[0]
+
+    assert linea["doc_type"] == 110
+    assert linea["folio"] == 10
+    # El libro va en pesos: se convierte con el tipo de cambio del documento.
+    assert linea["exempt_amount"] == 308688
+    assert linea["total_amount"] == 308688
+
+
+def test_una_exportacion_pagada_usa_los_pesos_que_declara():
+    """El caso normal no cambia: si OtraMoneda trae montos, mandan ellos."""
+    xml = _EXPORT_SIN_PAGO.replace(
+        b"<MntExeOtrMnda>0</MntExeOtrMnda><MntTotOtrMnda>0</MntTotOtrMnda>",
+        b"<MntExeOtrMnda>14490</MntExeOtrMnda><MntTotOtrMnda>14490</MntTotOtrMnda>",
+    )
+    linea = certification_fill.lines_from_envelope(xml, "libro_ventas")[0]
+    # 14490 y no 308688: el documento ya dijo cuánto vale en pesos.
+    assert linea["total_amount"] == 14490
+
+
 def test_un_caso_con_otra_numeracion_se_respeta(db):
     customer = make_customer(db)
     _perfil(customer)

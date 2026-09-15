@@ -370,10 +370,33 @@ def _sales_line(doc) -> dict:
 
     otra = _hijo(doc, "OtraMoneda")
     if otra is not None and (_texto(otra, "TpoMoneda") or "").upper().startswith("PESO"):
-        linea["exempt_amount"] = _entero(_texto(otra, "MntExeOtrMnda"))
-        linea["net_amount"] = _entero(_texto(otra, "MntNetoOtrMnda"))
-        linea["vat_amount"] = _entero(_texto(otra, "IVAOtrMnda"))
-        linea["total_amount"] = _entero(_texto(otra, "MntTotOtrMnda"))
+        en_pesos = {
+            "exempt_amount": _entero(_texto(otra, "MntExeOtrMnda")),
+            "net_amount": _entero(_texto(otra, "MntNetoOtrMnda")),
+            "vat_amount": _entero(_texto(otra, "IVAOtrMnda")),
+            "total_amount": _entero(_texto(otra, "MntTotOtrMnda")),
+        }
+        if any(en_pesos.values()):
+            linea.update(en_pesos)
+        else:
+            # Con forma de pago S/PAGO (21) el SII EXIGE que los montos en otra
+            # moneda vayan en cero —es la regla HED-1-803—, así que ese cero no
+            # dice que el documento no valga nada: dice que ahí no se informa.
+            # Copiarlo al libro dejaba la línea en cero y el Servicio lo reportó:
+            # «Reparo en Detalle - Falta [MntTotal MntPeriodo] T:[110]-F:[10]».
+            # El libro va en pesos, así que se convierte con el tipo de cambio
+            # que el propio documento declara.
+            cambio = Decimal(_texto(otra, "TpoCambio") or 0)
+            if cambio > 0:
+                for campo, etiqueta in (
+                    ("exempt_amount", "MntExe"),
+                    ("net_amount", "MntNeto"),
+                    ("vat_amount", "IVA"),
+                    ("total_amount", "MntTotal"),
+                ):
+                    bruto = _texto(totales, etiqueta)
+                    if bruto:
+                        linea[campo] = _entero(str(Decimal(bruto) * cambio))
 
     # Comisiones de la liquidación: los totales, que están dentro de <Totales>.
     if totales is not None:
