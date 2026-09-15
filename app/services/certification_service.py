@@ -501,10 +501,15 @@ def progress(sets: list[dict]) -> dict:
     ``sets_total`` sale del **catálogo**, no de las filas: un envío que se dio de
     alta al vuelo sin clasificar se muestra, pero no infla el denominador. El
     trámite pide diez sets y el contador tiene que decir diez.
+
+    El set de boletas queda fuera: se emite y se envía como los demás, pero su
+    avance no se informa en el formulario «Declarar avance» de Mi SII, que tiene
+    exactamente diez filas. Contarlo diría "de 11" y no cuadraría con lo que el
+    operador está transcribiendo.
     """
     from app.services.certification_catalog import BY_KIND
 
-    del_tramite = [s for s in sets if s["kind"] in BY_KIND]
+    del_tramite = [s for s in sets if BY_KIND.get(s["kind"]) and BY_KIND[s["kind"]].declarable]
     return {
         "sets_total": len(del_tramite),
         "sets_declared": sum(1 for s in del_tramite if s["state"] == "declarado"),

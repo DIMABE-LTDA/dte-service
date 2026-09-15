@@ -1550,6 +1550,7 @@ export default function Certification() {
                               </option>
                               <option value="books">Libro de compras / ventas</option>
                               <option value="books/guides">Libro de guías</option>
+                              <option value="boletas">Set de boletas (39)</option>
                             </select>
                           </div>
                           <div className="field">

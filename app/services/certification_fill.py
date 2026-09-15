@@ -49,6 +49,10 @@ _CL = ZoneInfo("America/Santiago")
 DOC_ENDPOINTS = {"issue-batch", "issue-export-batch", "issue-settlement-batch"}
 #: Endpoints de libros.
 BOOK_ENDPOINTS = {"books", "books/guides"}
+#: El set de boletas. Va aparte porque su cuerpo lleva las boletas en
+#: ``receipts`` y no en ``documents``, y porque la boleta no tiene receptor: el
+#: comprador es anónimo.
+RECEIPT_ENDPOINTS = {"boletas"}
 
 #: Sets cuyos documentos van al Libro de Ventas. Es la composición del libro
 #: que el SII aceptó (LOK): facturas, exentas, exportación y liquidación con
@@ -117,6 +121,14 @@ def strip(endpoint: str, kind: str, payload: dict) -> dict:
                 doc["references"] = refs
             else:
                 doc.pop("references", None)
+    elif endpoint in RECEIPT_ENDPOINTS:
+        # Mismo criterio que los documentos: el emisor y la fecha los pone el
+        # sistema. La referencia al caso NO se quita — en boletas el SII numera
+        # los casos por su cuenta (CASO-1..5) y no por número de atención, así
+        # que es dato del caso y no algo deducible.
+        for boleta in salida.get("receipts", []):
+            boleta.pop("issuer", None)
+            boleta.pop("issue_date", None)
     elif endpoint in BOOK_ENDPOINTS:
         salida.pop("period", None)
         salida.pop("notification_folio", None)
@@ -197,6 +209,22 @@ def fill(db, customer, cert_set, endpoint: str, payload: dict, *, hoy=None) -> t
         faltan = customer_service.issuer_missing(customer)
         if faltan:
             notas.append("faltan datos del emisor en la ficha del cliente: " + ", ".join(faltan))
+    elif endpoint in RECEIPT_ENDPOINTS:
+        from app.services import customer_service
+
+        emisor = customer_service.issuer_block(customer)
+        for boleta in salida.get("receipts", []):
+            boleta["issuer"] = dict(emisor)
+            boleta["issue_date"] = hoy.isoformat()
+        faltan = customer_service.issuer_missing(customer)
+        if faltan:
+            notas.append("faltan datos del emisor en la ficha del cliente: " + ", ".join(faltan))
+        # El plazo es lo que hace caro equivocarse aquí, y no se ve en ningún
+        # otro sitio de la pantalla.
+        notas.append(
+            f"{len(salida.get('receipts', []))} boletas en un solo sobre. Al bajar el CAF"
+            " corren 24 horas para enviarlo junto con el reporte de consumo de folios."
+        )
     elif endpoint in BOOK_ENDPOINTS:
         salida["period"] = hoy.strftime("%Y-%m")
         if str(cert_set.code).isdigit():

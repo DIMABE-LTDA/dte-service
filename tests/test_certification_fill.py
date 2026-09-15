@@ -188,6 +188,44 @@ def test_un_bulto_con_contenedor_y_sello_no_avisa(db):
     assert not [n for n in notas if "bultos" in n]
 
 
+def test_el_set_de_boletas_recibe_emisor_y_fecha_como_los_demas(db):
+    """Las boletas van en `receipts`, no en `documents`.
+
+    Sin tratar esa forma aparte, el emisor y la fecha no se rellenaban y la
+    definición tenía que traerlos escritos — justo lo que el resto del
+    expediente evita, porque un emisor copiado a mano contradice la ficha.
+    """
+    customer = make_customer(db)
+    _perfil(customer)
+    s = _set(db, customer, "boletas", "")
+    definicion = {
+        "receipts": [
+            {
+                "type": 39,
+                "issuer": {"rut": "99999999-9"},  # de otro contribuyente
+                "issue_date": "2026-09-01",  # de otro día
+                "items": [{"name": "Arroz", "quantity": 5, "unit_price": 700, "unit": "Kg"}],
+                "references": [{"doc_type": "SET", "folio": "1", "reason": "CASO-5"}],
+            }
+        ]
+    }
+
+    guardada = certification_fill.strip("boletas", "boletas", definicion)
+    assert "issuer" not in guardada["receipts"][0]
+    assert "issue_date" not in guardada["receipts"][0]
+    # La referencia al caso SÍ se conserva: en boletas el SII numera los casos
+    # por su cuenta (CASO-1..5), no por número de atención, así que es dato.
+    assert guardada["receipts"][0]["references"][0]["reason"] == "CASO-5"
+
+    cuerpo, notas = certification_fill.fill(db, customer, s, "boletas", definicion, hoy=HOY)
+    boleta = cuerpo["receipts"][0]
+    assert boleta["issuer"]["rut"] == customer.rut
+    assert boleta["issue_date"] == "2026-09-10"
+    # El plazo de 24 horas es lo que hace caro equivocarse, y no se ve en
+    # ninguna otra parte de la pantalla.
+    assert any("24 horas" in n for n in notas)
+
+
 def test_un_caso_con_otra_numeracion_se_respeta(db):
     customer = make_customer(db)
     _perfil(customer)

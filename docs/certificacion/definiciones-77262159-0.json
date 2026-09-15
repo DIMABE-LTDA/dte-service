@@ -1071,7 +1071,7 @@
               "reason": "COMISIONES EN EL EXTERIOR"
             },
             {
-              "value": 1362.30,
+              "value": 1362.3,
               "kind": "D",
               "value_type": "$",
               "reason": "DESCUENTO LINEA 1 (5% CAJAS CIRUELAS)"
@@ -2035,17 +2035,6 @@
       "receipts": [
         {
           "type": 39,
-          "issue_date": "2026-09-01",
-          "issuer": {
-            "rut": "77262159-0",
-            "business_name": "CONSTRUCTORA DIMABE SPA",
-            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
-            "economic_activity": 439000,
-            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
-            "commune": "RANCAGUA",
-            "city": "RANCAGUA",
-            "branch_code": 4229993
-          },
           "items": [
             {
               "name": "Cambio de aceite",
@@ -2068,17 +2057,6 @@
         },
         {
           "type": 39,
-          "issue_date": "2026-09-01",
-          "issuer": {
-            "rut": "77262159-0",
-            "business_name": "CONSTRUCTORA DIMABE SPA",
-            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
-            "economic_activity": 439000,
-            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
-            "commune": "RANCAGUA",
-            "city": "RANCAGUA",
-            "branch_code": 4229993
-          },
           "items": [
             {
               "name": "Papel de regalo",
@@ -2096,17 +2074,6 @@
         },
         {
           "type": 39,
-          "issue_date": "2026-09-01",
-          "issuer": {
-            "rut": "77262159-0",
-            "business_name": "CONSTRUCTORA DIMABE SPA",
-            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
-            "economic_activity": 439000,
-            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
-            "commune": "RANCAGUA",
-            "city": "RANCAGUA",
-            "branch_code": 4229993
-          },
           "items": [
             {
               "name": "Sandwic",
@@ -2129,17 +2096,6 @@
         },
         {
           "type": 39,
-          "issue_date": "2026-09-01",
-          "issuer": {
-            "rut": "77262159-0",
-            "business_name": "CONSTRUCTORA DIMABE SPA",
-            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
-            "economic_activity": 439000,
-            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
-            "commune": "RANCAGUA",
-            "city": "RANCAGUA",
-            "branch_code": 4229993
-          },
           "items": [
             {
               "name": "item afecto 1",
@@ -2163,17 +2119,6 @@
         },
         {
           "type": 39,
-          "issue_date": "2026-09-01",
-          "issuer": {
-            "rut": "77262159-0",
-            "business_name": "CONSTRUCTORA DIMABE SPA",
-            "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
-            "economic_activity": 439000,
-            "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
-            "commune": "RANCAGUA",
-            "city": "RANCAGUA",
-            "branch_code": 4229993
-          },
           "items": [
             {
               "name": "Arroz",
@@ -2190,8 +2135,7 @@
             }
           ]
         }
-      ],
-      "validate_xsd": true
+      ]
     }
   }
 }

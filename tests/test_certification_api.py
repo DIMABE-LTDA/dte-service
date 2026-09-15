@@ -70,7 +70,11 @@ def test_expediente_vacio_muestra_los_sets_que_faltan(client, db):
     c = make_customer(db)
     body = client.get(_base(c.id), headers=_op(client, db)).json()
     assert body["unassigned"] == []
-    assert len(body["sets"]) == 10
+    # Once sets se trabajan, pero el avance cuenta diez: el de boletas se emite
+    # y se envía como los demás, y sin embargo NO va en el formulario «Declarar
+    # avance» de Mi SII, que tiene exactamente diez filas. Contarlo diría "de
+    # 11" y no cuadraría con lo que el operador está transcribiendo.
+    assert len(body["sets"]) == 11
     assert {s["state"] for s in body["sets"]} == {"sin_dar_de_alta"}
     assert body["progress"] == {
         "sets_total": 10,

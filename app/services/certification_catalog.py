@@ -19,6 +19,11 @@ class SetType(NamedTuple):
     label: str
     doc_types: tuple[int, ...]
     hint: str
+    #: False si el set NO va en el formulario «Declarar avance» de Mi SII. El
+    #: de boletas se emite y se envía como los demás, pero su avance no se
+    #: informa ahí: es el paso 2 del trámite y sus TrackID se comunican aparte.
+    #: Sin esta distinción el contador diría "de 11" y el formulario tiene 10.
+    declarable: bool = True
 
 
 # Los diez sets del trámite. El orden es el que conviene seguir: los documentos
@@ -86,6 +91,15 @@ SET_TYPES: tuple[SetType, ...] = (
         "Libro de ventas",
         (),
         "Se entrega como libro ESPECIAL con su número de atención, no MENSUAL.",
+    ),
+    SetType(
+        "boletas",
+        "Set de boletas",
+        (39,),
+        "Las cinco boletas en UN SOLO sobre, más el reporte de consumo de folios,"
+        " dentro de las 24 horas siguientes a bajar el CAF. No va en el formulario"
+        " de «Declarar avance»: sus TrackID se informan aparte.",
+        declarable=False,
     ),
 )
 
