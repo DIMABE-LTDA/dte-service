@@ -835,6 +835,29 @@ ol.steps-list li {
    traían el mismo párrafo tres veces. Y va sin color de urgencia a propósito —
    es instructivo, no un diagnóstico del envío; lo que sí urge se ve en la fila,
    que es donde está el conteo que lo justifica. */
+/* Historial de envíos de un set. Por omisión sólo se ve el vigente —el
+   último—: el set básico acumuló tres sobres y los dos primeros ocupaban dos
+   tercios de la tabla repitiendo un "0 de 8 aceptados" que ya no describe nada.
+   Se pliegan, no se esconden: el Libro de Ventas llevó trece intentos y ese
+   rastro es la evidencia de lo que se probó. */
+.historial-toggle {
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  gap: 0.4rem;
+}
+.historial-toggle:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+/* Un intento superado se lee como nota al pie, no como la situación de hoy. */
+tr.intento-viejo {
+  opacity: 0.55;
+}
+tr.intento-viejo:hover {
+  opacity: 1;
+}
+
 .guia-nota {
   margin-top: 0.8rem;
 }

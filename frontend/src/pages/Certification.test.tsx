@@ -383,6 +383,69 @@ describe("Expediente de certificación", () => {
     expect(filas[0]).toHaveTextContent("DNK");
   });
 
+  it("muestra sólo el envío vigente y pliega los intentos anteriores", async () => {
+    // El set básico acumuló tres sobres: dos caídos enteros y el bueno al
+    // final. Los dos primeros ocupaban dos tercios de la tabla repitiendo un
+    // "0 de 8 aceptados" que ya no describe la situación.
+    const envio = (id: number, track: string, accepted: number) => ({
+      ...set().submissions[0],
+      id,
+      track_id: track,
+      stats: [{ doc_type: 33, informed: 8, accepted, rejected: 8 - accepted, flagged: 0 }],
+    });
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            submissions: [
+              envio(10, "0258716370", 0),
+              envio(11, "0258720612", 0),
+              envio(12, "0258723732", 8),
+            ],
+          }),
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+
+    // Sólo el último, que es el que describe la situación de hoy.
+    expect(await screen.findByText("0258723732")).toBeInTheDocument();
+    expect(screen.queryByText("0258716370")).not.toBeInTheDocument();
+
+    // Pero no se pierden: se pliegan.
+    await user.click(screen.getByRole("button", { name: /2 intentos anteriores/ }));
+    expect(screen.getByText("0258716370")).toBeInTheDocument();
+    expect(screen.getByText("0258720612")).toBeInTheDocument();
+  });
+
+  it("si el último envío es el que falló, es el que se ve", async () => {
+    // El corte es "el último", no "los que fallaron": esconder los fallidos
+    // escondería justo el que hay que mirar.
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            state: "rechazado",
+            submissions: [
+              { ...set().submissions[0], id: 10, track_id: "0258716370" },
+              {
+                ...set().submissions[0],
+                id: 11,
+                track_id: "0258799999",
+                stats: [{ doc_type: 33, informed: 8, accepted: 0, rejected: 8, flagged: 0 }],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    expect(await screen.findByText("0258799999")).toBeInTheDocument();
+    expect(screen.getByText("0 de 8 aceptados")).toBeInTheDocument();
+  });
+
   it("no repite la guía del SII bajo cada envío", async () => {
     // El texto sale del catálogo del código, así que tres envíos con la misma
     // respuesta traían el MISMO párrafo tres veces, y con distinto color —

@@ -294,6 +294,9 @@ export default function Certification() {
   // vuelve a abrirse porque el expediente se recargue.
   const [tocado, setTocado] = useState(false);
   const [filtro, setFiltro] = useState("todos");
+  // Qué set muestra además sus intentos anteriores. Plegado por omisión: la
+  // historia importa, pero no es lo que se viene a mirar.
+  const [historial, setHistorial] = useState<number | null>(null);
   // Igual que el acordeón de los sets: hasta que el operador toca, manda el
   // estado del expediente; después manda él.
   const [prepAbierto, setPrepAbierto] = useState(false);
@@ -679,6 +682,10 @@ export default function Certification() {
             const est = ESTADO[s.state] ?? ESTADO.pendiente;
             const c = resumen(s);
             const abiertoEste = expandido === s.id;
+            // El vigente es el último: es el que define el estado del set y el
+            // único que describe la situación de hoy.
+            const vigente = s.submissions[s.submissions.length - 1];
+            const envios = historial === s.id ? s.submissions : s.submissions.slice(-1);
             return (
               <li key={s.id} className={abiertoEste ? "abierto" : undefined}>
                 <div className="set-fila">
@@ -783,6 +790,17 @@ export default function Certification() {
                       </details>
                     )}
 
+                    {/* Sólo el envío VIGENTE, que es el último. Los anteriores
+                        son historia: el set básico llegó a acumular tres sobres
+                        —dos caídos enteros y el bueno al final—, y los dos
+                        primeros ocupaban dos tercios de la tabla repitiendo un
+                        "0 de 8 aceptados" en rojo que ya no describe nada.
+
+                        El corte es "último" y no "los que fallaron": si el que
+                        falló es el último, es justo el que hay que ver. Y no se
+                        esconden — se pliegan: el Libro de Ventas llevó trece
+                        intentos y ese rastro es la evidencia de lo que se
+                        probó. */}
                     <div className="tabla-scroll">
                       <table>
                         <thead>
@@ -796,8 +814,8 @@ export default function Certification() {
                           </tr>
                         </thead>
                         <tbody>
-                          {s.submissions.map((e) => (
-                            <tr key={e.id}>
+                          {envios.map((e) => (
+                            <tr key={e.id} className={e === vigente ? undefined : "intento-viejo"}>
                               <td>
                                 {e.track_id ? (
                                   <span className="code">{e.track_id}</span>
@@ -928,18 +946,32 @@ export default function Certification() {
                       </table>
                     </div>
 
+                    {s.submissions.length > 1 && (
+                      <button
+                        className="btn-link historial-toggle"
+                        type="button"
+                        aria-expanded={historial === s.id}
+                        onClick={() => setHistorial(historial === s.id ? null : s.id)}
+                      >
+                        <span aria-hidden="true">{historial === s.id ? "▾" : "▸"}</span>
+                        {historial === s.id
+                          ? "Ocultar los intentos anteriores"
+                          : `Ver los ${s.submissions.length - 1} intentos anteriores`}
+                      </button>
+                    )}
+
                     {/* La guía del SII, una sola vez por código y no una por envío.
                     Es instructivo del catálogo —depende de la respuesta, no del
                     envío—, así que repetirlo bajo cada fila sólo alejaba la
                     tabla. Se abre sola cuando hay algo que corregir; el
                     instructivo de un envío correcto se queda plegado. */}
-                    {guias(s.submissions).length > 0 && (
-                      <details className="guia-nota" open={guias(s.submissions).some((c) => !c.ok)}>
+                    {guias(envios).length > 0 && (
+                      <details className="guia-nota" open={guias(envios).some((c) => !c.ok)}>
                         <summary>
                           <Icon name="info" />
                           Qué dice el SII de estas respuestas
                         </summary>
-                        {guias(s.submissions).map((c) => (
+                        {guias(envios).map((c) => (
                           <div className="guia-caja" key={c.label}>
                             <strong>{c.label}.</strong> {c.meaning}
                             {c.usually && (
