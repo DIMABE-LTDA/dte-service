@@ -154,19 +154,63 @@ Todo esto está ensayado en `tests/test_certification_rehearsal.py` y en la demo
 el sobre de boletas y su RCOF validan contra el XSD con sus firmas, y el RCOF
 reporta exactamente los folios y montos del sobre.
 
-Con reloj — **nada de esto antes de tener el resto listo**:
+#### Primer intento (16-09-2026): cinco boletas rechazadas por la firma
 
-- [ ] Descargar el CAF de **5 folios** del tipo 39. Empieza el plazo de 24 h.
-- [ ] Retirar el CAF 39 vigente (1-100) con `POST /admin/customers/1/cafs/{id}/retire`:
-      si no, el asignador sigue entregando folios del viejo.
-- [ ] Cargar el CAF nuevo en la ficha.
-- [ ] En el set de boletas: **Revisar y emitir** → validar el sobre → **Enviar**
-      (API REST) → **Consultar**.
-- [ ] En la fila del envío de boletas: **Generar RCOF** → **Enviar** (Maullín) →
-      **Consultar**.
+CAF 101-105, envío TrackID **32169745**: `EPR`, pero las cinco boletas `RCH:
+Firma DTE Incorrecta (Rechaza DTE)`. La firma del sobre, válida. El RCOF
+asociado (TrackID 0259031050) quedó «Aceptado con Reparos».
+
+**Causa:** el sobre de boletas salía con `<DTE version="1.0">`, **sin su
+`xmlns`**. lxml quita la declaración por redundante con la de `<EnvioBOLETA>`, y
+el SII corta cada `<DTE>` del texto y lo verifica suelto: sin namespace, otro
+digest. Era el mismo problema ya resuelto para el `EnvioDTE` en
+`envelope.serialize`, que el sobre de boletas no usaba.
+
+**Por qué no se vio antes:** `verify_signatures` trabaja sobre un árbol, y al
+aislar un `<DTE>` lxml le repone el namespace heredado aunque en el texto no
+esté. Con el archivo real enviado, el verificador nuevo
+`signer.verify_transmitted(xml)` —que corta los `<DTE>` de los bytes— da
+exactamente lo que respondió el SII: cinco firmas inválidas y la del sobre
+válida.
+
+**Arreglo (motor v0.4.22):** `receipt.serialize` usa `envelope.serialize`, y
+`verify_transmitted` se usa en el ensayo, en la comprobación previa y **antes de
+enviar**: un sobre cuyas firmas no verifican tal como se transmiten ya no sale.
+
+Implementaciones libres que pasaron la certificación advierten lo mismo: «no
+quitar el `xmlns` del `<DTE>` aunque parezca redundante»
+([devlas-cl/dte-sii](https://github.com/devlas-cl/dte-sii)).
+
+Los folios de un envío rechazado quedan gastados en el sistema: se pidió otro
+CAF de 5 (106-110), con lo que el plazo de 24 h corre de nuevo desde su descarga.
+
+#### Segundo intento
+
+- [x] CAF **106-110** descargado el 16-09-2026 19:13 (plazo: 17-09-2026 19:13),
+      guardado en `C:\desarrollo\caf\77262159-0-certificacion\` y cargado.
+- [x] Emitido (envío #43) y verificado antes de enviar: `xmlns` en cada `<DTE>`,
+      6/6 firmas como se transmiten, XSD, y los cinco casos igual que la hoja.
+- [x] Enviado por la API REST: TrackID **32169796**.
+- [ ] **Consultar** → **Generar RCOF** → **Enviar** (Maullín) → **Consultar**.
 - [ ] Solicitar la revisión con el TrackID de las boletas en
       https://www4.sii.cl/certBolElectDteInternet/?SET=2
-- [x] Sitio de consulta publicado: `boletas.dimabe.cl` responde.
+
+#### Sitio de consulta (`boletas.dimabe.cl`)
+
+- [x] Publicado. Hasta el 16-09 la lista de empresas respondía **500**: JOIN +
+      DISTINCT sobre `Customer`, que tiene columnas JSON que PostgreSQL no sabe
+      comparar (SQLite, el de los tests, sí). Ahora es un EXISTS, con prueba.
+- [x] La consulta por folio + fecha + monto devuelve la boleta con lo mínimo de
+      la Res. Ex. N°74 letra G: «Boleta Electrónica», folio, fecha, datos del
+      emisor, IVA, total, timbre PDF417, «Timbre Electrónico SII» y «Verifique
+      en www.sii.cl». Desde el motor v0.4.23 la referencia se lee «Ref: SET —
+      CASO-1» y no se imprime un receptor vacío.
+- [ ] **`DTE_RECEIPT_VERIFICATION_URL=boletas.dimabe.cl` en Dokploy**: sin ella
+      el impreso no muestra «Consulte su boleta en: boletas.dimabe.cl», que es
+      justo lo que pide el correo.
+- [ ] El recuadro dice «S.I.I. — SANTIAGO» para todos los clientes: la ficha no
+      guarda la unidad del SII (para esta empresa, Rancagua). La letra G no la
+      exige en la boleta, pero sí hará falta en las muestras de impresión (paso 5).
 
 ### Paso 3 — Simulación
 
