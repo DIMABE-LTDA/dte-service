@@ -1335,7 +1335,7 @@
           },
           "lines": [
             {
-              "liquidated_type": "33",
+              "liquidated_type": "99",
               "name": "NETO ANTICIPO FACTURACION",
               "amount": 550000,
               "quantity": 78,
