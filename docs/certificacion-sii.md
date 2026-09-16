@@ -3,32 +3,56 @@
 Estado y plan de la certificación como emisor de documentos tributarios
 electrónicos. **Actualizar este archivo al avanzar**: es el punto de retome.
 
-Última actualización: **2026-09-14**
+Última actualización: **2026-09-16**
 
 ---
 
 ## 1. Dónde estamos
 
 Todo el trámite se hace ya **desde el portal**, no con scripts. El expediente
-vive en `/customers/9/certification`, con su verificación previa, la emisión y
+vive en `/customers/1/certification`, con su verificación previa, la emisión y
 el envío.
 
-Los envíos de agosto quedaron **obsoletos**: los 32 documentos de aquella tanda
-fueron rechazados, aunque el sobre volviera `EPR`. Lo que sigue es la tanda de
-hoy, con el motor ya corregido (§4).
+**6 de 10 sets aprobados.** Estado según «Ver Avance de la Postulación»
+(`/cvc_cgi/dte/pe_avance5` en Maullín), que es la única fuente que vale:
 
-| Set | N° atención | TrackID | Resultado |
-|-----|-------------|---------|-----------|
-| Set básico | 5038170 | `0258723732` | **8 de 8 aceptados** |
-| Documentos de exportación (1) | 5038176 | `0258731398` | 1 aceptado, 2 con reparo → corregido, falta reenviar |
-| Caso general factura de compra | 5038180 | `0258732820` | 3 con reparo → corregido, falta reenviar |
-| Guía de despacho | 5038173 | — | por enviar |
-| Factura exenta | 5038175 | — | por enviar |
-| Documentos de exportación (2) | 5038177 | `0258738264` | 2 aceptados, 1 con reparo (folio 8) → corregido, falta reenviar |
-| Liquidación factura | 5038178 | — | por enviar |
-| Libro de ventas | 5038171 | — | al final: se arma con los documentos aceptados |
-| Libro de compras | 5038172 | — | al final |
-| Libro de guías | 5038174 | — | al final |
+| Set | N° atención | Estado en el portal | Qué falta |
+|-----|-------------|---------------------|-----------|
+| Set básico | 5038170 | Revisado conforme | — |
+| Guía de despacho | 5038173 | Revisado conforme | — |
+| Factura exenta | 5038175 | Revisado conforme | — |
+| Documentos de exportación (1) | 5038176 | Revisado conforme | — |
+| Caso general factura de compra | 5038180 | Revisado conforme | — |
+| Liquidación factura | 5038178 | `SOK` por correo | declarar |
+| Documentos de exportación (2) | 5038177 | Contenido no corresponde | ver «Exportación (2)» en §4 |
+| Libro de compras | 5038172 | Contenido no corresponde | arreglado; falta `CodAutRec` (§3) |
+| Libro de guías | 5038174 | Contenido no corresponde | arreglado; falta `CodAutRec` (§3) |
+| Libro de ventas | 5038171 | Contenido no corresponde | reconstruir al final |
+
+### Los dos portones, que son distintos
+
+Es **la** distinción que más tiempo costó entender, y explica por qué un envío
+«aceptado» seguía sin avanzar el trámite:
+
+1. **Validación del sobre** — automática, en minutos. Mira estructura, firma y
+   folios. Devuelve `EPR`/`LOK` si pasa, o `LRH`/`LNC`/`LRS`/`RCH` si no.
+   Llega con el asunto *Resultado de Validacion de Envio de DTE*.
+2. **Revisión del set** — contrasta el **contenido** contra el enunciado del
+   caso. Devuelve `SOK` o `SRH`, y llega como `SETMAIL000<número de atención>`,
+   *Resultado de Revision del Set de Prueba*.
+
+Un sobre puede pasar el primero con todos sus documentos aceptados y reprobar el
+segundo. **`EPR` no significa que el set esté bien.**
+
+La **declaración del avance** es un tercer paso, administrativo: en
+`/cvc_cgi/dte/pe_avance1` se informa qué N° de envío vale para cada set, y eso es
+lo que mueve el portal a «Revisado conforme». El formulario deja llenar **una
+sola fila** y dejar el resto vacías, y conviene hacerlo así: la respuesta del SII
+queda atribuible a un único cambio.
+
+> El propio formulario advierte que el envío declarado «no debe contener
+> Documentos con Reparos o Rechazos». Declarar un envío objetado no sirve de
+> nada.
 
 **`EPR` describe al sobre, no a su contenido.** Un sobre procesado puede traer
 todos sus documentos rechazados dentro. El portal ya lo distingue: pinta rojo si
@@ -37,6 +61,14 @@ no hay ninguno aceptado y ámbar si hay reparos.
 **Un documento «aceptado con reparo» está aceptado.** El SII lo registra y anota
 una observación; los rechazados van en su propia columna. Cuenta para el Libro
 de Ventas.
+
+### El método que funciona
+
+Un cambio → emitir → validar el sobre en local → enviar → esperar el `EPR` →
+declarar **sólo ese set** → esperar el `SETMAIL`. Así cada respuesta del Servicio
+es atribuible a un solo cambio. Mezclar varios envíos fue lo que hizo perder dos
+días: no se sabía qué había arreglado qué, ni si un reparo nuevo era consecuencia
+del arreglo anterior.
 
 ### Cómo saber por qué el SII objetó algo
 
@@ -73,7 +105,7 @@ horas** para enviar el set completo en **un solo envío**.
 - [ ] Pedir el CAF de **5 folios** del tipo 39 — *sólo cuando todo lo demás
       esté listo*
 - [ ] Retirar el CAF vigente 1-100 con
-      `POST /admin/customers/9/cafs/{id}/retire` (si no, el asignador sigue
+      `POST /admin/customers/1/cafs/{id}/retire` (si no, el asignador sigue
       entregando folios del viejo y nunca usa el nuevo)
 - [ ] Cargar el CAF nuevo y correr `set_boletas.py`
 - [ ] Enviar el RCOF (reporte de consumo de folios) del día
@@ -117,6 +149,25 @@ verificación lo avisa, en vez de armar un libro que declara folios inexistentes
 
 Los envíos de libros de agosto (`0257259954`, `0257260578`, `0257264862`)
 quedaron obsoletos: declaraban documentos de la tanda rechazada.
+
+### Un libro recibido no se reenvía: se rectifica
+
+Aquí se perdió medio día. Una vez que el SII **recibe** un libro para un período
+y tipo, reenviarlo devuelve `LNC` y punto. No hay forma de insistir.
+
+El reemplazo existe y está en el formato IECV (carátula, campos 7 y 11):
+
+- `<TipoLibro>` = **`RECTIFICA`** — «Corresponde a un libro que reemplaza a uno
+  ya recibido por el SII, requiere un Código de Autorización de Reemplazo de
+  Libro Electrónico en la etiqueta `<CodAutRec>`».
+- `<CodAutRec>` — «Código de Autorización de Reemplazo de Libro Electrónico,
+  **obtenido por un Representante Legal de la empresa**, para permitir el
+  reemplazo de un libro recibido OK por SII para un período y tipo de libro
+  específico».
+
+No se genera: **lo pide el representante legal al SII**, por libro y período. Es
+una gestión con plazo propio, así que conviene pedirlo apenas se sepa que un
+libro necesita corrección, sin esperar a tener el arreglo listo.
 
 ### Composición del libro
 
@@ -187,11 +238,98 @@ digest sobre el `<Documento>` serializado por separado.
 | Problema | Causa | Dónde |
 |---|---|---|
 | Envíos rechazados (`RFR`) | El RUT que firma no tenía permiso de **envío** en la empresa. El SII lo reporta como error de firma | Mi SII (§5) |
-| Libro descuadrado (`LRH`) | Campos cruzados entre libros: `TotOpIVARec` es (LC) y se emitía en ventas; `IVARetTotal` es (LV) y se emitía en compras | `book.py` |
+| Libro descuadrado (`LRH`) | Campos cruzados entre libros: `TotOpIVARec` es (LC) y se emitía en ventas; `IVARetTotal` es (LV) y se emitía en compras. *Se «corrigió» de vuelta en septiembre y volvió a romper: ver la tanda del 16* | `book.py` |
 | Carátula inválida (`LRC`) | El IECV se enviaba siempre como `MENSUAL`. El set se entrega como **ESPECIAL** con su número de atención | `book.py`, API |
 | Línea de liquidación que no cierra | Faltaban las comisiones, que se descuentan del total. Van dentro de `<Liquidaciones>` | `book.py` |
 | Libro mal formado llegaba al SII | Los libros no se validaban contra el XSD antes de enviarse | `book_service.py` |
 | Consulta de estado imposible | `getEstUp` mandaba `Rut`/`Dv`; el WSDL declara `RutCompania`/`DvCompania` | `sii_client.py` |
+
+### La tanda del 16 de septiembre
+
+Cuatro errores de **contenido**, todos con su respuesta en documentación oficial
+que estaba enlazada en el portal y que no habíamos leído. Ninguno era de firma ni
+de esquema: los cuatro sobres pasaron el primer portón sin problema.
+
+| Reparo del SII | Causa | Arreglo |
+|---|---|---|
+| `Los Valores de la Linea 1 del Detalle No Cuadran` (set 5038178) | La línea «NETO ANTICIPO FACTURACION» iba con `TpoDocLiq` 33. Un anticipo **no es** una factura electrónica: no hay documento que liquidar | `TpoDocLiq` = **99**. El formato lo dice: «código de documento válido (electrónico o manual) **o 99 en caso de anticipo u otras transacciones**». Verificado: `SOK` |
+| `Resumen Doc 46 — No Informa Adecuadamente IVA Retenido Total` (set 5038172) | Se declaraba la retención con `<IVARetTotal>`, que el formato IECV define **sólo en el libro de VENTAS** (§2.4). El detalle de COMPRAS (§3.4) ni lo lista | `<OtrosImp>` con `CodImp` 15, `TasaImp` 19 y `MntImp` = retenido; en el resumen, `<TotOtrosImp>`. Motor v0.4.18 |
+| `El Monto de Guias Modificadas No Cuadra` (set 5038174) | Se marcó con `MntModificado` la guía facturada. El formato del Libro de Guías reserva ese campo para `ANULADO/MODIFICADO=3`, que es **recepción parcial** | Quitado. Que una guía se facturó ya lo dice su tipo de operación (el 1 es «facturado o se facturará posteriormente») |
+| `No Tiene un SET GUia de Despacho Aprobado` (set 5038174, primer intento) | No era de contenido: el libro de guías **no se puede aprobar** antes que el set de guías que lo alimenta | Orden de envío, no código |
+
+#### El total de la factura de compra en el libro de compras
+
+Costó tres vueltas, incluida una en que llegué al resultado correcto por el
+argumento equivocado. La regla está en el formato IECV §3.4, campo 25, y es del
+libro de compras:
+
+> «Monto Neto + Monto Exento + IVA recuperable + IVA Uso común + IVA no
+> recuperable + … **− IVA Retenido parcial y total** − …»
+
+Es decir, con retención total el `MntTotal` **es el neto**: el comprador retiene
+el IVA, no se lo paga al proveedor. El `MntIVA` sí se informa completo.
+
+Cuidado con el ejemplo del SII en *Ejemplos de Registro de Documentos en la
+IECV*, que muestra exactamente este caso (neto 75.000 / IVA 14.250 / total
+75.000): está en la sección **«II. … Información Electrónica de VENTAS»** y dice
+«deberá registrarla en el **libro de ventas**». Es la contraparte —quien recibe
+la factura de compra—, no nuestro caso. Aplicarlo al libro de compras es
+razonar sobre el libro equivocado aunque el número final coincida.
+
+### Exportación (2): el diff contra la hoja del set *(pendiente)*
+
+Los tres casos del set 5038177 traen `Los Datos de la Linea 1 del Detalle No
+Cuadran con lo Especificado`. Comparando el sobre `0258981808` contra
+`SIISetDePruebas772621590.txt`, línea por línea:
+
+| Caso | La hoja dice | Enviamos | Falta |
+|---|---|---|---|
+| 1 | `VALOR LINEA 14` + «%10 RECARGO EN LA LINEA DE ITEM» | `MontoItem 15.4`, `RecargoPct 10`, sin cantidad ni precio | `RecargoMonto` (el formato: «si va el recargo en %, debe ir el monto correspondiente») y probablemente `QtyItem`/`PrcItem` |
+| 2 | línea 1: `239 KN × 114`, «DESCUENTO LINEA # 1: 5%» | `MontoItem 27246` = 239×114, `DescuentoPct 5`, sin `DescuentoMonto` | `DescuentoMonto` 1362,30 y `MontoItem` 25.883,70. Es también la causa de «Los Valores del Encabezado No Cuadran» |
+| 3 | `VALOR LINEA 42`, `NACIONALIDAD: ALEMANIA`, **sin línea de REFERENCIA** | `MontoItem 42`, una sola referencia (la del SET) | la 2ª referencia y probablemente `QtyItem`/`PrcItem` |
+
+La fórmula que el Servicio aplica está en el formato DTE, campo 38:
+**`MontoItem = (Precio Unitario × Cantidad) − Monto Descuento + Monto Recargo`**.
+
+La línea 2 del caso 2 —con cantidad y precio y **sin** descuento— es la única que
+**no** fue objetada. Eso apunta a que las líneas objetadas lo son por faltarles
+cantidad y precio, o por declarar un porcentaje sin su monto.
+
+Lo del caso 3 es el único punto donde hay que poner un dato que la hoja no da: el
+SII exige 2 líneas de referencia y para hotelería la segunda es el **pasaporte**
+(`TpoDocRef` **813**), según la FAQ oficial de factura de exportación. El número
+no está en el enunciado.
+
+### La documentación del SII que hay que leer (y dónde está)
+
+Casi todo lo de arriba estaba escrito. El error de método fue corregir por
+inferencia en vez de buscar la fuente.
+
+| Documento | Para qué sirve | URL |
+|---|---|---|
+| Instrucciones del set de pruebas | Reglas de construcción de **todos** los casos | https://www.sii.cl/factura_electronica/inst_set_pruebas.pdf |
+| Formato IECV | Libros de compras y ventas, campo por campo y **por libro** | https://www.sii.cl/factura_electronica/factura_mercado/formato_iecv.pdf |
+| Formato del Libro de Guías | Libro de guías | https://www.sii.cl/factura_electronica/formato_lgd.pdf |
+| Ejemplos de registro en la IECV | Casos especiales con el XML literal | https://www.sii.cl/factura_electronica/casos_especiales_registro_documentos.pdf |
+| Nuevas validaciones a la IECV | Las validaciones numeradas que el SII aplica a los libros | https://www.sii.cl/factura_electronica/compra_venta.pdf |
+| Formato DTE | Todos los DTE, exportación incluida | https://www.sii.cl/factura_electronica/factura_mercado/formato_dte_202602.pdf |
+
+Tres cosas del instructivo del set que valen por sí solas:
+
+- **«En la glosa del ítem debe anotar exactamente lo indicado en el caso; debe
+  incluir acentos, ñ u otros que se indiquen.»** Normalizar el texto costó siete
+  rechazos.
+- **«Las líneas de detalle deben ir en el orden especificado.»**
+- **«En la primera línea de referencia … "SET" y "CASO xxxxx-x". Las otras
+  referencias que sea preciso agregar … deben ir a partir de la línea 2.»** De
+  ahí sale el reparo «El Documento Debe Tener N Linea(s) de Referencia».
+
+Y una advertencia sobre el XSD: sus anotaciones `(LC)`/`(LV)` **no son fiables
+por sí solas** para decidir en qué libro va un campo. `IVARetTotal` está anotado
+`(LV)` y eso resultó correcto, pero la validación 31 del SII lo admite «en
+liquidaciones, liquidaciones factura, facturas de compra, notas de crédito y
+notas de débito», lo que parecía autorizarlo en compras. Quien manda es la tabla
+de campos del formato, que es **distinta para cada libro**.
 
 ### La regla que resume todo
 
@@ -220,7 +358,7 @@ y lo informa como error de firma. Costó 10 envíos rechazados descubrirlo.
 
 ## 6. Herramientas del portal
 
-Todo el trámite se opera desde `/customers/9/certification`.
+Todo el trámite se opera desde `/customers/1/certification`.
 
 | Para qué | Dónde |
 |---|---|
@@ -232,6 +370,26 @@ Todo el trámite se opera desde `/customers/9/certification`.
 | Motivo de un reparo | **Ver cada documento**, y sobre todo el correo del SII (§1) |
 | Impresos con copias cedibles | `POST /dte/print` |
 | Conciliar SII contra el ERP | `POST /rcv/reconcile` (en certificación el RCV viene vacío) |
+| Cambiar qué emite un set | **Editar definición** en el set. Ojo: **las definiciones viven en la base de datos**, no en el JSON del repo. Cambiar `docs/certificacion/definiciones-…json` no cambia lo que se emite hasta que se reimporta |
+
+### En el portal del SII: la opción que no hay que tocar
+
+En `https://maullin.sii.cl/cvc/dte/postulacion.html` está **«Generación de Nuevo
+Set de Pruebas»**, y su propio texto advierte: «al ejecutar esta operación
+**vuelve al estado inicial**». Borraría los sets ya aprobados. La hoja del set ya
+está descargada (§7); no hay motivo para volver a pedirla.
+
+Las otras opciones del mismo menú, todas útiles:
+
+| Opción | URL |
+|---|---|
+| Declarar Avance de la Postulación | `/cvc_cgi/dte/pe_avance1` |
+| Ver Avance de la Postulación | `/cvc_cgi/dte/pe_avance5` |
+| Documentación para Contribuyentes Postulantes | `/cvc_cgi/dte/ce_documentos` |
+| Declaración de Cumplimiento de Requisitos | `/cvc_cgi/dte/pe_avance7` |
+
+Todas piden autenticación **con certificado digital**; la sesión caduca sola y
+hay que rehacerla desde `postulacion.html`.
 
 ---
 
@@ -243,11 +401,11 @@ Todo el trámite se opera desde `/customers/9/certification`.
 | Plantilla de los 10 sets | `app/services/certification_template.py` |
 | Lo que el sistema completa al emitir | `app/services/certification_fill.py` |
 | Verificación previa | `app/services/certification_checks.py` |
-| Set de pruebas del SII | `SIISetDePruebas772621590.txt` (Descargas). **Es la fuente de los montos**: dice qué ítems y cantidades lleva cada caso, y cuándo un documento hereda los de otro |
+| **Hoja del set de pruebas** | `C:\Users\leonardo.norambuena\Downloads\SIISetDePruebas772621590.txt`. **Es la fuente de la verdad**: cuando el SII dice «no cuadra con **lo especificado**», se refiere a este archivo. Trae, caso por caso, la glosa exacta del ítem (con acentos), cantidad, precio unitario, descuentos y recargos, qué referencias lleva y las instrucciones al contribuyente. Se obtiene del portal de postulación, opción *Generación de Nuevo Set de Pruebas* — **pero esa opción reinicia el trámite** (ver §6), así que conviene guardar este archivo y no volver a pedirlo |
 | CAF y certificado | `C:\desarrollo\caf\` (fuera de todo repo) |
 | Manual del ambiente | https://www.sii.cl/servicios_online/docs/manual_certificacion.pdf |
 | Mantención de usuarios en Maullín | https://maullin.sii.cl/cvc_cgi/dte/eu_enrola_usuarios |
 
-Cliente en el servicio: **id 9**, RUT 77262159-0, ambiente `CERTIFICATION`, los
+Cliente en el servicio: **id 1**, RUT 77262159-0, ambiente `CERTIFICATION`, los
 11 CAF (rangos 1-50, el 39 hasta 100) y el certificado de **12291733-9**, que
 tiene los seis atributos en Maullín y vence el 2029-08-18.
