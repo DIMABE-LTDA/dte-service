@@ -216,11 +216,14 @@ certificada —Odoo está en el disco—.
 - [x] Envío #45 verificado (firmas, timbres, XSD, `RSR` = «Consumidor Final») y
       enviado: TrackID **32169835** → `EPR` **sin rechazos ni reparos**.
 - [x] RCOF #46 (folios 116-120, SecEnvio 2, total $54.160) por Maullín: TrackID
-      **0259039476** → «Aceptado con Reparos», igual que el primero. El detalle
-      llega sólo por correo: **pendiente leerlo** antes de pedir la revisión.
-- [ ] Solicitar la revisión con el TrackID **32169835** en
-      https://www4.sii.cl/certBolElectDteInternet/?SET=2 (la hace el «Usuario
-      Administrador» de la empresa).
+      **0259039476** → «Aceptado con Reparos». El correo dice que el único reparo
+      es informativo: **«250 — Envío de RVD no es obligatorio desde agosto
+      2022»**, 0 errores. Es esperable: la certificación pide el RCOF igual. El
+      reparo del primer RCOF era, con toda probabilidad, el mismo.
+- [x] Revisión solicitada el 16-09-2026 20:42 con el TrackID **32169835** en
+      https://www4.sii.cl/certBolElectDteInternet/?SET=2 → «Recepción conforme.
+      Se le enviará un correo con el resultado de la validación.»
+- [ ] Esperar el correo con el resultado (V°B°).
 
 Nota de Odoo (`l10n_cl_edi_boletas/models/l10n_cl_edi_util.py`): si la API
 responde `detalle_rep_rech` = `null`, el envío **sigue en proceso** aunque el
