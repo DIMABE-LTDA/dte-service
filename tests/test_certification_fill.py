@@ -289,6 +289,56 @@ def test_una_exportacion_pagada_usa_los_pesos_que_declara():
     assert linea["total_amount"] == 14490
 
 
+_GUIAS = (
+    b'<?xml version="1.0" encoding="ISO-8859-1"?>'
+    b'<EnvioDTE xmlns="http://www.sii.cl/SiiDte" version="1.0"><SetDTE ID="S">'
+    + b"".join(
+        b"<DTE><Documento><Encabezado>"
+        b"<IdDoc><TipoDTE>52</TipoDTE><Folio>" + str(f).encode() + b"</Folio>"
+        b"<FchEmis>2026-09-14</FchEmis><IndTraslado>1</IndTraslado></IdDoc>"
+        b"<Receptor><RUTRecep>76008900-1</RUTRecep><RznSocRecep>CLIENTE</RznSocRecep></Receptor>"
+        b"<Totales><MntNeto>" + str(n).encode() + b"</MntNeto><IVA>" + str(i).encode() + b"</IVA>"
+        b"<MntTotal>" + str(n + i).encode() + b"</MntTotal></Totales>"
+        b"</Encabezado></Documento></DTE>"
+        for f, n, i in ((1, 0, 0), (2, 2586065, 491352), (3, 1930610, 366816))
+    )
+    + b"</SetDTE></EnvioDTE>"
+)
+
+
+def test_el_libro_de_guias_marca_la_facturada_y_la_anulada():
+    """Lo exige el instructivo del set 5038174, literal:
+
+    «EL CASO 2 CORRESPONDE A UNA GUIA QUE SE FACTURO EN EL PERIODO» y «EL CASO 3
+    CORRESPONDE A UNA GUIA ANULADA».
+
+    No sale del sobre de guías —las tres se emitieron iguales y el SII las
+    aceptó—, sino del enunciado del caso. Sin esto el libro las declaraba como
+    tres guías de venta normales, con el monto de la anulada sumando al total
+    del período. No se vio antes porque el SII rechazaba este libro por cascada
+    («No Tiene un SET GUia de Despacho Aprobado») y nunca llegaba a mirar su
+    contenido.
+    """
+    lineas = certification_fill.lines_from_envelope(_GUIAS, "libro_guias")
+
+    assert [x["folio"] for x in lineas] == [1, 2, 3]
+    # La primera no lleva nada: es el traslado interno, sin venta.
+    assert "voided" not in lineas[0] and "modified_amount" not in lineas[0]
+    # La segunda, facturada en el período: su monto pasa a «modificado».
+    assert lineas[1]["modified_amount"] == 3077417
+    assert "voided" not in lineas[1]
+    # La tercera, anulada después de enviarla: no aporta monto al período.
+    assert lineas[2]["voided"] == 2
+    assert lineas[2]["total_amount"] == 0
+    assert lineas[2]["net_amount"] == 0 and lineas[2]["vat_amount"] == 0
+
+
+def test_el_libro_de_ventas_no_se_ve_afectado_por_los_casos_de_guias():
+    """El mapa de casos es del libro de GUÍAS: no puede tocar el de ventas."""
+    lineas = certification_fill.lines_from_envelope(_GUIAS, "libro_ventas")
+    assert all("voided" not in x and "modified_amount" not in x for x in lineas)
+
+
 def test_un_caso_con_otra_numeracion_se_respeta(db):
     customer = make_customer(db)
     _perfil(customer)

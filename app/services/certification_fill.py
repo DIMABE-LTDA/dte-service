@@ -62,6 +62,22 @@ SALES_SETS = ("basico", "exenta", "exportacion_1", "exportacion_2", "liquidacion
 #: Set cuyos documentos van al Libro de Guías.
 GUIDE_SETS = ("guias",)
 
+#: Qué le pasó a cada guía del set, por su posición en el sobre (1 = la primera).
+#:
+#: El instructivo del SII lo pide explícitamente para el set 5038174: «EL CASO 2
+#: CORRESPONDE A UNA GUIA QUE SE FACTURO EN EL PERIODO» y «EL CASO 3 CORRESPONDE
+#: A UNA GUIA ANULADA». No sale del sobre de guías —esas tres se emitieron
+#: iguales y el SII las aceptó— sino del enunciado del caso, así que hay que
+#: ponerlo aquí: es lo único del libro de guías que no se deduce de los
+#: documentos.
+#:
+#: Sin esto el libro declaraba las tres como guías de venta normales, con el
+#: monto de la anulada sumando al total del período.
+GUIDE_BOOK_CASES: dict[int, dict] = {
+    2: {"invoiced": True},
+    3: {"voided": 2},  # anulada DESPUÉS de enviarla al SII: suma en TotGuiaAnulada
+}
+
 #: Libros cuyas líneas se generan; el de compras es dato del caso (sus
 #: documentos los entrega el SII en el propio set).
 GENERATED_BOOKS = {"libro_ventas": SALES_SETS, "libro_guias": GUIDE_SETS}
@@ -437,9 +453,30 @@ def _guide_line(doc) -> dict:
 
 
 def lines_from_envelope(xml: bytes, kind: str) -> list[dict]:
-    """Las líneas de un libro a partir de un sobre ya emitido."""
-    hacer = _guide_line if kind == "libro_guias" else _sales_line
-    return [hacer(d) for d in _documentos(xml)]
+    """Las líneas de un libro a partir de un sobre ya emitido.
+
+    En el Libro de Guías se aplica además lo que el caso dice de cada guía
+    —cuál se facturó y cuál se anuló—, que no está en el sobre: las tres se
+    emitieron iguales y el SII las aceptó. Ver ``GUIDE_BOOK_CASES``.
+    """
+    if kind != "libro_guias":
+        return [_sales_line(d) for d in _documentos(xml)]
+    lineas = []
+    for posicion, doc in enumerate(_documentos(xml), start=1):
+        linea = _guide_line(doc)
+        caso = GUIDE_BOOK_CASES.get(posicion, {})
+        if caso.get("voided"):
+            linea["voided"] = caso["voided"]
+            # Una guía anulada no aporta monto al período: el SII la cuenta
+            # aparte, en TotGuiaAnulada, y sumarla descuadraría el resumen.
+            linea["net_amount"] = linea["vat_amount"] = linea["total_amount"] = 0
+        elif caso.get("invoiced"):
+            # Guía facturada en el período: su monto pasa a «modificado», que es
+            # como el Servicio distingue lo que ya viajó en una factura de lo
+            # que sigue pendiente de facturar.
+            linea["modified_amount"] = linea["total_amount"]
+        lineas.append(linea)
+    return lineas
 
 
 def book_lines(db, customer, kind: str) -> tuple[list[dict], list[str]]:
