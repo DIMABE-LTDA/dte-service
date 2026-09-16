@@ -1,0 +1,3 @@
+# Archivos tal como los entrega el SII: ISO-8859-1 y fin de línea CRLF.
+# Sin esto git los convierte y el test deja de leer lo que lee un cliente.
+*.txt -text

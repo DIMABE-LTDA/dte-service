@@ -90,6 +90,24 @@ Dos caminos, y conviene conocer los dos:
 > consulta** no coinciden con lo registrado, no que el documento tenga un
 > problema. Engaña.
 
+### Certificar un contribuyente nuevo
+
+Todo lo de este documento costó descubrirlo; para el siguiente ya está resuelto.
+El set de pruebas **no se transcribe**:
+
+1. Datos del emisor, resolución, certificado y CAF en la ficha del cliente, y los
+   receptores de prueba en el expediente.
+2. En el expediente, **«Cargar los sets del contribuyente»**: subir los archivos
+   que entregó el SII, el set de pruebas y el de boletas. El sistema los lee,
+   muestra qué cargará y las indicaciones del SII que no interpreta, y lo guarda.
+3. **«Verificación antes de emitir»**: tiene que quedar sin errores.
+4. Set por set: emitir, enviar, esperar el `EPR`, declarar ese set solo, esperar
+   el `SETMAIL`. Los libros al final.
+
+Lo que protege que esto funcione está en `docs/certificacion/README.md`: un test
+que emite los once sets desde la hoja de Dimabe y exige el mismo contenido que el
+SII aprobó.
+
 ---
 
 ## 2. Plan

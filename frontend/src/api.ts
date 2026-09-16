@@ -23,6 +23,8 @@ import type {
   CertReceiver,
   CertReadiness,
   CertSet,
+  CertSheet,
+  CertSheetFile,
   CertSubmission,
   CertTemplateSet,
   Token,
@@ -157,6 +159,11 @@ export const api = {
     }),
   certImport: (cid: number, sets: Record<string, unknown>) =>
     req<CertDossier>(`/admin/customers/${cid}/certification/import`, body({ sets })),
+  certSheet: (cid: number, files: CertSheetFile[], dryRun: boolean) =>
+    req<CertSheet>(
+      `/admin/customers/${cid}/certification/sheet`,
+      body({ files, dry_run: dryRun }),
+    ),
   certTemplate: (cid: number) =>
     req<CertTemplateSet[]>(`/admin/customers/${cid}/certification/template`),
   certCreateFromTemplate: (cid: number, codes: Record<string, string>) =>

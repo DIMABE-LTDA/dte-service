@@ -1,0 +1,51 @@
+{
+  "_nota": "Configuración de CONSTRUCTORA DIMABE SPA en producción el 16-09-2026, cuando sacó los diez sets en SOK. Los receptores son clientes reales de la empresa, como pide el instructivo; de su orden depende qué receptor lleva cada documento.",
+  "name": "Constructora Dimabe SPA",
+  "rut": "77262159-0",
+  "resolution_number": 0,
+  "resolution_date": "2026-08-26",
+  "signer_rut": "12291733-9",
+  "issuer": {
+    "legal_name": "CONSTRUCTORA DIMABE SPA",
+    "activity": "OTRAS ACTIVIDADES ESPECIALIZADAS DE CONSTRUCCION",
+    "economic_activity": 439000,
+    "address": "MONS. FDO. DE BARRIONUEVO #1540 MARIA FERNANDA",
+    "commune": "RANCAGUA",
+    "city": "RANCAGUA",
+    "branch_code": 4229993
+  },
+  "receivers": [
+    {
+      "rut": "76008900-1",
+      "business_name": "AGROINDUSTRIAL Y COMERCIAL SUPERFRUIT LIMITADA",
+      "activity": "Deshidratadora y Elaboradora de Frutos y",
+      "address": "Sector La Isla S/N, Lote A",
+      "commune": "Rancagua",
+      "city": ""
+    },
+    {
+      "rut": "76526470-7",
+      "business_name": "VINA VENTISQUERO LIMITADA",
+      "activity": "Elaboración de Vinos, Embotelladora y co",
+      "address": "Sector la Isla S/N Lote A, Lo Miranda",
+      "commune": "Rancagua",
+      "city": ""
+    },
+    {
+      "rut": "78874490-0",
+      "business_name": "INVERSIONES VIÑEDOS Y FRUTALES LIMITADA",
+      "activity": "Servicios de Administración",
+      "address": "Sector La Isla S/N, Lote A",
+      "commune": "Rancagua",
+      "city": ""
+    },
+    {
+      "rut": "76129263-3",
+      "business_name": "EMPRESAS AGROSUPER S.A.",
+      "activity": "Contratista de serv. para la adm.",
+      "address": "Camino la estrella #401 Oficina 56 S. Punta de cortes",
+      "commune": "Rancagua",
+      "city": ""
+    }
+  ]
+}

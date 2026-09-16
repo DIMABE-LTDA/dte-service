@@ -57,6 +57,9 @@ from app.schemas.certification import (
     ReceiverOut,
     ReceiversRequest,
     SetupRequest,
+    SheetOut,
+    SheetRequest,
+    SheetSetOut,
     StepRequest,
     TemplateRequest,
     TemplateSetOut,
@@ -70,6 +73,7 @@ from app.services import (
     certification_fill,
     certification_preview,
     certification_service,
+    certification_sheet,
     certification_template,
 )
 
@@ -913,6 +917,74 @@ def import_definitions(
         f"{cargados} set(s) cargados con su definición",
     )
     return dossier(customer_id, actor, db)
+
+
+@router.post("/sheet", response_model=SheetOut)
+def import_sheet(
+    customer_id: int,
+    data: SheetRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> SheetOut:
+    """Lee los archivos del set de pruebas que entrega el SII y, si se pide, los carga.
+
+    Es la forma de poner en marcha una certificación sin transcribir nada: el
+    SII entrega un texto con los casos de este RUT y el sistema arma las
+    definiciones. Con ``dry_run`` sólo se lee y se muestra qué se cargaría.
+
+    Si el archivo trae algo que el lector no entiende, responde 422 con la línea
+    exacta en vez de adivinar: un dato ignorado lo descubre el SII después, con
+    los folios ya gastados.
+    """
+    customer = _customer(db, customer_id)
+    hoja = certification_sheet.Sheet()
+    for archivo in data.files:
+        try:
+            contenido = base64.b64decode(archivo.content_base64, validate=True)
+        except ValueError as ex:
+            raise HTTPException(status_code=422, detail=f"{archivo.name}: no es base64") from ex
+        try:
+            leida = certification_sheet.parse(contenido)
+        except certification_sheet.SheetError as ex:
+            raise HTTPException(status_code=422, detail=f"{archivo.name}: {ex}") from ex
+        repetidos = set(leida.sets) & set(hoja.sets)
+        if repetidos:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{archivo.name}: repite sets de otro archivo"
+                f" ({', '.join(sorted(repetidos))})",
+            )
+        hoja.sets.update(leida.sets)
+        hoja.notas.extend(leida.notas)
+
+    resumen = [
+        SheetSetOut(
+            kind=kind,
+            code=s["code"],
+            items=len(
+                s["payload"].get("documents")
+                or s["payload"].get("receipts")
+                or s["payload"].get("lines")
+                or []
+            ),
+        )
+        for kind, s in hoja.sets.items()
+    ]
+    if data.dry_run:
+        return SheetOut(sets=resumen, notes=hoja.notas, loaded=False)
+
+    cargados = _apply_sets(db, customer, hoja.sets)
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.import_sheet",
+        "customer",
+        str(customer.id),
+        f"{cargados} set(s) cargados desde el archivo del SII: "
+        + ", ".join(a.name for a in data.files),
+    )
+    db.commit()
+    return SheetOut(sets=resumen, notes=hoja.notas, loaded=True)
 
 
 @router.get("/template", response_model=list[TemplateSetOut])

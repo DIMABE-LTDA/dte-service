@@ -276,6 +276,38 @@ class ImportRequest(BaseModel):
     sets: dict[str, dict]
 
 
+class SheetFile(BaseModel):
+    """Un archivo del SII tal como se subió: nombre y contenido en base64."""
+
+    name: str
+    content_base64: str
+
+
+class SheetRequest(BaseModel):
+    """El set de pruebas y, si se tiene, el de boletas. Se leen juntos."""
+
+    files: list[SheetFile]
+    #: True para sólo leer y mostrar qué se cargaría, sin guardar nada.
+    dry_run: bool = True
+
+
+class SheetSetOut(BaseModel):
+    kind: str
+    code: str
+    #: Documentos (o líneas, en el libro de compras) que se leyeron.
+    items: int
+
+
+class SheetOut(BaseModel):
+    """Lo que se leyó del archivo del SII."""
+
+    sets: list[SheetSetOut]
+    #: Texto de la hoja que no se interpreta —IMPORTANTE, INSTRUCCIONES—:
+    #: se muestra para que alguien lo lea.
+    notes: list[str]
+    loaded: bool
+
+
 class DocumentStatusOut(BaseModel):
     """Lo que el SII dice de UN documento del sobre."""
 

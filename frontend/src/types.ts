@@ -337,6 +337,20 @@ export interface CertReceiver {
   city: string;
 }
 
+/** Un archivo del SII para subir: nombre y contenido en base64. */
+export interface CertSheetFile {
+  name: string;
+  content_base64: string;
+}
+
+/** Lo que se leyó de los archivos del set de pruebas del SII. */
+export interface CertSheet {
+  sets: { kind: string; code: string; items: number }[];
+  /** Texto de la hoja que no se interpreta, para que alguien lo lea. */
+  notes: string[];
+  loaded: boolean;
+}
+
 /** Un set de la plantilla del SII: qué es y si hay que transcribirlo. */
 export interface CertTemplateSet {
   kind: string;

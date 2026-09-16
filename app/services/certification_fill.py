@@ -267,8 +267,14 @@ def fill(db, customer, cert_set, endpoint: str, payload: dict, *, hoy=None) -> t
         if str(cert_set.code).isdigit():
             salida["notification_folio"] = int(cert_set.code)
         kind = cert_set.kind or ""
+        anuladas = salida.pop("voided_cases", None)
+        if kind not in GENERATED_BOOKS:
+            # El libro de compras trae sus documentos de la hoja, sin fecha: la
+            # del día, que es la del período que declara el libro.
+            for linea in salida.get("lines", []) or []:
+                linea.setdefault("date", hoy.isoformat())
         if kind in GENERATED_BOOKS:
-            lineas, avisos = book_lines(db, customer, kind)
+            lineas, avisos = book_lines(db, customer, kind, anuladas)
             salida["lines"] = lineas
             notas.extend(avisos)
             if lineas:
@@ -309,6 +315,15 @@ def _receivers(customer, emisor: dict, docs: list[dict]) -> list[str]:
                 "commune": emisor.get("commune") or "",
                 "city": emisor.get("city") or "",
             }
+            # El destino de un traslado entre bodegas es otra bodega de la propia
+            # empresa. La hoja no la da.
+            doc.setdefault(
+                "transport",
+                {
+                    "dest_address": f"BODEGA 2, {emisor.get('address') or ''}"[:70],
+                    "dest_commune": emisor.get("commune") or "",
+                },
+            )
             if len(giro) > _GIRO_RECEP:
                 avisos.append(
                     f"guía de traslado interno: el giro del emisor ({len(giro)} caracteres)"
@@ -473,19 +488,24 @@ def _guide_line(doc) -> dict:
     return linea
 
 
-def lines_from_envelope(xml: bytes, kind: str) -> list[dict]:
+def lines_from_envelope(xml: bytes, kind: str, voided_cases: list[int] | None = None) -> list[dict]:
     """Las líneas de un libro a partir de un sobre ya emitido.
 
     En el Libro de Guías se aplica además lo que el caso dice de cada guía
     —cuál quedó anulada—, que no está en el sobre: las tres se emitieron iguales
-    y el SII las aceptó. Ver ``GUIDE_BOOK_CASES``.
+    y el SII las aceptó. Lo lee de la hoja del set ``certification_sheet``
+    (``voided_cases``); sin ese dato se usa ``GUIDE_BOOK_CASES``, que es lo que
+    decía la hoja de la primera certificación.
     """
     if kind != "libro_guias":
         return [_sales_line(d) for d in _documentos(xml)]
+    casos = (
+        GUIDE_BOOK_CASES if voided_cases is None else {int(n): {"voided": 2} for n in voided_cases}
+    )
     lineas = []
     for posicion, doc in enumerate(_documentos(xml), start=1):
         linea = _guide_line(doc)
-        caso = GUIDE_BOOK_CASES.get(posicion, {})
+        caso = casos.get(posicion, {})
         if caso.get("voided"):
             linea["voided"] = caso["voided"]
             # Una guía anulada no aporta monto al período: el SII la cuenta
@@ -495,7 +515,9 @@ def lines_from_envelope(xml: bytes, kind: str) -> list[dict]:
     return lineas
 
 
-def book_lines(db, customer, kind: str) -> tuple[list[dict], list[str]]:
+def book_lines(
+    db, customer, kind: str, voided_cases: list[int] | None = None
+) -> tuple[list[dict], list[str]]:
     """Las líneas de un libro con los documentos aceptados de sus sets.
 
     De cada set se toma el último envío que el SII aceptó: es el que tiene los
@@ -532,7 +554,7 @@ def book_lines(db, customer, kind: str) -> tuple[list[dict], list[str]]:
         if aceptado is None:
             sin_aceptar.append(f"{set_kind} ({s.code})")
             continue
-        lineas.extend(lines_from_envelope(envelope(aceptado), kind))
+        lineas.extend(lines_from_envelope(envelope(aceptado), kind, voided_cases))
 
     avisos = []
     if sin_aceptar:
