@@ -191,6 +191,68 @@ def query_status(customer: Customer, cert, track_id: str, timeout_s: int) -> dic
     }
 
 
+def refresh(db, customer: Customer, cert, envio: CertificationSubmission, timeout_s: int):
+    """Consulta al SII el estado de un envío y lo guarda tal cual."""
+    estado = query_status(customer, cert, envio.track_id, timeout_s)
+    envio.sii_state = estado.get("state")
+    envio.sii_detail = estado.get("detail")
+    envio.sii_stats = estado.get("stats") or None
+    envio.checked_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    db.commit()
+    db.refresh(envio)
+    return envio
+
+
+#: Estados con que el SII dice que todavía está procesando un sobre: recibido
+#: (REC), esquema validado (SOK), carátula OK (CRT), firma OK (FOK), pendiente
+#: (PDR) y libro en proceso (LSO). Un envío así aún no es ni aceptado ni
+#: rechazado.
+_EN_PROCESO = {"REC", "SOK", "CRT", "FOK", "PDR", "LSO"}
+
+
+def refresh_book_sources(db, customer: Customer, cert, cert_set, timeout_s: int) -> list[str]:
+    """Consulta los envíos sin veredicto de los sets que alimentan un libro.
+
+    Un libro generado se arma con el último envío **aceptado** de cada set. Si el
+    envío más reciente se mandó pero nadie lo consultó, queda sin estado, no
+    cuenta como aceptado, y el libro cae en silencio al envío anterior. Pasó en
+    la certificación: el libro de ventas salió con los folios de exportación de
+    un sobre rechazado, porque el bueno nunca se había consultado.
+
+    Devuelve los envíos que siguen sin veredicto tras consultar —o que no se
+    pudieron consultar—, para no armar el libro con ellos pendientes.
+    """
+    from app.services import certification_fill
+
+    kinds = certification_fill.GENERATED_BOOKS.get(cert_set.kind)
+    if not kinds:
+        return []
+    envios = (
+        db.query(CertificationSubmission)
+        .join(CertificationSet, CertificationSubmission.set_id == CertificationSet.id)
+        .filter(
+            CertificationSet.customer_id == customer.id,
+            CertificationSet.kind.in_(kinds),
+            CertificationSubmission.track_id.isnot(None),
+        )
+        .order_by(CertificationSubmission.id)
+        .all()
+    )
+    pendientes = []
+    for envio in envios:
+        if envio.sii_state is not None and envio.sii_state not in _EN_PROCESO:
+            continue
+        try:
+            refresh(db, customer, cert, envio, timeout_s)
+        except Exception:  # noqa: BLE001 — cualquier fallo del SII deja el envío pendiente
+            logger.exception("no se pudo consultar el envío %s", envio.track_id)
+            pendientes.append(f"{envio.track_id} (no se pudo consultar al SII)")
+            continue
+        if envio.sii_state is None or envio.sii_state in _EN_PROCESO:
+            pendientes.append(f"{envio.track_id} ({envio.sii_state or 'sin respuesta'})")
+    return pendientes
+
+
 def envelope(submission: CertificationSubmission) -> bytes:
     """Descifra el sobre guardado, para reimprimir o reenviar sin reemitir."""
     return crypto.decrypt(submission.envelope_encrypted)
@@ -761,7 +823,9 @@ def discard(db, envio: CertificationSubmission) -> None:
     db.commit()
 
 
-def emit(db, customer: Customer, cert, cert_set, *, force: bool = False) -> CertificationSubmission:
+def emit(
+    db, customer: Customer, cert, cert_set, *, force: bool = False, timeout_s: int = 60
+) -> CertificationSubmission:
     """Emite el set según su definición **sin enviarlo** al SII.
 
     Emitir consume folios y no se deshace. Por eso:
@@ -812,6 +876,15 @@ def emit(db, customer: Customer, cert, cert_set, *, force: bool = False) -> Cert
                 "faltan datos del emisor en la ficha del cliente: "
                 + ", ".join(faltan)
                 + ". Se usan en el encabezado de cada documento."
+            )
+    if cert_set.kind in certification_fill.GENERATED_BOOKS:
+        pendientes = refresh_book_sources(db, customer, cert, cert_set, timeout_s)
+        if pendientes:
+            raise EmissionError(
+                "hay envíos de los sets que alimentan este libro sin respuesta final del"
+                " SII: " + ", ".join(pendientes) + ". Armarlo ahora tomaría el envío"
+                " anterior y declararía folios que quizá no valen; espera la respuesta"
+                " y vuelve a emitir"
             )
     cuerpo, _notas = certification_fill.fill(
         db, customer, cert_set, definicion.endpoint, definicion.payload

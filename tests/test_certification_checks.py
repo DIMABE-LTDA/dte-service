@@ -472,3 +472,107 @@ def test_la_prueba_de_firma_valida_como_el_sii_y_no_bloquea(db, monkeypatch):
     c = _check(certification_checks.run(db, customer), "firma")
     assert c["state"] == "ok", c["detail"]
     assert "2 de 2" in c["detail"]  # el <Documento> y el <SetDTE>
+
+
+# --------------------------------------------------------------------------- #
+#  Contenido que el SII rechaza en la revisión del set (16-09-2026)
+# --------------------------------------------------------------------------- #
+def _claves(db, customer):
+    return {
+        c["key"]
+        for g in certification_checks.run(db, customer)["groups"]
+        for c in g["checks"]
+        if c["key"].startswith("contenido_")
+    }
+
+
+def test_un_anticipo_de_liquidacion_debe_ir_con_tipo_99(db):
+    """«Los Valores de la Linea 1 del Detalle No Cuadran» en el set 5038178."""
+    customer = make_customer(db)
+    linea = {"name": "NETO ANTICIPO FACTURACION", "amount": 550000, "quantity": 78}
+    _definir(
+        db,
+        customer,
+        "liquidacion",
+        "5038178",
+        {"documents": [{"lines": [{**linea, "liquidated_type": "33"}]}]},
+        endpoint="issue-settlement-batch",
+    )
+    assert "contenido_liquidacion_anticipo" in _claves(db, customer)
+
+    d = db.query(CertificationDefinition).one()
+    d.payload = {"documents": [{"lines": [{**linea, "liquidated_type": "99"}]}]}
+    db.commit()
+    assert "contenido_liquidacion_anticipo" not in _claves(db, customer)
+
+
+def test_una_linea_de_exportacion_necesita_cantidad_y_precio(db):
+    """El set 5038177 traía «VALOR LINEA 14» y se guardó como monto suelto."""
+    customer = make_customer(db)
+    _definir(
+        db,
+        customer,
+        "exportacion_2",
+        "5038177",
+        {"documents": [{"items": [{"name": "ASESORIAS", "amount": "14", "surcharge_pct": "10"}]}]},
+        endpoint="issue-export-batch",
+    )
+    assert "contenido_exportacion_2_cantidad" in _claves(db, customer)
+
+    d = db.query(CertificationDefinition).one()
+    d.payload = {
+        "documents": [
+            {
+                "items": [
+                    {
+                        "name": "ASESORIAS",
+                        "quantity": "1",
+                        "unit_price": "14",
+                        "surcharge_pct": "10",
+                    }
+                ]
+            }
+        ]
+    }
+    db.commit()
+    assert "contenido_exportacion_2_cantidad" not in _claves(db, customer)
+
+
+def test_una_factura_de_hoteleria_necesita_el_pasaporte(db):
+    """«El Documento Debe Tener 2 Linea(s) de Referencia» en el caso 5038177-3."""
+    customer = make_customer(db)
+    doc = {
+        "service_indicator": 4,
+        "items": [{"name": "ALOJAMIENTO HABITACIONES", "quantity": "1", "unit_price": "42"}],
+    }
+    _definir(
+        db,
+        customer,
+        "exportacion_2",
+        "5038177",
+        {"documents": [doc]},
+        endpoint="issue-export-batch",
+    )
+    assert "contenido_exportacion_2_pasaporte" in _claves(db, customer)
+
+    d = db.query(CertificationDefinition).one()
+    d.payload = {"documents": [{**doc, "references": [{"doc_type": 813, "folio": "C01X00T47"}]}]}
+    db.commit()
+    assert "contenido_exportacion_2_pasaporte" not in _claves(db, customer)
+
+
+def test_las_definiciones_del_repo_pasan_las_reglas_de_contenido(db):
+    """El archivo del repo es lo que se carga para un contribuyente nuevo: no puede
+    traer de vuelta ningún error que el SII ya rechazó."""
+    import json
+    import pathlib
+
+    ruta = pathlib.Path(__file__).parents[1] / "docs/certificacion/definiciones-77262159-0.json"
+    sets = json.loads(ruta.read_text(encoding="utf-8"))
+    definiciones = {
+        kind: SimpleNamespace(payload=s["payload"])
+        for kind, s in sets.items()
+        if kind in ("liquidacion", "exportacion_1", "exportacion_2")
+    }
+    problemas = certification_checks._contenido(definiciones)
+    assert problemas == [], [p["detail"] for p in problemas]

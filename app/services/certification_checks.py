@@ -585,6 +585,74 @@ def _definiciones(db, customer: Customer, sets: dict, definiciones: dict) -> lis
     return salida
 
 
+#: IndServicio 4: servicios de hotelería en una factura de exportación.
+_HOTELERIA = 4
+#: TpoDocRef 813: pasaporte del cliente extranjero.
+_PASAPORTE = 813
+
+
+def _contenido(definiciones: dict) -> list[dict]:
+    """Errores de contenido que el SII rechazó en la revisión del set.
+
+    Ninguno lo detecta el XSD: el documento es válido y el SII lo acepta en la
+    validación del sobre. Lo rechaza después, al compararlo con el enunciado del
+    caso, cuando los folios ya están gastados. Cada regla es un rechazo real del
+    16-09-2026.
+    """
+    salida = []
+
+    liq = definiciones.get("liquidacion")
+    for n, doc in enumerate(((liq.payload or {}).get("documents") or []) if liq else [], 1):
+        for linea in doc.get("lines") or []:
+            if (
+                "ANTICIPO" in str(linea.get("name", "")).upper()
+                and str(linea.get("liquidated_type")) != "99"
+            ):
+                salida.append(
+                    _check(
+                        "contenido_liquidacion_anticipo",
+                        f"Liquidación · caso {n}",
+                        "error",
+                        f"«{linea.get('name')}» va con tipo {linea.get('liquidated_type')}",
+                        "Un anticipo no liquida ningún documento: el formato del SII pide"
+                        " «99 en caso de anticipo u otras transacciones».",
+                    )
+                )
+
+    for kind in ("exportacion_1", "exportacion_2"):
+        d = definiciones.get(kind)
+        for n, doc in enumerate(((d.payload or {}).get("documents") or []) if d else [], 1):
+            etiqueta = f"Exportación ({kind[-1]}) · caso {n}"
+            for item in doc.get("items") or []:
+                if item.get("quantity") is None or item.get("unit_price") is None:
+                    salida.append(
+                        _check(
+                            f"contenido_{kind}_cantidad",
+                            etiqueta,
+                            "error",
+                            f"«{item.get('name')}» no trae cantidad y precio unitario",
+                            "El SII responde «Los Datos de la Linea … No Cuadran con lo"
+                            " Especificado». Si la hoja del set sólo da el valor de la"
+                            " línea, usa cantidad 1 y ese valor como precio.",
+                        )
+                    )
+            refs = doc.get("references") or []
+            if doc.get("service_indicator") == _HOTELERIA and not any(
+                r.get("doc_type") == _PASAPORTE for r in refs
+            ):
+                salida.append(
+                    _check(
+                        f"contenido_{kind}_pasaporte",
+                        etiqueta,
+                        "error",
+                        "factura de hotelería sin referencia al pasaporte del cliente",
+                        "El SII exige una 2ª línea de referencia: tipo 813 (pasaporte),"
+                        " además de la del caso del set.",
+                    )
+                )
+    return salida
+
+
 def _receptores(customer: Customer, definiciones: dict) -> dict:
     """Clientes reales para las facturas del set, distintos entre sí.
 
@@ -829,7 +897,11 @@ def run(db, customer: Customer) -> dict:
     cafs, validos = _caf(db, customer, _necesarios(definiciones))
     grupos.append({"key": "caf", "label": "CAF y folios", "checks": cafs})
 
-    defs = [_receptores(customer, definiciones)] + _definiciones(db, customer, sets, definiciones)
+    defs = (
+        [_receptores(customer, definiciones)]
+        + _definiciones(db, customer, sets, definiciones)
+        + _contenido(definiciones)
+    )
     grupos.append({"key": "definiciones", "label": "Qué emite cada set", "checks": defs})
 
     prueba = _timbres(customer, validos) + _firma_documento(customer, cert, validos)

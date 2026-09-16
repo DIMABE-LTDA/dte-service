@@ -289,16 +289,7 @@ def refresh_status(
             detail="este sobre todavía no se envió: no tiene TrackID que consultar",
         )
     cert = _cert(db, customer)
-    estado = certification_service.query_status(
-        customer, cert, row.track_id, get_settings().request_timeout_s
-    )
-    row.sii_state = estado.get("state")
-    row.sii_detail = estado.get("detail")
-    row.sii_stats = estado.get("stats") or None
-    row.checked_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
-    db.commit()
-    db.refresh(row)
-    return row
+    return certification_service.refresh(db, customer, cert, row, get_settings().request_timeout_s)
 
 
 @router.post("/submissions/{submission_id}/assign", response_model=CertificationSubmissionOut)
@@ -680,7 +671,9 @@ def emit_set(
     cert_set = _set(db, customer, set_id)
     cert = _cert(db, customer)
     try:
-        envio = certification_service.emit(db, customer, cert, cert_set, force=force)
+        envio = certification_service.emit(
+            db, customer, cert, cert_set, force=force, timeout_s=get_settings().request_timeout_s
+        )
     except certification_service.EmissionError as ex:
         raise HTTPException(status_code=409, detail=str(ex)) from ex
     except ValueError as ex:

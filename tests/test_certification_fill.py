@@ -9,9 +9,11 @@ ninguna referencia al caso, y un libro de ventas con folios de otra ronda.
 
 import datetime as dt
 
+import pytest
+
 from app.core import crypto
-from app.db.models import CertificationSet, CertificationSubmission
-from app.services import certification_fill, customer_service
+from app.db.models import CertificationDefinition, CertificationSet, CertificationSubmission
+from app.services import certification_fill, certification_service, customer_service
 from tests.conftest import auth_header, make_customer, make_user
 
 HOY = dt.date(2026, 9, 10)
@@ -496,6 +498,90 @@ def test_sin_basico_ni_exenta_el_libro_de_ventas_lo_avisa(db):
 
     assert cuerpo["lines"] == []
     assert "basico o exenta" in notas[0]
+
+
+def _envio_sin_consultar(db, customer, cert_set, xml, track="0259009472"):
+    db.add(
+        CertificationSubmission(
+            set_id=cert_set.id,
+            customer_id=customer.id,
+            track_id=track,
+            sent_at=dt.datetime(2026, 9, 16),
+            envelope_kind="EnvioDTE",
+            envelope_encrypted=crypto.encrypt(xml),
+            sii_state=None,
+        )
+    )
+    db.commit()
+
+
+def test_antes_de_armar_el_libro_se_consultan_los_envios_sin_respuesta(db, monkeypatch):
+    """Un envío mandado y nunca consultado no cuenta como aceptado.
+
+    Sin consultarlo, el libro cae en silencio al envío anterior. Pasó con el
+    libro de ventas de la certificación, que salió con los folios de un sobre
+    rechazado porque el bueno nunca se había consultado.
+    """
+    customer = make_customer(db)
+    basico = _set(db, customer, "basico", "5038170")
+    libro = _set(db, customer, "libro_ventas", "5038171")
+    _envio(db, customer, basico, "EPR", [{"doc_type": 33, "informed": 1, "accepted": 1}])
+    nuevo = _sobre(_FACTURA.replace("<Folio>23</Folio>", "<Folio>99</Folio>"))
+    _envio_sin_consultar(db, customer, basico, nuevo)
+
+    consultas = []
+
+    def _sii(customer, cert, track_id, timeout_s):
+        consultas.append(track_id)
+        return {
+            "state": "EPR",
+            "detail": "Envio Procesado",
+            "stats": [{"doc_type": 33, "informed": 1, "accepted": 1, "rejected": 0, "flagged": 0}],
+        }
+
+    monkeypatch.setattr(certification_service, "query_status", _sii)
+
+    pendientes = certification_service.refresh_book_sources(db, customer, None, libro, 30)
+
+    assert pendientes == []
+    assert consultas == ["0259009472"]  # el que ya tenía estado no se vuelve a consultar
+    lineas, _ = certification_fill.book_lines(db, customer, "libro_ventas")
+    assert [(ln["doc_type"], ln["folio"]) for ln in lineas] == [(33, 99)]
+
+
+def test_no_se_arma_el_libro_si_un_envio_sigue_sin_respuesta(db, monkeypatch):
+    customer = make_customer(db)
+    basico = _set(db, customer, "basico", "5038170")
+    libro = _set(db, customer, "libro_ventas", "5038171")
+    db.add(CertificationDefinition(set_id=libro.id, endpoint="books", payload={}))
+    _envio(db, customer, basico, "EPR", [{"doc_type": 33, "informed": 1, "accepted": 1}])
+    _envio_sin_consultar(db, customer, basico, _sobre(_FACTURA))
+    monkeypatch.setattr(
+        certification_service,
+        "query_status",
+        lambda *a, **k: {"state": "SOK", "detail": "Schema Validado", "stats": []},
+    )
+
+    with pytest.raises(certification_service.EmissionError, match="0259009472"):
+        certification_service.emit(db, customer, None, libro)
+
+    assert db.query(CertificationSubmission).filter_by(set_id=libro.id).count() == 0
+
+
+def test_si_el_sii_no_responde_tampoco_se_arma_el_libro(db, monkeypatch):
+    customer = make_customer(db)
+    basico = _set(db, customer, "basico", "5038170")
+    libro = _set(db, customer, "libro_ventas", "5038171")
+    _envio_sin_consultar(db, customer, basico, _sobre(_FACTURA))
+
+    def _caido(*a, **k):
+        raise TimeoutError("maullin no responde")
+
+    monkeypatch.setattr(certification_service, "query_status", _caido)
+
+    pendientes = certification_service.refresh_book_sources(db, customer, None, libro, 30)
+
+    assert pendientes == ["0259009472 (no se pudo consultar al SII)"]
 
 
 def test_las_comisiones_de_la_liquidacion_llegan_a_la_linea_del_libro():
