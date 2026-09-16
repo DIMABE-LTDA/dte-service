@@ -199,12 +199,35 @@ function fechaSii(iso: string | null): string {
   return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
 }
 
-/** El envío que hay que declarar de un set: el último que llegó al SII.
+/** Códigos con que el SII dice que recibió y procesó un sobre.
  *
- * Los intentos anteriores no se declaran —el Servicio pregunta por el envío
- * que quedó—, y un sobre emitido sin enviar no tiene número que dar.
+ * Es el primer portón, no el segundo: `EPR` dice que el sobre se procesó, no
+ * que sus documentos se aceptaran ni que el set esté bien. Para elegir qué
+ * declarar basta: la revisión del set es justamente la que lo dirá.
+ */
+const ACEPTADOS = new Set(["EPR", "LOK"]);
+
+/** El envío que hay que declarar de un set: el último que el SII ACEPTÓ.
+ *
+ * No basta con el último enviado. Si un reenvío vuelve rechazado, queda arriba
+ * de la tabla siendo el más nuevo y el que NO sirve: declararlo manda al
+ * Servicio a revisar un sobre que él mismo descartó. Pasó con el libro de
+ * compras: la tabla ofrecía el 0258987464, rechazado con `LNC` («tipo de envío
+ * de libro no corresponde»), en vez del 0258986684, que estaba aceptado.
+ *
+ * Si ninguno tiene respuesta todavía, vale el último enviado: es lo único que
+ * hay, y la columna de estado ya dice que está sin consultar. Un sobre emitido
+ * sin enviar nunca entra: no tiene número que dar.
  */
 function envioADeclarar(s: CertSet): CertSubmission | undefined {
+  const aceptado = [...s.submissions]
+    .reverse()
+    .find((e) => e.track_id && e.sii_state && ACEPTADOS.has(e.sii_state));
+  if (aceptado) return aceptado;
+  return envioMasReciente(s);
+}
+
+function envioMasReciente(s: CertSet): CertSubmission | undefined {
   return [...s.submissions].reverse().find((e) => e.track_id);
 }
 

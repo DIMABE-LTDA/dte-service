@@ -444,6 +444,68 @@ describe("Expediente de certificación", () => {
     expect(await navigator.clipboard.readText()).toBe("14-09-2026");
   });
 
+  it("para declarar toma el último que el SII ACEPTÓ, no el último enviado", async () => {
+    // Un reenvío rechazado queda arriba de la tabla siendo el más nuevo y el
+    // que NO sirve. Declararlo manda al Servicio a revisar un sobre que él
+    // mismo descartó: pasó de verdad con el libro de compras del set 5038172.
+    const envio = (id: number, track: string, estado: string | null) => ({
+      ...set().submissions[0],
+      id,
+      track_id: track,
+      sent_at: "2026-09-16T14:47:00",
+      sii_state: estado,
+      envelope_kind: "LibroCompraVenta",
+    });
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            id: 1,
+            code: "5038172",
+            kind: "libro_compras",
+            submissions: [
+              envio(40, "0258986684", "LOK"), // aceptado
+              envio(41, "0258987464", "LNC"), // el SII lo descartó
+            ],
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    await screen.findByText("Datos para el formulario de Mi SII");
+    const fila = [...document.querySelectorAll(".card")]
+      .find((c) => c.textContent?.includes("Datos para el formulario"))!
+      .querySelectorAll("tbody tr")[4]; // LIBRO DE COMPRAS
+    expect(fila.textContent).toContain("0258986684");
+    expect(fila.textContent).not.toContain("0258987464");
+  });
+
+  it("si ningún envío tiene respuesta todavía, vale el último", async () => {
+    (api.certDossier as Mock).mockResolvedValue(
+      dossier({
+        sets: [
+          set({
+            id: 1,
+            code: "5038170",
+            kind: "basico",
+            submissions: [
+              { ...set().submissions[0], id: 50, track_id: "111", sii_state: null },
+              { ...set().submissions[0], id: 51, track_id: "222", sii_state: null },
+            ],
+          }),
+        ],
+      }),
+    );
+    mount();
+
+    await screen.findByText("Datos para el formulario de Mi SII");
+    const fila = [...document.querySelectorAll(".card")]
+      .find((c) => c.textContent?.includes("Datos para el formulario"))!
+      .querySelectorAll("tbody tr")[0]; // SET BASICO
+    expect(fila.textContent).toContain("222");
+  });
+
   it("cuenta los reparos y los rechazos, que no vienen en progress", async () => {
     // `progress` sólo trae declarados y aceptados: los sets que piden trabajo
     // eran invisibles hasta abrirlos uno por uno.
