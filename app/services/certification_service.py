@@ -993,6 +993,26 @@ def stale_signature(db, customer: Customer, envio: CertificationSubmission) -> b
     return actual is not None and actual != envio.signed_thumbprint
 
 
+def _firmas_como_se_transmiten(xml: bytes) -> None:
+    """No sube un sobre cuyas firmas el SII no podría verificar.
+
+    Se comprueba sobre los bytes, como lo hace el Servicio: corta cada <DTE> del
+    texto y lo verifica suelto. El primer set de boletas salió con los <DTE> sin
+    su ``xmlns`` —verificaban sobre el árbol— y el SII rechazó las cinco con
+    «Firma DTE Incorrecta», con el plazo de 24 horas del CAF corriendo.
+    """
+    from dte_chile.signer import verify_transmitted
+
+    firmas = verify_transmitted(xml)
+    if firmas and not all(firmas):
+        malas = sum(not f for f in firmas)
+        raise EmissionError(
+            f"{malas} de {len(firmas)} firmas del sobre no verifican tal como se"
+            " transmitirían; el SII lo rechazaría con «Firma DTE Incorrecta»."
+            " No se envió. Vuelve a emitir el set."
+        )
+
+
 def send_draft(db, customer: Customer, cert, envio: CertificationSubmission, timeout_s: int):
     """Sube al SII un sobre ya emitido y guarda su TrackID.
 
@@ -1002,6 +1022,7 @@ def send_draft(db, customer: Customer, cert, envio: CertificationSubmission, tim
     from app.services import sii_upload
 
     xml = envelope(envio)
+    _firmas_como_se_transmiten(xml)
     if envio.envelope_kind in _POR_API_DE_BOLETA:
         # La boleta no se recibe en Maullín: tiene su propia API REST.
         from dte_chile.receipt_client import ReceiptClient, ReceiptEnvironment

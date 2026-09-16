@@ -45,16 +45,16 @@ def cargar(db, cliente, hoja: certification_sheet.Sheet) -> int:
 
 def _forma(xml: bytes) -> list[str]:
     """Que el sobre valide contra el XSD del SII y que sus firmas verifiquen."""
-    from dte_chile.signer import verify_signatures
+    from dte_chile.signer import verify_transmitted
     from dte_chile.validation import Validator
-    from lxml import etree
 
     problemas = []
     try:
         Validator(SCHEMAS).validate(xml)
     except Exception as ex:  # noqa: BLE001 — se reporta, no se interrumpe
         problemas.append(f"esquema: {ex}")
-    firmas = verify_signatures(etree.fromstring(xml))
+    # Sobre los bytes, no sobre un árbol: el SII corta cada <DTE> del texto.
+    firmas = verify_transmitted(xml)
     if not firmas or not all(firmas):
         problemas.append(f"firmas: {sum(bool(f) for f in firmas)} de {len(firmas)} verifican")
     return problemas

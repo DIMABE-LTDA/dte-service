@@ -32,6 +32,10 @@ _BOLETAS = (
 )
 
 
+#: El control de firmas tal cual, antes de que el fixture `canales` lo desactive.
+_CONTROL_REAL = certification_service._firmas_como_se_transmiten
+
+
 class _Cliente:
     """Registra por qué canal se llamó."""
 
@@ -78,6 +82,9 @@ def canales(monkeypatch):
 
     monkeypatch.setattr("app.services.sii_upload.upload", _maullin)
     monkeypatch.setattr(certification_service, "query_status", _maullin_estado)
+    # Los sobres de estas pruebas no van firmados: lo que se prueba es el canal.
+    # El control de firmas tiene su propia prueba más abajo.
+    monkeypatch.setattr(certification_service, "_firmas_como_se_transmiten", lambda xml: None)
     return _Cliente.llamadas
 
 
@@ -114,6 +121,29 @@ def test_las_boletas_se_envian_por_la_api_rest(db, canales):
 
     assert canales == ["api-boleta:envio"]
     assert envio.track_id == "123456789012345"
+
+
+def test_un_sobre_cuyas_firmas_no_verifican_no_se_envia(db, canales, monkeypatch):
+    """El primer set de boletas salió con los <DTE> sin su xmlns.
+
+    Sus firmas verificaban sobre el árbol, pero el SII corta cada <DTE> del
+    texto y rechazó las cinco con «Firma DTE Incorrecta». Lo que no verifica
+    tal como se transmite no debe salir: el reloj del CAF sigue corriendo.
+    """
+    monkeypatch.setattr("dte_chile.signer.verify_transmitted", lambda xml: [False, False, True])
+    monkeypatch.setattr(
+        certification_service,
+        "_firmas_como_se_transmiten",
+        _CONTROL_REAL,
+    )
+    customer = make_customer(db, rut="77262159-0")
+    envio = _sobre(db, customer, "EnvioBOLETA", _BOLETAS)
+
+    with pytest.raises(certification_service.EmissionError, match="Firma DTE Incorrecta"):
+        certification_service.send_draft(db, customer, _cert(), envio, 30)
+
+    assert canales == []
+    assert envio.track_id is None
 
 
 def test_el_rcof_y_los_demas_sobres_se_envian_por_maullin(db, canales):

@@ -150,6 +150,32 @@ def test_an_issuer_is_listed_once_no_matter_how_many_receipts(client, db):
     assert len(client.get("/public/issuers").json()) == 1
 
 
+def test_issuers_query_does_not_deduplicate_rows_with_json(client, db):
+    """PostgreSQL no puede aplicar DISTINCT a filas con columnas `json`.
+
+    Customer las tiene, y en producción la lista respondía 500 mientras los
+    tests (SQLite) pasaban. La consulta no debe depender de DISTINCT.
+    """
+    from sqlalchemy import event
+
+    customer = make_customer(db)
+    _store(db, customer)
+    sentencias: list[str] = []
+
+    def _capturar(conn, cursor, statement, *args):
+        sentencias.append(statement.upper())
+
+    engine = db.get_bind()
+    event.listen(engine, "before_cursor_execute", _capturar)
+    try:
+        assert client.get("/public/issuers").status_code == 200
+    finally:
+        event.remove(engine, "before_cursor_execute", _capturar)
+
+    consultas = [s for s in sentencias if "FROM CUSTOMER" in s]
+    assert consultas and not any("DISTINCT" in s for s in consultas)
+
+
 # --------------------------------------------------------------------------- #
 #  Lo que NO debe poder hacerse
 # --------------------------------------------------------------------------- #

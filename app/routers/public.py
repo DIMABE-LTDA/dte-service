@@ -83,12 +83,14 @@ def issuers(db: Session = Depends(get_db)) -> list[IssuerInfo]:
     públicos de todos modos —van impresos en cada boleta que entrega—, así que
     no hay nada que proteger en los que sí aparecen.
     """
+    # EXISTS y no JOIN + DISTINCT: Customer tiene columnas JSON, y PostgreSQL
+    # no sabe comparar `json` para deduplicar (SQLite sí, por eso los tests
+    # no lo veían).
+    tiene_boletas = (
+        select(IssuedReceipt.id).where(IssuedReceipt.customer_id == Customer.id).exists()
+    )
     rows = db.execute(
-        select(Customer)
-        .join(IssuedReceipt, IssuedReceipt.customer_id == Customer.id)
-        .where(Customer.deleted_at.is_(None))
-        .order_by(Customer.name)
-        .distinct()
+        select(Customer).where(Customer.deleted_at.is_(None), tiene_boletas).order_by(Customer.name)
     ).scalars()
     return [IssuerInfo(rut=c.rut, name=c.name) for c in rows]
 

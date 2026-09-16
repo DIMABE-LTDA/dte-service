@@ -23,8 +23,6 @@ import re
 from collections import Counter
 from types import SimpleNamespace
 
-from lxml import etree
-
 from app.core import crypto
 from app.db.models import (
     Caf,
@@ -809,7 +807,7 @@ def _firma_documento(customer: Customer, cert, validos: dict) -> list[dict]:
         from dte_chile.document_types import DTEType
         from dte_chile.envelope import Cover, build_envelope, serialize
         from dte_chile.models import DTE, Issuer, Item, Receiver
-        from dte_chile.signer import sign_document, verify_signatures
+        from dte_chile.signer import sign_document, verify_transmitted
         from dte_chile.xml_builder import build_document
     except ImportError:
         return [
@@ -854,7 +852,7 @@ def _firma_documento(customer: Customer, cert, validos: dict) -> list[dict]:
             resolution_number=customer.resolution_number,
             subtotals=[(33, 1)],
         )
-        raiz = etree.fromstring(serialize(build_envelope([firmado], cover, cert, ts)))
+        sobre = serialize(build_envelope([firmado], cover, cert, ts))
     except Exception as ex:  # noqa: BLE001
         return [
             _check(
@@ -870,7 +868,9 @@ def _firma_documento(customer: Customer, cert, validos: dict) -> list[dict]:
     # lee el SII— y la del sobre con el árbol entero. Aquí había una copia de esa
     # lógica que verificaba TODO contra el sobre completo, y por eso daba por
     # buenos documentos que el SII rechazaba con «Firma DTE Incorrecta».
-    resultados = verify_signatures(raiz)
+    # Y se verifica sobre los bytes que se transmiten: un árbol no muestra si al
+    # <DTE> le falta su xmlns en el texto, que costó el primer set de boletas.
+    resultados = verify_transmitted(sobre)
     validas = sum(resultados)
     firmas = resultados
     if firmas and validas == len(firmas):
