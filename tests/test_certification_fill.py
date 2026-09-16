@@ -454,10 +454,51 @@ def test_un_envio_rechazado_no_entra_al_libro(db):
     assert "basico (5038170)" in notas[0]
 
 
-def test_las_comisiones_de_la_liquidacion_van_al_libro(db):
+def test_el_libro_de_ventas_usa_solo_el_set_basico(db):
+    """La hoja del set: «SI OBTUVO AMBOS SET, UTILICE LOS DOCUMENTOS DEL SET BASICO».
+
+    Sumar los documentos de exenta, exportación y liquidación le costó al set
+    5038171 dos rechazos con «El Numero de Lineas de Resumen No Cuadra», aunque
+    el sobre volviera LOK: esperaba las líneas del set básico y recibía más.
+    """
     customer = make_customer(db)
+    basico = _set(db, customer, "basico", "5038170")
+    exenta = _set(db, customer, "exenta", "5038175")
     liq = _set(db, customer, "liquidacion", "5038178")
     libro = _set(db, customer, "libro_ventas", "5038171")
+    _envio(db, customer, basico, "EPR", [{"doc_type": 33, "informed": 1, "accepted": 1}])
+    otra = _sobre(_FACTURA.replace("<Folio>23</Folio>", "<Folio>99</Folio>"))
+    _envio(db, customer, exenta, "EPR", [{"doc_type": 33, "informed": 1, "accepted": 1}], otra)
+    _envio(db, customer, liq, "EPR", [{"doc_type": 33, "informed": 1, "accepted": 1}], otra)
+
+    cuerpo, notas = certification_fill.fill(db, customer, libro, "books", {})
+
+    assert [(line["doc_type"], line["folio"]) for line in cuerpo["lines"]] == [(33, 23), (61, 32)]
+    assert notas == []
+
+
+def test_sin_set_basico_el_libro_de_ventas_usa_el_de_exenta(db):
+    customer = make_customer(db)
+    exenta = _set(db, customer, "exenta", "5038175")
+    libro = _set(db, customer, "libro_ventas", "5038171")
+    _envio(db, customer, exenta, "EPR", [{"doc_type": 33, "informed": 1, "accepted": 1}])
+
+    cuerpo, _ = certification_fill.fill(db, customer, libro, "books", {})
+
+    assert [(line["doc_type"], line["folio"]) for line in cuerpo["lines"]] == [(33, 23), (61, 32)]
+
+
+def test_sin_basico_ni_exenta_el_libro_de_ventas_lo_avisa(db):
+    customer = make_customer(db)
+    libro = _set(db, customer, "libro_ventas", "5038171")
+
+    cuerpo, notas = certification_fill.fill(db, customer, libro, "books", {})
+
+    assert cuerpo["lines"] == []
+    assert "basico o exenta" in notas[0]
+
+
+def test_las_comisiones_de_la_liquidacion_llegan_a_la_linea_del_libro():
     liquidacion = (
         "<Encabezado><IdDoc><TipoDTE>43</TipoDTE><Folio>17</Folio><FchEmis>2026-09-10</FchEmis>"
         "</IdDoc><Receptor><RUTRecep>17099910-K</RUTRecep><RznSocRecep>MANDANTE</RznSocRecep>"
@@ -471,10 +512,8 @@ def test_las_comisiones_de_la_liquidacion_van_al_libro(db):
         + liquidacion
         + "</Liquidacion></DTE></SetDTE></EnvioDTE>"
     ).encode()
-    _envio(db, customer, liq, "EPR", [{"doc_type": 43, "informed": 1, "accepted": 1}], xml)
 
-    cuerpo, _ = certification_fill.fill(db, customer, libro, "books", {})
-    linea = cuerpo["lines"][0]
+    linea = certification_fill.lines_from_envelope(xml, "libro_ventas")[0]
     # Los mismos valores que el libro que el SII aceptó para este caso.
     assert (linea["commission_net"], linea["commission_vat"]) == (3145, 598)
     assert linea["total_amount"] == 210930

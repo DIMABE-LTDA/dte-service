@@ -54,11 +54,21 @@ BOOK_ENDPOINTS = {"books", "books/guides"}
 #: comprador es anónimo.
 RECEIPT_ENDPOINTS = {"boletas"}
 
-#: Sets cuyos documentos van al Libro de Ventas. Es la composición del libro
-#: que el SII aceptó (LOK): facturas, exentas, exportación y liquidación con
-#: sus notas. La factura de compra (46) es una compra y las guías tienen libro
-#: propio.
-SALES_SETS = ("basico", "exenta", "exportacion_1", "exportacion_2", "liquidacion")
+#: Sets que pueden alimentar el Libro de Ventas, en orden de preferencia: se usa
+#: **sólo el primero que exista**. Lo fija la hoja del set de pruebas:
+#:
+#:     CONSTRUYA EL LIBRO DE VENTAS CON LOS DOCUMENTOS CON QUE GENERO EL SET
+#:     BASICO O EL SET DE FACTURA EXENTA, SEGUN CORRESPONDA. SI OBTUVO AMBOS
+#:     SET, UTILICE LOS DOCUMENTOS DEL SET BASICO PARA CONSTRUIR EL LIBRO DE
+#:     VENTAS.
+#:
+#: Antes se sumaban los documentos de cinco sets —básico, exenta, las dos
+#: exportaciones y liquidación—, y el SII rechazó el set 5038171 dos veces con
+#: «El Numero de Lineas de Resumen No Cuadra»: esperaba las 3 líneas del set
+#: básico (33, 56, 61) y recibía 8. Que el sobre volviera LOK no lo desmentía:
+#: LOK dice que el libro cuadra consigo mismo, no que tenga el contenido que el
+#: set pide.
+SALES_SETS = ("basico", "exenta")
 #: Set cuyos documentos van al Libro de Guías.
 GUIDE_SETS = ("guias",)
 
@@ -498,12 +508,17 @@ def book_lines(db, customer, kind: str) -> tuple[list[dict], list[str]]:
 
     lineas: list[dict] = []
     sin_aceptar: list[str] = []
-    for set_kind in GENERATED_BOOKS[kind]:
-        s = (
-            db.query(CertificationSet)
-            .filter(CertificationSet.customer_id == customer.id, CertificationSet.kind == set_kind)
-            .one_or_none()
-        )
+    candidatos = {
+        set_kind: db.query(CertificationSet)
+        .filter(CertificationSet.customer_id == customer.id, CertificationSet.kind == set_kind)
+        .one_or_none()
+        for set_kind in GENERATED_BOOKS[kind]
+    }
+    if kind == "libro_ventas":
+        # Un solo set: el primero que exista de SALES_SETS.
+        elegido = next((k for k, s in candidatos.items() if s is not None), None)
+        candidatos = {elegido: candidatos[elegido]} if elegido else {" o ".join(SALES_SETS): None}
+    for set_kind, s in candidatos.items():
         if s is None:
             sin_aceptar.append(set_kind)
             continue
