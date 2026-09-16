@@ -64,17 +64,28 @@ GUIDE_SETS = ("guias",)
 
 #: Qué le pasó a cada guía del set, por su posición en el sobre (1 = la primera).
 #:
-#: El instructivo del SII lo pide explícitamente para el set 5038174: «EL CASO 2
-#: CORRESPONDE A UNA GUIA QUE SE FACTURO EN EL PERIODO» y «EL CASO 3 CORRESPONDE
-#: A UNA GUIA ANULADA». No sale del sobre de guías —esas tres se emitieron
-#: iguales y el SII las aceptó— sino del enunciado del caso, así que hay que
-#: ponerlo aquí: es lo único del libro de guías que no se deduce de los
-#: documentos.
+#: El instructivo del SII lo pide para el set 5038174: «EL CASO 2 CORRESPONDE A
+#: UNA GUIA QUE SE FACTURO EN EL PERIODO» y «EL CASO 3 CORRESPONDE A UNA GUIA
+#: ANULADA». No sale del sobre de guías —esas tres se emitieron iguales y el SII
+#: las aceptó— sino del enunciado del caso.
 #:
-#: Sin esto el libro declaraba las tres como guías de venta normales, con el
-#: monto de la anulada sumando al total del período.
+#: Sólo la anulación se anota. Que una guía se haya facturado **ya está dicho**
+#: por su tipo de operación: el formato del Libro de Guías define el 1 como
+#: «Operación constituye venta» y aclara al pie que se indica «cuando el
+#: producto está facturado o se facturará posteriormente». El 2 es «ventas por
+#: efectuar». No hay nada más que marcar.
+#:
+#: `MntModificado` NO sirve para esto: el formato dice «Si el campo
+#: ANULADO/MODIFICADO **=3**, se anota el monto corregido», y el 3 es «productos
+#: recibidos parcialmente». Usarlo para la guía facturada dejaba un
+#: TotMntModificado sin ninguna guía con Anulado=3, y el SII respondió «El Monto
+#: de Guías Modificadas No Cuadra».
+#:
+#: Los campos de referencia a la factura (TpoDocRef/FolioDocRef/FchDocRef)
+#: tampoco: piden la factura concreta que absorbió la guía, y en este set no
+#: existe tal factura. Inventarla sería declarar un documento que el SII no
+#: tiene.
 GUIDE_BOOK_CASES: dict[int, dict] = {
-    2: {"invoiced": True},
     3: {"voided": 2},  # anulada DESPUÉS de enviarla al SII: suma en TotGuiaAnulada
 }
 
@@ -456,8 +467,8 @@ def lines_from_envelope(xml: bytes, kind: str) -> list[dict]:
     """Las líneas de un libro a partir de un sobre ya emitido.
 
     En el Libro de Guías se aplica además lo que el caso dice de cada guía
-    —cuál se facturó y cuál se anuló—, que no está en el sobre: las tres se
-    emitieron iguales y el SII las aceptó. Ver ``GUIDE_BOOK_CASES``.
+    —cuál quedó anulada—, que no está en el sobre: las tres se emitieron iguales
+    y el SII las aceptó. Ver ``GUIDE_BOOK_CASES``.
     """
     if kind != "libro_guias":
         return [_sales_line(d) for d in _documentos(xml)]
@@ -470,11 +481,6 @@ def lines_from_envelope(xml: bytes, kind: str) -> list[dict]:
             # Una guía anulada no aporta monto al período: el SII la cuenta
             # aparte, en TotGuiaAnulada, y sumarla descuadraría el resumen.
             linea["net_amount"] = linea["vat_amount"] = linea["total_amount"] = 0
-        elif caso.get("invoiced"):
-            # Guía facturada en el período: su monto pasa a «modificado», que es
-            # como el Servicio distingue lo que ya viajó en una factura de lo
-            # que sigue pendiente de facturar.
-            linea["modified_amount"] = linea["total_amount"]
         lineas.append(linea)
     return lineas
 

@@ -306,27 +306,29 @@ _GUIAS = (
 )
 
 
-def test_el_libro_de_guias_marca_la_facturada_y_la_anulada():
-    """Lo exige el instructivo del set 5038174, literal:
+def test_el_libro_de_guias_marca_la_anulada_y_nada_mas():
+    """Lo que el formato del Libro de Guías permite anotar, y lo que no.
 
-    «EL CASO 2 CORRESPONDE A UNA GUIA QUE SE FACTURO EN EL PERIODO» y «EL CASO 3
-    CORRESPONDE A UNA GUIA ANULADA».
+    El instructivo del set 5038174 dice que el caso 2 se facturó en el período y
+    el caso 3 está anulada. Sólo la segunda se anota:
 
-    No sale del sobre de guías —las tres se emitieron iguales y el SII las
-    aceptó—, sino del enunciado del caso. Sin esto el libro las declaraba como
-    tres guías de venta normales, con el monto de la anulada sumando al total
-    del período. No se vio antes porque el SII rechazaba este libro por cascada
-    («No Tiene un SET GUia de Despacho Aprobado») y nunca llegaba a mirar su
-    contenido.
+    - Que una guía se facturó YA lo dice su tipo de operación. El formato define
+      el 1 como «Operación constituye venta» y aclara al pie que se indica
+      «cuando el producto está facturado o se facturará posteriormente».
+    - `MntModificado` es de otro caso: «Si el campo ANULADO/MODIFICADO =3, se
+      anota el monto corregido», y el 3 son productos recibidos parcialmente.
+      Usarlo para la guía facturada dejó un TotMntModificado sin ninguna guía
+      con Anulado=3, y el SII respondió «El Monto de Guías Modificadas No
+      Cuadra».
     """
     lineas = certification_fill.lines_from_envelope(_GUIAS, "libro_guias")
 
     assert [x["folio"] for x in lineas] == [1, 2, 3]
-    # La primera no lleva nada: es el traslado interno, sin venta.
-    assert "voided" not in lineas[0] and "modified_amount" not in lineas[0]
-    # La segunda, facturada en el período: su monto pasa a «modificado».
-    assert lineas[1]["modified_amount"] == 3077417
+    # Ninguna lleva monto modificado: ninguna tiene productos recibidos a medias.
+    assert all("modified_amount" not in x for x in lineas)
+    # La segunda queda como venta normal, con su monto intacto.
     assert "voided" not in lineas[1]
+    assert lineas[1]["total_amount"] == 3077417
     # La tercera, anulada después de enviarla: no aporta monto al período.
     assert lineas[2]["voided"] == 2
     assert lineas[2]["total_amount"] == 0
