@@ -146,6 +146,21 @@ def test_un_sobre_cuyas_firmas_no_verifican_no_se_envia(db, canales, monkeypatch
     assert envio.track_id is None
 
 
+def test_un_sobre_cuyos_timbres_no_verifican_no_se_envia(db, canales, monkeypatch):
+    """El segundo set de boletas: firmas bien, timbre firmado con otro <RSR>."""
+    monkeypatch.setattr("dte_chile.signer.verify_transmitted", lambda xml: [True])
+    monkeypatch.setattr("dte_chile.ted.verify_stamps", lambda xml: [False, True])
+    monkeypatch.setattr(certification_service, "_firmas_como_se_transmiten", _CONTROL_REAL)
+    customer = make_customer(db, rut="77262159-0")
+    envio = _sobre(db, customer, "EnvioBOLETA", _BOLETAS)
+
+    with pytest.raises(certification_service.EmissionError, match="Firma Timbre Electrónico"):
+        certification_service.send_draft(db, customer, _cert(), envio, 30)
+
+    assert canales == []
+    assert envio.track_id is None
+
+
 def test_el_rcof_y_los_demas_sobres_se_envian_por_maullin(db, canales):
     customer = make_customer(db, rut="77262159-0")
     rcof = _sobre(db, customer, "ConsumoFolios", b"<ConsumoFolios/>")

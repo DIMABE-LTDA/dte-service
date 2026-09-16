@@ -46,6 +46,7 @@ def cargar(db, cliente, hoja: certification_sheet.Sheet) -> int:
 def _forma(xml: bytes) -> list[str]:
     """Que el sobre valide contra el XSD del SII y que sus firmas verifiquen."""
     from dte_chile.signer import verify_transmitted
+    from dte_chile.ted import verify_stamps
     from dte_chile.validation import Validator
 
     problemas = []
@@ -57,6 +58,10 @@ def _forma(xml: bytes) -> list[str]:
     firmas = verify_transmitted(xml)
     if not firmas or not all(firmas):
         problemas.append(f"firmas: {sum(bool(f) for f in firmas)} de {len(firmas)} verifican")
+    # El timbre, también sobre los bytes: el DD se verifica tal como viaja.
+    timbres = verify_stamps(xml)
+    if timbres and not all(timbres):
+        problemas.append(f"timbres: {sum(timbres)} de {len(timbres)} verifican")
     return problemas
 
 

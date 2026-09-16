@@ -1000,8 +1000,13 @@ def _firmas_como_se_transmiten(xml: bytes) -> None:
     texto y lo verifica suelto. El primer set de boletas salió con los <DTE> sin
     su ``xmlns`` —verificaban sobre el árbol— y el SII rechazó las cinco con
     «Firma DTE Incorrecta», con el plazo de 24 horas del CAF corriendo.
+
+    Lo mismo con el timbre: el segundo envío firmó el DD con ``<RSR></RSR>`` y lo
+    transmitió con ``<RSR/>``, y el SII puso reparo «Firma Timbre Electrónico
+    Incorrecta» en las cinco.
     """
     from dte_chile.signer import verify_transmitted
+    from dte_chile.ted import verify_stamps
 
     firmas = verify_transmitted(xml)
     if firmas and not all(firmas):
@@ -1010,6 +1015,14 @@ def _firmas_como_se_transmiten(xml: bytes) -> None:
             f"{malas} de {len(firmas)} firmas del sobre no verifican tal como se"
             " transmitirían; el SII lo rechazaría con «Firma DTE Incorrecta»."
             " No se envió. Vuelve a emitir el set."
+        )
+    timbres = verify_stamps(xml)
+    if timbres and not all(timbres):
+        malos = sum(not t for t in timbres)
+        raise EmissionError(
+            f"{malos} de {len(timbres)} timbres del sobre no verifican tal como se"
+            " transmitirían; el SII lo objetaría con «Firma Timbre Electrónico"
+            " Incorrecta». No se envió. Vuelve a emitir el set."
         )
 
 
