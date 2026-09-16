@@ -123,7 +123,7 @@ def emitidos(db):
 
 
 def test_se_emiten_los_once_sets_validos(emitidos):
-    assert sorted(emitidos) == sorted(certification_rehearsal.ORDEN)
+    assert sorted(emitidos) == sorted([*certification_rehearsal.ORDEN, "rcof"])
     problemas = {k: r.error or r.forma for k, r in emitidos.items() if r.error or r.forma}
     assert problemas == {}
 
@@ -168,3 +168,33 @@ def test_las_diferencias_conocidas_no_esconden_otras():
         ],
     )
     assert len(malas) == 1  # las tildes sólo se aceptan en la liquidación
+
+
+def test_el_rcof_reporta_los_folios_y_montos_del_sobre_de_boletas(emitidos):
+    """El correo del SII pide «el Reporte de Consumo de Folios (RCOF) asociado»."""
+    from lxml import etree
+
+    ns = {"s": "http://www.sii.cl/SiiDte"}
+    boletas = etree.fromstring(emitidos["boletas"].xml)
+    rcof = etree.fromstring(emitidos["rcof"].xml)
+    assert rcof.tag == "{http://www.sii.cl/SiiDte}ConsumoFolios"
+
+    folios = sorted(
+        int(f) for f in boletas.xpath("//s:Documento//s:IdDoc/s:Folio/text()", namespaces=ns)
+    )
+    total = sum(
+        int(t) for t in boletas.xpath("//s:Documento//s:Totales/s:MntTotal/text()", namespaces=ns)
+    )
+    resumen = rcof.find(".//s:Resumen", ns)
+
+    assert resumen.findtext("s:TipoDocumento", namespaces=ns) == "39"
+    assert int(resumen.findtext("s:FoliosEmitidos", namespaces=ns)) == len(folios) == 5
+    assert int(resumen.findtext("s:MntTotal", namespaces=ns)) == total
+    rango = resumen.find("s:RangoUtilizados", ns)
+    assert (
+        int(rango.findtext("s:Inicial", namespaces=ns)),
+        int(rango.findtext("s:Final", namespaces=ns)),
+    ) == (
+        folios[0],
+        folios[-1],
+    )

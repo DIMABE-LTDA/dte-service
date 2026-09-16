@@ -1146,7 +1146,26 @@ export default function Certification() {
                                       Consultar
                                     </button>
                                   )}
-                                  {writable && e.track_id && (
+                                  {writable && e.track_id && e.envelope_kind === "EnvioBOLETA" && (
+                                    <button
+                                      className="btn-link"
+                                      type="button"
+                                      disabled={busy}
+                                      title="El SII pide enviarlo junto al set de boletas, dentro de las mismas 24 horas"
+                                      onClick={() =>
+                                        correr(
+                                          () => api.certFolioReport(cid, e.id),
+                                          "RCOF generado. Envíalo desde su fila.",
+                                        )
+                                      }
+                                    >
+                                      <Icon name="upload" />
+                                      Generar RCOF
+                                    </button>
+                                  )}
+                                  {writable &&
+                                    e.track_id &&
+                                    !["EnvioBOLETA", "ConsumoFolios"].includes(e.envelope_kind) && (
                                     <button
                                       className="btn-link"
                                       type="button"

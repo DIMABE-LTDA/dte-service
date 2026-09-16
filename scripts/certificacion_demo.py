@@ -155,7 +155,7 @@ def main() -> int:
     salida.mkdir(parents=True, exist_ok=True)
 
     emitidos = certification_rehearsal.emitir_todo(db, cliente, cert)
-    for kind in certification_rehearsal.ORDEN:
+    for kind in [*certification_rehearsal.ORDEN, "rcof"]:
         r = emitidos.get(kind)
         if r is None:
             print(f"  – {kind}: no está en los archivos")

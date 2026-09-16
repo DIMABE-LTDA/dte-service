@@ -906,11 +906,14 @@ def _boletas(lineas: list[str]) -> Sheet:
             detalle.append(item)
         if not detalle:
             raise SheetError(f"CASO-{numero} sin ítems", n_caso)
+        # «Debe referenciar el caso correspondiente a cada boleta en el XML.
+        # Ejemplo: <CodRef> SET <RazonRef> CASO-1». En la boleta CodRef es el
+        # código alfanumérico; TpoDocRef es para documentos y debe ser numérico.
         boletas.append(
             {
                 "type": 39,
                 "items": detalle,
-                "references": [{"doc_type": "SET", "folio": "1", "reason": f"CASO-{numero}"}],
+                "references": [{"code": "SET", "reason": f"CASO-{numero}"}],
             }
         )
     if not boletas:

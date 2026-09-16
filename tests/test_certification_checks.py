@@ -576,3 +576,28 @@ def test_las_definiciones_del_repo_pasan_las_reglas_de_contenido(db):
     }
     problemas = certification_checks._contenido(definiciones)
     assert problemas == [], [p["detail"] for p in problemas]
+
+
+def test_la_referencia_de_una_boleta_va_en_codref(db):
+    """El set de boletas: «<CodRef> SET · <RazonRef> CASO-1»."""
+    customer = make_customer(db)
+    receipt = {"type": 39, "items": [{"name": "Arroz", "quantity": 5, "unit_price": 700}]}
+    s = CertificationSet(customer_id=customer.id, code="", kind="boletas")
+    db.add(s)
+    db.flush()
+    definicion = CertificationDefinition(
+        set_id=s.id,
+        endpoint="boletas",
+        payload={
+            "receipts": [{**receipt, "references": [{"doc_type": "SET", "reason": "CASO-1"}]}]
+        },
+    )
+    db.add(definicion)
+    db.commit()
+    assert "contenido_boletas_referencia" in _claves(db, customer)
+
+    definicion.payload = {
+        "receipts": [{**receipt, "references": [{"code": "SET", "reason": "CASO-1"}]}]
+    }
+    db.commit()
+    assert "contenido_boletas_referencia" not in _claves(db, customer)

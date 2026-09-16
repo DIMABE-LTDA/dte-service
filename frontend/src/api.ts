@@ -110,6 +110,10 @@ export const api = {
     req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/refresh`, {
       method: "POST",
     }),
+  certFolioReport: (cid: number, sid: number) =>
+    req<CertSubmission>(`/admin/customers/${cid}/certification/submissions/${sid}/folio-report`, {
+      method: "POST",
+    }),
   certAssign: (cid: number, sid: number, code: string, kind: string) =>
     req<CertSubmission>(
       `/admin/customers/${cid}/certification/submissions/${sid}/assign`,

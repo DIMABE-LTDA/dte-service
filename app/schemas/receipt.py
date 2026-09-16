@@ -16,14 +16,16 @@ ANONYMOUS_RECEIVER_RUT = "66666666-6"
 class ReceiptReferenceIn(BaseModel):
     """Referencia de una boleta.
 
-    No es la misma que la del DTE: el XSD de boleta hace ``TpoDocRef``
-    alfanumérico —el set de certificación exige el literal ``"SET"``— y **no
-    define ``FchRef``**, así que la referencia de una boleta no lleva fecha.
+    No es la misma que la del DTE. El formato de boletas usa ``TpoDocRef`` para
+    referenciar un documento tributario, con «un valor Numérico», y ``CodRef``
+    como «Código alfanumérico establecido por la Empresa». El set de
+    certificación pide el caso así: ``code="SET"`` y ``reason="CASO-1"``, sin
+    tipo ni folio. Y el XSD **no define ``FchRef``**: no lleva fecha.
     """
 
-    doc_type: int | str
+    doc_type: int | str | None = None
     folio: str = ""
-    code: int | None = None
+    code: int | str | None = None
     reason: str = ""
 
 

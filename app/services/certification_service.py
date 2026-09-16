@@ -24,6 +24,7 @@ import base64
 import contextvars
 import datetime as dt
 import logging
+from zoneinfo import ZoneInfo
 
 from lxml import etree
 
@@ -53,7 +54,11 @@ _ENVELOPE_KINDS = {
     "EnvioBOLETA": "EnvioBOLETA",
     "LibroCompraVenta": "LibroCompraVenta",
     "LibroGuia": "LibroGuia",
+    "ConsumoFolios": "ConsumoFolios",
 }
+
+#: Sobres que viajan por la API REST de boleta y no por el upload de Maullín.
+_POR_API_DE_BOLETA = {"EnvioBOLETA"}
 
 
 def _local(tag: object) -> str:
@@ -191,9 +196,48 @@ def query_status(customer: Customer, cert, track_id: str, timeout_s: int) -> dic
     }
 
 
+def _estado_boletas(customer: Customer, cert, track_id: str, timeout_s: int) -> dict:
+    """Estado de un envío de boletas, por la API REST de boleta.
+
+    Se lleva al mismo formato que el de facturas —``state``, ``detail``, ``stats``—
+    para que el expediente lo muestre igual. Los errores de cada boleta rechazada
+    o con reparo van en ``detail``: es lo que hay que corregir.
+    """
+    from dte_chile.receipt_client import ReceiptClient, ReceiptEnvironment
+
+    client = ReceiptClient(cert, ReceiptEnvironment[customer.environment.name], timeout=timeout_s)
+    try:
+        res = client.submission_status(track_id, customer.rut)
+    finally:
+        client.session.close()
+    stats = [
+        {
+            "doc_type": s.get("tipo"),
+            "informed": s.get("informados", 0),
+            "accepted": s.get("aceptados", 0),
+            "rejected": s.get("rechazados", 0),
+            "flagged": s.get("reparos", 0),
+        }
+        for s in res.stats
+    ]
+    errores = [
+        f"{d.get('tipo')}-{d.get('folio')} {d.get('estado')}: "
+        + "; ".join(str(e.get("descripcion", "")) for e in d.get("error") or [])
+        for d in res.details
+    ]
+    return {"state": res.state, "detail": " | ".join(errores) or None, "stats": stats}
+
+
 def refresh(db, customer: Customer, cert, envio: CertificationSubmission, timeout_s: int):
-    """Consulta al SII el estado de un envío y lo guarda tal cual."""
-    estado = query_status(customer, cert, envio.track_id, timeout_s)
+    """Consulta al SII el estado de un envío y lo guarda tal cual.
+
+    Las boletas se consultan en la API REST de boleta; todo lo demás —documentos,
+    libros, RCOF— en el servicio de Maullín, por donde se subió.
+    """
+    if envio.envelope_kind in _POR_API_DE_BOLETA:
+        estado = _estado_boletas(customer, cert, envio.track_id, timeout_s)
+    else:
+        estado = query_status(customer, cert, envio.track_id, timeout_s)
     envio.sii_state = estado.get("state")
     envio.sii_detail = estado.get("detail")
     envio.sii_stats = estado.get("stats") or None
@@ -958,13 +1002,110 @@ def send_draft(db, customer: Customer, cert, envio: CertificationSubmission, tim
     from app.services import sii_upload
 
     xml = envelope(envio)
-    # capture=False: la fila ya existe, sólo le falta el TrackID.
-    resultado = sii_upload.upload(customer, cert, xml, customer.rut, timeout_s, capture=False)
+    if envio.envelope_kind in _POR_API_DE_BOLETA:
+        # La boleta no se recibe en Maullín: tiene su propia API REST.
+        from dte_chile.receipt_client import ReceiptClient, ReceiptEnvironment
+
+        client = ReceiptClient(
+            cert, ReceiptEnvironment[customer.environment.name], timeout=timeout_s
+        )
+        try:
+            resultado = client.send_receipts(xml, customer.rut, cert.rut or customer.rut)
+        finally:
+            client.session.close()
+    else:
+        # capture=False: la fila ya existe, sólo le falta el TrackID.
+        resultado = sii_upload.upload(customer, cert, xml, customer.rut, timeout_s, capture=False)
     envio.track_id = str(resultado.track_id) if resultado.track_id else None
     envio.sent_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
     db.commit()
     db.refresh(envio)
     return envio
+
+
+def folio_report(db, customer: Customer, cert, envio: CertificationSubmission):
+    """El RCOF de un envío de boletas, como sobre emitido y sin enviar.
+
+    El correo del set de boletas lo pide junto al set: «Enviar al SII el Set de
+    Boletas generado y el Reporte de Consumo de Folios (RCOF) asociado», en un
+    plazo de 24 horas, «puesto que se pretende verificar la capacidad de
+    generación del RCOF». Asociado quiere decir que reporta exactamente esos
+    folios y esos montos, así que se arma leyendo el sobre que se envió y no
+    recalculando las boletas.
+
+    Se envía por el upload de Maullín, no por la API de boleta: la especificación
+    de la API dice que «palena.sii.cl es la plataforma dedicada para la recepción
+    de DTE y RVD».
+    """
+    from dte_chile.folio_report import FolioReportCover, ReportLine, build_folio_report
+    from dte_chile.folio_report import serialize as serialize_report
+    from dte_chile.validation import Validator
+
+    from app.core.config import get_settings
+
+    if envio.envelope_kind != "EnvioBOLETA":
+        raise EmissionError("el reporte de consumo de folios se arma desde un envío de boletas")
+    if not envio.track_id:
+        raise EmissionError("primero envía el set de boletas: el RCOF reporta lo que se envió")
+
+    raiz = etree.fromstring(envelope(envio))
+    lineas, fechas = [], set()
+    for doc in raiz.iter():
+        if _local(doc.tag) != "Documento":
+            continue
+        datos = {_local(n.tag): (n.text or "").strip() for n in doc.iter() if len(n) == 0}
+        fechas.add(dt.date.fromisoformat(datos["FchEmis"]))
+        lineas.append(
+            ReportLine(
+                doc_type=int(datos["TipoDTE"]),
+                folio=int(datos["Folio"]),
+                net_amount=int(datos.get("MntNeto") or 0),
+                vat_amount=int(datos.get("IVA") or 0),
+                exempt_amount=int(datos.get("MntExe") or 0),
+                total_amount=int(datos.get("MntTotal") or 0),
+            )
+        )
+    if not lineas:
+        raise EmissionError("el sobre de boletas no trae documentos")
+
+    previos = (
+        db.query(CertificationSubmission)
+        .filter(
+            CertificationSubmission.set_id == envio.set_id,
+            CertificationSubmission.envelope_kind == "ConsumoFolios",
+        )
+        .count()
+    )
+    ahora = dt.datetime.now(ZoneInfo("America/Santiago")).replace(microsecond=0, tzinfo=None)
+    cover = FolioReportCover(
+        issuer_rut=customer.rut,
+        sender_rut=cert.rut or customer.rut,
+        start_date=min(fechas),
+        end_date=max(fechas),
+        sequence=previos + 1,
+        resolution_date=customer.resolution_date,
+        resolution_number=customer.resolution_number,
+        lines=lineas,
+    )
+    xml = serialize_report(build_folio_report(cover, cert, ahora))
+    Validator(get_settings().schemas_dir).validate(xml)
+
+    rcof = CertificationSubmission(
+        set_id=envio.set_id,
+        customer_id=customer.id,
+        track_id=None,
+        sent_at=None,
+        envelope_kind="ConsumoFolios",
+        envelope_encrypted=crypto.encrypt(xml),
+        signed_thumbprint=_thumbprint(db, customer),
+    )
+    db.add(rcof)
+    db.flush()
+    for doc_type, folio in sorted((ln.doc_type, ln.folio) for ln in lineas):
+        db.add(CertificationDocument(submission_id=rcof.id, doc_type=doc_type, folio=folio))
+    db.commit()
+    db.refresh(rcof)
+    return rcof
 
 
 # --------------------------------------------------------------------------- #

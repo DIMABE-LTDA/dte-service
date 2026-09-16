@@ -19,6 +19,7 @@ vi.mock("../api", () => ({
     certStep: vi.fn(),
     certDocStatuses: vi.fn(),
     certChecks: vi.fn(),
+    certFolioReport: vi.fn(),
   },
 }));
 vi.mock("../auth", async (orig) => {
@@ -589,6 +590,29 @@ describe("Expediente de certificación", () => {
     // Lo que pide acción va primero, aunque su folio sea el mayor.
     const filas = dialogo.querySelectorAll("tbody tr");
     expect(filas[0]).toHaveTextContent("DNK");
+  });
+
+  it("un envío de boletas ofrece generar su RCOF y no la consulta por documento de Maullín", async () => {
+    // El correo del SII pide el set de boletas «y el Reporte de Consumo de
+    // Folios (RCOF) asociado» en 24 horas. La consulta documento por documento
+    // es de Maullín, donde las boletas no se reciben.
+    const boletas = set({
+      id: 7,
+      code: "",
+      kind: "boletas",
+      submissions: [
+        { ...set().submissions[0], id: 70, set_id: 7, track_id: "123456789012345", envelope_kind: "EnvioBOLETA" },
+      ],
+    });
+    (api.certDossier as Mock).mockResolvedValue(dossier({ sets: [boletas] }));
+    (api.certFolioReport as Mock).mockResolvedValue({});
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole("button", { name: /Generar RCOF/ }));
+
+    expect(api.certFolioReport).toHaveBeenCalledWith(1, 70);
+    expect(screen.queryByRole("button", { name: /Ver cada documento/ })).not.toBeInTheDocument();
   });
 
   it("muestra sólo el envío vigente y pliega los intentos anteriores", async () => {

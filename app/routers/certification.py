@@ -296,6 +296,37 @@ def refresh_status(
     return certification_service.refresh(db, customer, cert, row, get_settings().request_timeout_s)
 
 
+@router.post("/submissions/{submission_id}/folio-report", response_model=CertificationSubmissionOut)
+def folio_report(
+    customer_id: int,
+    submission_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> CertificationSubmissionOut:
+    """Arma el RCOF de un envío de boletas y lo deja emitido, sin enviar.
+
+    El set de boletas exige enviarlo «asociado» al set, dentro de las mismas 24
+    horas. Se envía con el mismo botón que cualquier sobre, y va por el upload
+    de Maullín.
+    """
+    customer = _customer(db, customer_id)
+    row = _submission(db, customer, submission_id)
+    cert = _cert(db, customer)
+    try:
+        rcof = certification_service.folio_report(db, customer, cert, row)
+    except certification_service.EmissionError as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.folio_report",
+        "customer",
+        str(customer.id),
+        f"RCOF del envío de boletas {row.track_id}",
+    )
+    return _envio(rcof)
+
+
 @router.post("/submissions/{submission_id}/assign", response_model=CertificationSubmissionOut)
 def assign_set(
     customer_id: int,

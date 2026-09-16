@@ -117,21 +117,56 @@ SII aprobó.
 - [x] Enviar los 10 sets y obtener `SOK` en cada uno
 - [x] **Declarar el avance** de cada set en Mi SII, con fecha y N° de envío
 
-### Paso 2 — Boletas *(bloqueado por decisión del usuario)*
+### Paso 2 — Boletas
 
-El set de boletas es aparte y tiene reloj: al descargar el CAF corren **24
-horas** para enviar el set completo en **un solo envío**.
+Es un trámite aparte, con su propio portal. **Lo que manda es el correo del SII**
+que llega al descargar el set («Set Prueba BE.txt»). Las páginas de sii.cl se
+contradicen entre sí (10 o 5 folios, RCOF sí o no, muestras por correo), y el
+correo recibido el 16-09-2026 dice:
 
-- [ ] Pedir el CAF de **5 folios** del tipo 39 — *sólo cuando todo lo demás
-      esté listo*
-- [ ] Retirar el CAF vigente 1-100 con
-      `POST /admin/customers/1/cafs/{id}/retire` (si no, el asignador sigue
-      entregando folios del viejo y nunca usa el nuevo)
-- [ ] Cargar el CAF nuevo y correr `set_boletas.py`
-- [ ] Enviar el RCOF (reporte de consumo de folios) del día
-- [ ] Publicar el sitio de consulta de boletas (`boletas.dimabe.cl`) — el SII
-      exige que la boleta impresa indique dónde consultarla, y que el sitio
-      esté publicado antes de aprobar. El código está listo en `boletas-web/`.
+> 1) Obtener un CAF de boletas electrónicas que contenga un rango de **5 folios**.
+> 2) Generar las boletas con la información del Set de Pruebas […] utilizando
+>    los folios obtenidos en el punto anterior.
+> 3) Enviar al SII el Set de Boletas generado **y el Reporte de Consumo de Folios
+>    (RCOF) asociado** […] El envío del Set de Boletas debe ser **en solo un
+>    archivo (sobre)**.
+> 4) Solicitar la revisión del Set de Boletas enviado, informando el track ID […]
+>
+> Deben hacer todo lo anterior en un **plazo máximo de 24 horas** […] El plazo
+> comienza una vez que bajan los folios de boletas electrónicas.
+>
+> El sitio web para consultar la boleta electrónica debe estar señalado en las
+> representaciones impresas […] y disponible en la web previa aprobación.
+
+Aunque la Res. Ex. 53/2022 eliminó el RCOF para la operación normal desde el
+01-08-2022, **en la certificación se pide**.
+
+**Cada cosa va por su canal**, según la especificación de la API de boleta
+(`openapi.yaml` 1.0.5): las boletas por la API REST —envío a `pangal.sii.cl`,
+token y consulta en `apicert.sii.cl`—; el RCOF por el upload de Maullín, porque
+«palena.sii.cl es la plataforma dedicada para la recepción de DTE y RVD». Desde
+el expediente, «Enviar» y «Consultar» eligen el canal solos.
+
+**La referencia del caso va en `CodRef`**, no en `TpoDocRef`: la hoja pide
+«`<CodRef> SET` · `<RazonRef> CASO-1`», y en la boleta `TpoDocRef` es numérico.
+
+Todo esto está ensayado en `tests/test_certification_rehearsal.py` y en la demo:
+el sobre de boletas y su RCOF validan contra el XSD con sus firmas, y el RCOF
+reporta exactamente los folios y montos del sobre.
+
+Con reloj — **nada de esto antes de tener el resto listo**:
+
+- [ ] Descargar el CAF de **5 folios** del tipo 39. Empieza el plazo de 24 h.
+- [ ] Retirar el CAF 39 vigente (1-100) con `POST /admin/customers/1/cafs/{id}/retire`:
+      si no, el asignador sigue entregando folios del viejo.
+- [ ] Cargar el CAF nuevo en la ficha.
+- [ ] En el set de boletas: **Revisar y emitir** → validar el sobre → **Enviar**
+      (API REST) → **Consultar**.
+- [ ] En la fila del envío de boletas: **Generar RCOF** → **Enviar** (Maullín) →
+      **Consultar**.
+- [ ] Solicitar la revisión con el TrackID de las boletas en
+      https://www4.sii.cl/certBolElectDteInternet/?SET=2
+- [x] Sitio de consulta publicado: `boletas.dimabe.cl` responde.
 
 ### Paso 3 — Simulación
 

@@ -92,7 +92,8 @@ def issue_batch(db: Session, customer: Customer, cert, req) -> dict:
                     doc_type=r.doc_type,
                     folio=r.folio,
                     date=None,  # el XSD de boleta no define FchRef
-                    code=ReferenceCode(r.code) if r.code is not None else None,
+                    # CodRef: numérico en un DTE, alfanumérico en boleta («SET»).
+                    code=ReferenceCode(r.code) if isinstance(r.code, int) else r.code,
                     reason=r.reason,
                 )
                 for r in item.references
@@ -186,11 +187,14 @@ def send_folio_report(customer: Customer, cert, req) -> dict:
 
     submission = None
     if req.send:
-        client = _client(customer, cert, settings)
-        try:
-            submission = client.send_receipts(xml, customer.rut, cert.rut or customer.rut)
-        finally:
-            client.session.close()
+        # Por el upload de Maullín/Palena, no por la API de boleta: la
+        # especificación de esa API dice que «palena.sii.cl es la plataforma
+        # dedicada para la recepción de DTE y RVD» (RVD, ex RCOF).
+        from app.services import sii_upload
+
+        submission = sii_upload.upload(
+            customer, cert, xml, customer.rut, settings.request_timeout_s
+        )
 
     return {
         "start_date": req.start_date,

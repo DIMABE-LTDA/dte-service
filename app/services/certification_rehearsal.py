@@ -83,4 +83,13 @@ def emitir_todo(db, cliente, cert) -> dict[str, Emitido]:
         envio.sii_state = "LOK" if kind.startswith("libro") else "EPR"
         db.commit()
         salida[kind] = Emitido(kind, xml=xml, forma=_forma(xml))
+        if kind == "boletas":
+            # El set de boletas se entrega junto a su RCOF: se ensaya también.
+            try:
+                rcof = certification_service.folio_report(db, cliente, cert, envio)
+                rcof_xml = certification_service.envelope(rcof)
+                salida["rcof"] = Emitido("rcof", xml=rcof_xml, forma=_forma(rcof_xml))
+            except Exception as ex:  # noqa: BLE001
+                db.rollback()
+                salida["rcof"] = Emitido("rcof", error=f"{type(ex).__name__}: {ex}")
     return salida

@@ -619,6 +619,21 @@ def _contenido(definiciones: dict) -> list[dict]:
                     )
                 )
 
+    bol = definiciones.get("boletas")
+    for n, boleta in enumerate(((bol.payload or {}).get("receipts") or []) if bol else [], 1):
+        for ref in boleta.get("references") or []:
+            if str(ref.get("doc_type") or "").upper() == "SET":
+                salida.append(
+                    _check(
+                        "contenido_boletas_referencia",
+                        f"Boletas · caso {n}",
+                        "error",
+                        "la referencia al caso va con «SET» como tipo de documento",
+                        "El set pide «<CodRef> SET · <RazonRef> CASO-n»: en la boleta el tipo"
+                        " de documento es numérico y el código es el alfanumérico.",
+                    )
+                )
+
     for kind in ("exportacion_1", "exportacion_2"):
         d = definiciones.get(kind)
         for n, doc in enumerate(((d.payload or {}).get("documents") or []) if d else [], 1):

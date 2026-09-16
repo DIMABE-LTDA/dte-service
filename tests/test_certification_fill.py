@@ -225,7 +225,7 @@ def test_el_set_de_boletas_recibe_emisor_y_fecha_como_los_demas(db):
                 "issuer": {"rut": "99999999-9"},  # de otro contribuyente
                 "issue_date": "2026-09-01",  # de otro día
                 "items": [{"name": "Arroz", "quantity": 5, "unit_price": 700, "unit": "Kg"}],
-                "references": [{"doc_type": "SET", "folio": "1", "reason": "CASO-5"}],
+                "references": [{"code": "SET", "reason": "CASO-5"}],
             }
         ]
     }

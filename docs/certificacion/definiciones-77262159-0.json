@@ -2050,8 +2050,7 @@
           ],
           "references": [
             {
-              "doc_type": "SET",
-              "folio": "1",
+              "code": "SET",
               "reason": "CASO-1"
             }
           ]
@@ -2067,8 +2066,7 @@
           ],
           "references": [
             {
-              "doc_type": "SET",
-              "folio": "1",
+              "code": "SET",
               "reason": "CASO-2"
             }
           ]
@@ -2089,8 +2087,7 @@
           ],
           "references": [
             {
-              "doc_type": "SET",
-              "folio": "1",
+              "code": "SET",
               "reason": "CASO-3"
             }
           ]
@@ -2112,8 +2109,7 @@
           ],
           "references": [
             {
-              "doc_type": "SET",
-              "folio": "1",
+              "code": "SET",
               "reason": "CASO-4"
             }
           ]
@@ -2130,8 +2126,7 @@
           ],
           "references": [
             {
-              "doc_type": "SET",
-              "folio": "1",
+              "code": "SET",
               "reason": "CASO-5"
             }
           ]
