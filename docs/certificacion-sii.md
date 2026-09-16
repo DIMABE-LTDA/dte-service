@@ -13,28 +13,25 @@ Todo el trámite se hace ya **desde el portal**, no con scripts. El expediente
 vive en `/customers/1/certification`, con su verificación previa, la emisión y
 el envío.
 
-**7 de 10 sets aprobados.** Estado según «Ver Avance de la Postulación»
-(`/cvc_cgi/dte/pe_avance5` en Maullín), que es la única fuente que vale:
+**Set de pruebas terminado: 10 de 10 con `SOK`** (16-09-2026). Lo que sigue son
+los pasos 2 a 6 del §2, que dependen de gestiones fuera del sistema.
 
-| Set | N° atención | Estado | Qué falta |
-|-----|-------------|--------|-----------|
-| Set básico | 5038170 | Revisado conforme | — |
-| Guía de despacho | 5038173 | Revisado conforme | — |
-| Factura exenta | 5038175 | Revisado conforme | — |
-| Documentos de exportación (1) | 5038176 | Revisado conforme | — |
-| Caso general factura de compra | 5038180 | Revisado conforme | — |
-| Liquidación factura | 5038178 | Revisado conforme | — |
-| Documentos de exportación (2) | 5038177 | `SOK` (envío `0259009472`) | — |
-| Libro de compras | 5038172 | Contenido no corresponde | arreglado; falta `CodAutRec` (§3) |
-| Libro de guías | 5038174 | Contenido no corresponde | arreglado; falta `CodAutRec` (§3) |
-| Libro de ventas | 5038171 | Contenido no corresponde | reconstruir al final |
+| Set | N° atención | Envío aprobado |
+|-----|-------------|----------------|
+| Set básico | 5038170 | `0258973214` |
+| Guía de despacho | 5038173 | `0258724922` |
+| Factura exenta | 5038175 | `0258973570` |
+| Documentos de exportación (1) | 5038176 | `0258742558` |
+| Documentos de exportación (2) | 5038177 | `0259009472` |
+| Caso general factura de compra | 5038180 | `0258986342` |
+| Liquidación factura | 5038178 | `0259003800` |
+| Libro de guías | 5038174 | `0259013134` |
+| Libro de compras | 5038172 | `0259013806` |
+| Libro de ventas | 5038171 | `0259016980` |
 
-**Los tres que faltan son los tres libros, y ninguno necesita más código.** Los
-arreglos de compras y de guías están desplegados y probados; lo que les falta es
-el `CodAutRec` que debe pedir el representante legal (§3). El de ventas además
-hay que reconstruirlo, y eso sólo tiene sentido ahora que todos los sets de
-documentos están aprobados: se arma con los folios que el SII aceptó, y los de
-exportación (2) cambiaron a 29, 30 y 31 en el último envío.
+El estado de cada set se ve en «Ver Avance de la Postulación»
+(`/cvc_cgi/dte/pe_avance5` en Maullín). Va **un paso atrás del correo**: un set
+con `SOK` puede seguir «En revisión» un rato, y se actualiza solo.
 
 ### Los dos portones, que son distintos
 
@@ -97,12 +94,10 @@ Dos caminos, y conviene conocer los dos:
 
 ## 2. Plan
 
-### Paso 1 — Set de pruebas *(en curso)*
+### Paso 1 — Set de pruebas *(terminado el 16-09-2026)*
 
-- [x] Enviar los 9 sets de documentos y libros aceptados
-- [ ] **Cerrar el Libro de Ventas** (§3)
-- [ ] **Declarar el avance** de cada set en Mi SII, con fecha y TrackID
-- [ ] Revisar que ningún documento quede con reparos
+- [x] Enviar los 10 sets y obtener `SOK` en cada uno
+- [x] **Declarar el avance** de cada set en Mi SII, con fecha y N° de envío
 
 ### Paso 2 — Boletas *(bloqueado por decisión del usuario)*
 
@@ -144,9 +139,9 @@ autoriza a operar.
 
 ## 3. Los libros
 
-Los tres libros van **al final**, cuando todos los sets de documentos tengan su
-envío aceptado. No se transcriben: el sistema arma las líneas de los libros de
-ventas y de guías con los documentos que el SII aceptó de cada set
+Los tres libros van **al final**, cuando los sets de documentos que los
+alimentan estén aprobados. No se transcriben: el sistema arma las líneas de los
+libros de ventas y de guías con los documentos que el SII aceptó
 (`certification_fill.book_lines`). El de compras sí es dato del caso — sus
 documentos los entrega el SII en el propio set, no los emite el contribuyente.
 
@@ -154,35 +149,43 @@ De cada set se toma el **último envío aceptado**, que es el que tiene los foli
 que el Servicio conoce. Un set sin envío aceptado no aporta líneas y la
 verificación lo avisa, en vez de armar un libro que declara folios inexistentes.
 
-Los envíos de libros de agosto (`0257259954`, `0257260578`, `0257264862`)
-quedaron obsoletos: declaraban documentos de la tanda rechazada.
+> **Consulta el estado del último envío antes de armar un libro.** Un envío
+> recién hecho queda sin estado hasta que alguien pulsa «Consultar», y mientras
+> tanto no cuenta como aceptado: el libro cae al envío anterior. Pasó con el
+> libro de ventas, que salió con los folios de exportación de un sobre
+> rechazado.
 
-### Un libro recibido no se reenvía: se rectifica
+### El libro de ventas lleva sólo el set básico
 
-Aquí se perdió medio día. Una vez que el SII **recibe** un libro para un período
-y tipo, reenviarlo devuelve `LNC` y punto. No hay forma de insistir.
+Costó dos rechazos con `El Numero de Lineas de Resumen No Cuadra`, y está escrito
+en la hoja del set, en la sección de ese libro:
 
-El reemplazo existe y está en el formato IECV (carátula, campos 7 y 11):
+> «CONSTRUYA EL LIBRO DE VENTAS CON LOS DOCUMENTOS CON QUE GENERÓ EL SET BÁSICO O
+> EL SET DE FACTURA EXENTA, SEGÚN CORRESPONDA. **SI OBTUVO AMBOS SET, UTILICE LOS
+> DOCUMENTOS DEL SET BÁSICO.**»
 
-- `<TipoLibro>` = **`RECTIFICA`** — «Corresponde a un libro que reemplaza a uno
-  ya recibido por el SII, requiere un Código de Autorización de Reemplazo de
-  Libro Electrónico en la etiqueta `<CodAutRec>`».
-- `<CodAutRec>` — «Código de Autorización de Reemplazo de Libro Electrónico,
-  **obtenido por un Representante Legal de la empresa**, para permitir el
-  reemplazo de un libro recibido OK por SII para un período y tipo de libro
-  específico».
+Se mandaban 26 documentos de cinco sets en 8 líneas de resumen; el SII esperaba
+los 8 del básico en 3 (33, 56 y 61). El sobre volvía `LOK` las dos veces, y eso
+se leyó como confirmación: `LOK` sólo dice que el libro cuadra consigo mismo.
 
-No se genera: **lo pide el representante legal al SII**, por libro y período. Es
-una gestión con plazo propio, así que conviene pedirlo apenas se sepa que un
-libro necesita corrección, sin esperar a tener el arreglo listo.
+### Reenviar un libro: sí se puede
 
-### Composición del libro
+Se llegó a creer que un libro recibido no admitía otro envío, por un `LNC` en el
+libro de compras. Era una mala lectura: `LNC` es **«tipo de envío de libro no
+corresponde»**, un problema de carátula. El 16-09 los tres libros se reenviaron
+—guías y compras por tercera vez, ventas por cuarta— sin ningún permiso, y los
+tres salieron `SOK`. `LTC – Libro Cerrado – Información Cuadrada` es el estado
+normal de un libro aceptado, no un bloqueo.
 
-`set_5038171_libro_ventas.py` acepta tres modificadores para experimentar:
-`--setbasico` (sólo los 8 documentos del set), `--solo=33,61` (limita los
-tipos) y `--tipo=RECTIFICA` (cambia el TipoLibro).
+El reemplazo formal existe, para otro escenario: `<TipoLibro>` = `RECTIFICA` con
+un `<CodAutRec>` que pide un **representante legal** en el menú de certificación,
+«Descargar código de autorización reemplazo de libro electrónico»
+(`https://maullin.sii.cl/cgi_dte/UPL/DTEauth?11`). Sólo ofrece COMPRA y VENTA, y
+obliga a aceptar que el reemplazo puede exigir rectificar F22, F29 y F50. En la
+certificación no hizo falta.
 
-Quedan fuera a propósito:
+### Qué no va en cada libro
+
 - **52 guía de despacho** → va en el Libro de Guías.
 - **46 factura de compra** → la emite el comprador; es una *compra* nuestra.
 
