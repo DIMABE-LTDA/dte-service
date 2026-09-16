@@ -13,21 +13,28 @@ Todo el trámite se hace ya **desde el portal**, no con scripts. El expediente
 vive en `/customers/1/certification`, con su verificación previa, la emisión y
 el envío.
 
-**6 de 10 sets aprobados.** Estado según «Ver Avance de la Postulación»
+**7 de 10 sets aprobados.** Estado según «Ver Avance de la Postulación»
 (`/cvc_cgi/dte/pe_avance5` en Maullín), que es la única fuente que vale:
 
-| Set | N° atención | Estado en el portal | Qué falta |
-|-----|-------------|---------------------|-----------|
+| Set | N° atención | Estado | Qué falta |
+|-----|-------------|--------|-----------|
 | Set básico | 5038170 | Revisado conforme | — |
 | Guía de despacho | 5038173 | Revisado conforme | — |
 | Factura exenta | 5038175 | Revisado conforme | — |
 | Documentos de exportación (1) | 5038176 | Revisado conforme | — |
 | Caso general factura de compra | 5038180 | Revisado conforme | — |
-| Liquidación factura | 5038178 | `SOK` por correo | declarar |
-| Documentos de exportación (2) | 5038177 | Contenido no corresponde | ver «Exportación (2)» en §4 |
+| Liquidación factura | 5038178 | Revisado conforme | — |
+| Documentos de exportación (2) | 5038177 | `SOK` (envío `0259009472`) | — |
 | Libro de compras | 5038172 | Contenido no corresponde | arreglado; falta `CodAutRec` (§3) |
 | Libro de guías | 5038174 | Contenido no corresponde | arreglado; falta `CodAutRec` (§3) |
 | Libro de ventas | 5038171 | Contenido no corresponde | reconstruir al final |
+
+**Los tres que faltan son los tres libros, y ninguno necesita más código.** Los
+arreglos de compras y de guías están desplegados y probados; lo que les falta es
+el `CodAutRec` que debe pedir el representante legal (§3). El de ventas además
+hay que reconstruirlo, y eso sólo tiene sentido ahora que todos los sets de
+documentos están aprobados: se arma con los folios que el SII aceptó, y los de
+exportación (2) cambiaron a 29, 30 y 31 en el último envío.
 
 ### Los dos portones, que son distintos
 
@@ -276,29 +283,48 @@ IECV*, que muestra exactamente este caso (neto 75.000 / IVA 14.250 / total
 la factura de compra—, no nuestro caso. Aplicarlo al libro de compras es
 razonar sobre el libro equivocado aunque el número final coincida.
 
-### Exportación (2): el diff contra la hoja del set *(pendiente)*
+### Exportación (2): tres cambios, `SOK` al primer intento
 
-Los tres casos del set 5038177 traen `Los Datos de la Linea 1 del Detalle No
-Cuadran con lo Especificado`. Comparando el sobre `0258981808` contra
-`SIISetDePruebas772621590.txt`, línea por línea:
+Los tres casos del set 5038177 traían `Los Datos de la Linea 1 del Detalle No
+Cuadran con lo Especificado`. Se resolvió comparando el sobre rechazado
+(`0258981808`) contra `SIISetDePruebas772621590.txt` línea por línea, y el envío
+`0259009472` salió `SOK`.
 
-| Caso | La hoja dice | Enviamos | Falta |
-|---|---|---|---|
-| 1 | `VALOR LINEA 14` + «%10 RECARGO EN LA LINEA DE ITEM» | `MontoItem 15.4`, `RecargoPct 10`, sin cantidad ni precio | `RecargoMonto` (el formato: «si va el recargo en %, debe ir el monto correspondiente») y probablemente `QtyItem`/`PrcItem` |
-| 2 | línea 1: `239 KN × 114`, «DESCUENTO LINEA # 1: 5%» | `MontoItem 27246` = 239×114, `DescuentoPct 5`, sin `DescuentoMonto` | `DescuentoMonto` 1362,30 y `MontoItem` 25.883,70. Es también la causa de «Los Valores del Encabezado No Cuadran» |
-| 3 | `VALOR LINEA 42`, `NACIONALIDAD: ALEMANIA`, **sin línea de REFERENCIA** | `MontoItem 42`, una sola referencia (la del SET) | la 2ª referencia y probablemente `QtyItem`/`PrcItem` |
+| Caso | La hoja del set dice | Se corrigió a |
+|---|---|---|
+| 1 | `VALOR LINEA 14` + «%10 RECARGO EN LA LINEA DE ITEM» | `QtyItem 1`, `PrcItem 14`, `RecargoPct 10`, **`RecargoMonto 1`**, `MontoItem 15` |
+| 2 | línea 1: `239 KN × 114`, «DESCUENTO LINEA # 1: 5%» | `DescuentoPct 5`, **`DescuentoMonto 1362`**, `MontoItem 25884` |
+| 3 | `VALOR LINEA 42`, `NACIONALIDAD: ALEMANIA` | `QtyItem 1`, `PrcItem 42`, y **2ª referencia** `TpoDocRef 813` (pasaporte) |
 
-La fórmula que el Servicio aplica está en el formato DTE, campo 38:
-**`MontoItem = (Precio Unitario × Cantidad) − Monto Descuento + Monto Recargo`**.
+Tres lecciones que valen para cualquier set:
 
-La línea 2 del caso 2 —con cantidad y precio y **sin** descuento— es la única que
-**no** fue objetada. Eso apunta a que las líneas objetadas lo son por faltarles
-cantidad y precio, o por declarar un porcentaje sin su monto.
+**1. El porcentaje nunca va solo.** La fórmula del campo 38 del formato DTE es
+`MontoItem = (Precio Unitario × Cantidad) − Monto Descuento + Monto Recargo`, y
+el propio formato exige que «si va el descuento en %, debe ir el monto
+correspondiente». Declarar sólo el porcentaje deja al SII sin con qué reproducir
+el monto, y los dos portones responden cosas distintas: la validación del sobre
+da `DET L[n] -2-200` y la revisión del set, «no cuadra con lo especificado».
 
-Lo del caso 3 es el único punto donde hay que poner un dato que la hoja no da: el
-SII exige 2 líneas de referencia y para hotelería la segunda es el **pasaporte**
-(`TpoDocRef` **813**), según la FAQ oficial de factura de exportación. El número
-no está en el enunciado.
+**2. Los montos de descuento y recargo son enteros aunque el documento vaya en
+dólares.** `DescuentoMonto` y `RecargoMonto` son `MntImpType`, o sea
+`xs:positiveInteger`: el SII reusó en exportación el tipo de los montos en
+pesos. El 5% de 27.246 —1.362,30— se declara **1.362**, y el 10% de 14 se
+declara **1**. No es una decisión: el XSD rechaza el documento si llevan
+decimales.
+
+**3. La línea lleva cantidad y precio aunque la hoja sólo dé el valor.** Los
+casos 1 y 3 dan sólo «VALOR LINEA», y el instructivo dice «debe registrar los
+valores de cantidad y precio unitario que se indiquen en cada caso». Se dedujo
+por eliminación —la única línea del set que el SII **no** objetó era la única con
+cantidad y precio— y resultó correcto: van con `QtyItem 1` y el valor como
+`PrcItem`.
+
+Y un dato que hubo que poner sin que la hoja lo diera: el caso 3 es hotelería
+(`IndServicio` 4) y el SII exige 2 líneas de referencia. La primera es la del
+`SET`; la segunda, según la FAQ oficial de factura de exportación, es el
+**pasaporte del cliente extranjero** (`TpoDocRef` **813**). El enunciado no trae
+número, así que se usó uno con formato válido. El SII verifica que la referencia
+exista, no que el pasaporte sea real.
 
 ### La documentación del SII que hay que leer (y dónde está)
 

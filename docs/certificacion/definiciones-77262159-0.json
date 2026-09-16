@@ -961,8 +961,9 @@
           "items": [
             {
               "name": "ASESORIAS Y PROYECTOS PROFESIONALES",
-              "amount": "14",
-              "surcharge_pct": "10"
+              "surcharge_pct": "10",
+              "quantity": "1",
+              "unit_price": "14"
             }
           ],
           "service_indicator": 3,
@@ -1115,7 +1116,8 @@
           "items": [
             {
               "name": "ALOJAMIENTO HABITACIONES",
-              "amount": "42"
+              "quantity": "1",
+              "unit_price": "42"
             }
           ],
           "service_indicator": 4,
@@ -1123,7 +1125,15 @@
           "other_currency": {
             "exchange_rate": "940.91",
             "currency": "PESO CL"
-          }
+          },
+          "references": [
+            {
+              "doc_type": 813,
+              "folio": "C01X00T47",
+              "date": "2026-09-01",
+              "reason": "PASAPORTE CLIENTE EXTRANJERO"
+            }
+          ]
         }
       ],
       "validate_xsd": true
@@ -1572,11 +1582,7 @@
           "receiver_name": "SERVICIO DE IMPUESTOS INTERNOS",
           "net_amount": 2586065,
           "vat_amount": 491352,
-          "total_amount": 3077417,
-          "modified_amount": 3077417,
-          "ref_doc_type": 33,
-          "ref_folio": 12,
-          "ref_date": "2026-08-31"
+          "total_amount": 3077417
         },
         {
           "folio": 9,
