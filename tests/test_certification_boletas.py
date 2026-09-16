@@ -1,8 +1,9 @@
-"""El set de boletas sale por sus canales: boletas por la API REST, RCOF por Maullín.
+"""El set de boletas y su RCOF suben por el upload de Maullín.
 
-El correo del SII pide enviar «el Set de Boletas generado y el Reporte de
-Consumo de Folios (RCOF) asociado» en 24 horas. Equivocarse de canal se
-descubre con el reloj corriendo, así que se prueba aquí.
+El correo del SII pide enviar «el Set de Boletas generado y el RCOF asociado,
+vía UPLOAD, Web o automatizado, en ambiente certificación», en 24 horas.
+Equivocarse de canal se descubre con el reloj corriendo —y con un SRH—, así que
+se prueba aquí.
 """
 
 from __future__ import annotations
@@ -113,14 +114,28 @@ def _cert():
     return SimpleNamespace(rut="12291733-9")
 
 
-def test_las_boletas_se_envian_por_la_api_rest(db, canales):
+def test_las_boletas_de_certificacion_se_suben_por_maullin(db, canales):
+    """«Enviar al SII el Set de Boletas generado y el RCOF asociado, vía UPLOAD».
+
+    Enviado por la API REST de boleta, el set pasó sin reparos pero la revisión
+    lo rechazó: «El Documento no esta en el envio» en los cinco casos.
+    """
     customer = make_customer(db, rut="77262159-0")
     envio = _sobre(db, customer, "EnvioBOLETA", _BOLETAS)
 
     certification_service.send_draft(db, customer, _cert(), envio, 30)
 
-    assert canales == ["api-boleta:envio"]
-    assert envio.track_id == "123456789012345"
+    assert canales == ["maullin:upload"]
+    assert envio.track_id == "0259999999"
+
+
+def test_las_boletas_subidas_por_maullin_se_consultan_en_maullin(db, canales):
+    customer = make_customer(db, rut="77262159-0")
+    envio = _sobre(db, customer, "EnvioBOLETA", _BOLETAS, track="0259999999")
+
+    certification_service.refresh(db, customer, _cert(), envio, 30)
+
+    assert canales == ["maullin:estado"]
 
 
 def test_un_sobre_cuyas_firmas_no_verifican_no_se_envia(db, canales, monkeypatch):
@@ -170,9 +185,10 @@ def test_el_rcof_y_los_demas_sobres_se_envian_por_maullin(db, canales):
     assert canales == ["maullin:upload"]
 
 
-def test_el_estado_de_las_boletas_se_consulta_en_la_api_rest_con_sus_errores(db, canales):
+def test_un_envio_antiguo_por_la_api_rest_se_consulta_en_la_api(db, canales):
+    """Los sobres de boletas del 16-09-2026 salieron por la API; sólo ella los conoce."""
     customer = make_customer(db, rut="77262159-0")
-    envio = _sobre(db, customer, "EnvioBOLETA", _BOLETAS, track="123456789012345")
+    envio = _sobre(db, customer, "EnvioBOLETA", _BOLETAS, track="32169835")
 
     certification_service.refresh(db, customer, _cert(), envio, 30)
 

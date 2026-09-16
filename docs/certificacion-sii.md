@@ -141,11 +141,14 @@ correo recibido el 16-09-2026 dice:
 Aunque la Res. Ex. 53/2022 eliminó el RCOF para la operación normal desde el
 01-08-2022, **en la certificación se pide**.
 
-**Cada cosa va por su canal**, según la especificación de la API de boleta
-(`openapi.yaml` 1.0.5): las boletas por la API REST —envío a `pangal.sii.cl`,
-token y consulta en `apicert.sii.cl`—; el RCOF por el upload de Maullín, porque
-«palena.sii.cl es la plataforma dedicada para la recepción de DTE y RVD». Desde
-el expediente, «Enviar» y «Consultar» eligen el canal solos.
+**En certificación, el set de boletas y el RCOF suben por el upload de
+Maullín**, como dice el correo: «vía UPLOAD, Web o automatizado, en ambiente
+certificación». La API REST de boleta (`pangal`/`apicert`) es el canal de
+**producción**. Se usó para el set el 16-09-2026: el envío 32169835 quedó EPR
+sin reparos, pero la revisión devolvió **SRH — «El Documento no esta en el
+envio»** en los cinco casos, porque la revisión busca el envío en Maullín.
+dte-sii, certificado, también sube las boletas de certificación por DTEUpload.
+Lección: **el correo del set manda sobre la especificación general**.
 
 **La referencia del caso va en `CodRef`**, no en `TpoDocRef`: la hoja pide
 «`<CodRef> SET` · `<RazonRef> CASO-1`», y en la boleta `TpoDocRef` es numérico.

@@ -57,8 +57,17 @@ _ENVELOPE_KINDS = {
     "ConsumoFolios": "ConsumoFolios",
 }
 
-#: Sobres que viajan por la API REST de boleta y no por el upload de Maullín.
-_POR_API_DE_BOLETA = {"EnvioBOLETA"}
+
+def _por_api_de_boleta(envio) -> bool:
+    """¿Este envío salió por la API REST de boleta y no por Maullín?
+
+    Hoy ninguno: todo sube por Maullín (ver `send_draft`). Pero los sobres de
+    boletas del 16-09-2026 sí salieron por la API, y su estado sólo lo conoce
+    ella. Se distinguen por el TrackID: Maullín los da de 10 dígitos
+    (0259039476); la API de boleta, más cortos (32169835).
+    """
+    track = envio.track_id or ""
+    return envio.envelope_kind == "EnvioBOLETA" and 0 < len(track) < 10
 
 
 def _local(tag: object) -> str:
@@ -231,10 +240,11 @@ def _estado_boletas(customer: Customer, cert, track_id: str, timeout_s: int) -> 
 def refresh(db, customer: Customer, cert, envio: CertificationSubmission, timeout_s: int):
     """Consulta al SII el estado de un envío y lo guarda tal cual.
 
-    Las boletas se consultan en la API REST de boleta; todo lo demás —documentos,
-    libros, RCOF— en el servicio de Maullín, por donde se subió.
+    Se consulta donde se subió: Maullín. La excepción son los sobres de boletas
+    que salieron por la API REST antes de corregir el canal, que sólo esa API
+    conoce.
     """
-    if envio.envelope_kind in _POR_API_DE_BOLETA:
+    if _por_api_de_boleta(envio):
         estado = _estado_boletas(customer, cert, envio.track_id, timeout_s)
     else:
         estado = query_status(customer, cert, envio.track_id, timeout_s)
@@ -1036,20 +1046,15 @@ def send_draft(db, customer: Customer, cert, envio: CertificationSubmission, tim
 
     xml = envelope(envio)
     _firmas_como_se_transmiten(xml)
-    if envio.envelope_kind in _POR_API_DE_BOLETA:
-        # La boleta no se recibe en Maullín: tiene su propia API REST.
-        from dte_chile.receipt_client import ReceiptClient, ReceiptEnvironment
-
-        client = ReceiptClient(
-            cert, ReceiptEnvironment[customer.environment.name], timeout=timeout_s
-        )
-        try:
-            resultado = client.send_receipts(xml, customer.rut, cert.rut or customer.rut)
-        finally:
-            client.session.close()
-    else:
-        # capture=False: la fila ya existe, sólo le falta el TrackID.
-        resultado = sii_upload.upload(customer, cert, xml, customer.rut, timeout_s, capture=False)
+    # Todo sobre de certificación —también el de boletas— sube por el upload de
+    # Maullín. El correo del set de boletas lo dice: «Enviar al SII el Set de
+    # Boletas generado y el RCOF asociado, vía UPLOAD, Web o automatizado, en
+    # ambiente certificación». La API REST de boleta es el canal de producción:
+    # el set enviado por ahí (TrackID 32169835) pasó sin reparos, pero la
+    # revisión lo devolvió SRH con «El Documento no esta en el envio» en los
+    # cinco casos. dte-sii, certificado, también lo sube por DTEUpload.
+    # capture=False: la fila ya existe, sólo le falta el TrackID.
+    resultado = sii_upload.upload(customer, cert, xml, customer.rut, timeout_s, capture=False)
     envio.track_id = str(resultado.track_id) if resultado.track_id else None
     envio.sent_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
     db.commit()
