@@ -1166,22 +1166,22 @@ export default function Certification() {
                                   {writable &&
                                     e.track_id &&
                                     !["EnvioBOLETA", "ConsumoFolios"].includes(e.envelope_kind) && (
-                                    <button
-                                      className="btn-link"
-                                      type="button"
-                                      disabled={busy}
-                                      title="Pregunta al SII documento por documento: es donde dice el motivo del reparo"
-                                      onClick={() =>
-                                        correr(async () => {
-                                          const filas = await api.certDocStatuses(cid, e.id);
-                                          setDocsSii({ sid: e.id, filas });
-                                        }, "")
-                                      }
-                                    >
-                                      <Icon name="audit" />
-                                      Ver cada documento
-                                    </button>
-                                  )}
+                                      <button
+                                        className="btn-link"
+                                        type="button"
+                                        disabled={busy}
+                                        title="Pregunta al SII documento por documento: es donde dice el motivo del reparo"
+                                        onClick={() =>
+                                          correr(async () => {
+                                            const filas = await api.certDocStatuses(cid, e.id);
+                                            setDocsSii({ sid: e.id, filas });
+                                          }, "")
+                                        }
+                                      >
+                                        <Icon name="audit" />
+                                        Ver cada documento
+                                      </button>
+                                    )}
                                   <button
                                     className="btn-link neutral"
                                     type="button"

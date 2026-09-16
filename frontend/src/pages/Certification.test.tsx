@@ -601,7 +601,13 @@ describe("Expediente de certificación", () => {
       code: "",
       kind: "boletas",
       submissions: [
-        { ...set().submissions[0], id: 70, set_id: 7, track_id: "123456789012345", envelope_kind: "EnvioBOLETA" },
+        {
+          ...set().submissions[0],
+          id: 70,
+          set_id: 7,
+          track_id: "123456789012345",
+          envelope_kind: "EnvioBOLETA",
+        },
       ],
     });
     (api.certDossier as Mock).mockResolvedValue(dossier({ sets: [boletas] }));

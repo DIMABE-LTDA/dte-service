@@ -401,11 +401,10 @@ def _caso(kind, code, numero, n_caso, lineas, anteriores: list[dict]) -> dict:
             doc.setdefault("global_discounts", []).append(
                 {"value": _json(_numero(c[-1], n)), "kind": "D", "reason": c[0]}
             )
-        elif re.match(r"^DESCUENTO LINEA # ?(\d+):$", k):
-            posicion = int(re.match(r"^DESCUENTO LINEA # ?(\d+):$", k).group(1))
-            descuento_linea[posicion] = _numero(c[-1], n)
-        elif re.match(r"^%\s*\d+ RECARGO EN LA LINEA", k):
-            recargo_linea = Decimal(re.match(r"^%\s*(\d+)", k).group(1))
+        elif m_linea := re.match(r"^DESCUENTO LINEA # ?(\d+):$", k):
+            descuento_linea[int(m_linea.group(1))] = _numero(c[-1], n)
+        elif m_recargo := re.match(r"^%\s*(\d+) RECARGO EN LA LINEA", k):
+            recargo_linea = Decimal(m_recargo.group(1))
         elif k.startswith("COMISIONES EN EL EXTRANJERO"):
             m = re.match(r"^(\d+(?:\.\d+)?)% DEL TOTAL DE LA CLAUSULA$", _clave(" ".join(c[1:])))
             if not m:
@@ -885,11 +884,12 @@ def _boletas(lineas: list[str]) -> Sheet:
                             f"la observación marca el ítem {items_exentos}, que no existe", n
                         )
                     items[items_exentos - 1]["_exento"] = True
-                m = re.search(r"UNIDAD DE MEDIDA EN (\w+)", texto)
-                if m:
-                    unidad = re.search(r"(?i)unidad de medida en (\w+)", s).group(1)
+                # Sobre el texto original y no el normalizado: la unidad se copia
+                # tal como la escribe la hoja («Kg», no «KG»).
+                m_unidad = re.search(r"(?i)unidad de medida en (\w+)", s)
+                if m_unidad:
                     for f in items:
-                        f["_unidad"] = unidad
+                        f["_unidad"] = m_unidad.group(1)
             else:
                 raise SheetError(f"línea no reconocida en CASO-{numero}: «{s}»", n)
         detalle = []

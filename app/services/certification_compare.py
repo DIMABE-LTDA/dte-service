@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from lxml import etree
@@ -154,7 +155,7 @@ def _literal_con_tildes(d: Diferencia) -> bool:
 
 #: (set, patrón de la ruta, regla, por qué). Una diferencia sólo se acepta si
 #: calza con la ruta Y cumple su regla.
-CONOCIDAS: list[tuple[str, str, object, str]] = [
+CONOCIDAS: list[tuple[str, str, Callable[[Diferencia], bool], str]] = [
     (
         "guias",
         r"/Transporte\[1\]/DirDest\[1\]$",

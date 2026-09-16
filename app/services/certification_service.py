@@ -244,10 +244,13 @@ def refresh(db, customer: Customer, cert, envio: CertificationSubmission, timeou
     que salieron por la API REST antes de corregir el canal, que sólo esa API
     conoce.
     """
+    track_id = envio.track_id
+    if not track_id:
+        raise EmissionError("este sobre todavía no se envía: no hay TrackID que consultar")
     if _por_api_de_boleta(envio):
-        estado = _estado_boletas(customer, cert, envio.track_id, timeout_s)
+        estado = _estado_boletas(customer, cert, track_id, timeout_s)
     else:
-        estado = query_status(customer, cert, envio.track_id, timeout_s)
+        estado = query_status(customer, cert, track_id, timeout_s)
     envio.sii_state = estado.get("state")
     envio.sii_detail = estado.get("detail")
     envio.sii_stats = estado.get("stats") or None
