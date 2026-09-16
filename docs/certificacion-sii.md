@@ -184,16 +184,48 @@ quitar el `xmlns` del `<DTE>` aunque parezca redundante»
 Los folios de un envío rechazado quedan gastados en el sistema: se pidió otro
 CAF de 5 (106-110), con lo que el plazo de 24 h corre de nuevo desde su descarga.
 
-#### Segundo intento
+#### Segundo y tercer intento: reparo en el timbre
 
-- [x] CAF **106-110** descargado el 16-09-2026 19:13 (plazo: 17-09-2026 19:13),
-      guardado en `C:\desarrollo\caf\77262159-0-certificacion\` y cargado.
-- [x] Emitido (envío #43) y verificado antes de enviar: `xmlns` en cada `<DTE>`,
-      6/6 firmas como se transmiten, XSD, y los cinco casos igual que la hoja.
-- [x] Enviado por la API REST: TrackID **32169796**.
-- [ ] **Consultar** → **Generar RCOF** → **Enviar** (Maullín) → **Consultar**.
-- [ ] Solicitar la revisión con el TrackID de las boletas en
-      https://www4.sii.cl/certBolElectDteInternet/?SET=2
+- CAF **106-110** (19:13), envío #43, TrackID **32169796**: firmas bien, pero
+  las cinco `RPR: REPARO- Firma Timbre Electrónico Incorrecta`. Con la RSAPK
+  del CAF, el FRMT no verificaba sobre el `<DD>` enviado y sí con
+  `<RSR></RSR>`: la boleta anónima no trae razón social, lxml firmaba
+  `<RSR></RSR>` y el sobre salía con `<RSR/>`. Motor v0.4.24: se firma igual
+  que viaja, y `ted.verify_stamps(xml)` comprueba cada timbre sobre los bytes
+  antes de enviar.
+- CAF **111-115** (19:25), envío #44, TrackID **32169821**: los cinco timbres
+  verificaban sobre los bytes enviados… y **el mismo reparo**. La hipótesis
+  «el SII verifica el texto tal como llega» no bastaba.
+
+**Lo común a ambos: `RSR` vacío.** Las implementaciones certificadas nunca lo
+dejan así. El facturador de **Odoo** (`l10n_cl_edi`, en
+`C:\desarrollo\python\odoo\17\enterprise`) emite la boleta al contacto
+«Consumidor Final Anónimo», RUT 66666666-6, y de ahí saca `RznSocRecep` y `RSR`
+(`template/dd_template.xml`). dte-sii usa «Consumidor Final» y advierte que el
+lector PDF417 del SII corrompe las tildes del timbre. Motor v0.4.25: la boleta
+sin comprador lleva `RznSocRecep` y `RSR` «Consumidor Final».
+
+**Lección:** que una firma verifique localmente no dice cómo la verifica el SII.
+Antes de probar una hipótesis con folios, mirar qué hace una implementación
+certificada —Odoo está en el disco—.
+
+#### Cuarto intento
+
+- [x] CAF **116-120** descargado el 16-09-2026 19:47 (plazo: 17-09-2026 19:47) y
+      cargado.
+- [x] Envío #45 verificado (firmas, timbres, XSD, `RSR` = «Consumidor Final») y
+      enviado: TrackID **32169835** → `EPR` **sin rechazos ni reparos**.
+- [x] RCOF #46 (folios 116-120, SecEnvio 2, total $54.160) por Maullín: TrackID
+      **0259039476** → «Aceptado con Reparos», igual que el primero. El detalle
+      llega sólo por correo: **pendiente leerlo** antes de pedir la revisión.
+- [ ] Solicitar la revisión con el TrackID **32169835** en
+      https://www4.sii.cl/certBolElectDteInternet/?SET=2 (la hace el «Usuario
+      Administrador» de la empresa).
+
+Nota de Odoo (`l10n_cl_edi_boletas/models/l10n_cl_edi_util.py`): si la API
+responde `detalle_rep_rech` = `null`, el envío **sigue en proceso** aunque el
+estado diga EPR; el veredicto sale de `estadistica` (`aceptados == informados`).
+Nuestro expediente todavía no hace esa distinción y la estadística llega vacía.
 
 #### Sitio de consulta (`boletas.dimabe.cl`)
 
