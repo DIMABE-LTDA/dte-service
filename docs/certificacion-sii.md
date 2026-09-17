@@ -340,14 +340,49 @@ manual de 2009, que hablaba de 10 documentos de la simulación y de un correo):
 > documentos de la Simulación. - Revisar manual de muestras impresas en
 > www.sii.cl – Factura Electrónica - Ayudas "Manual de Muestras Impresas"
 
-`POST /certification/print-samples` genera los impresos, incluidas las copias
-cedibles. Pendiente antes de generarlos: la unidad del SII («S.I.I. —
-SANTIAGO» para todos; a esta empresa le corresponde Rancagua).
+Los impresos salen del sistema: `GET /certification/print-samples.zip` (botón
+«Descargar muestras (PDF)» en el paso) entrega un PDF de una página por
+ejemplar, cedibles incluidas. `POST /certification/print-samples` lista lo que
+entraría sin generar los PDF.
 
-- [ ] Leer el «Manual de Muestras Impresas».
-- [ ] Generar los impresos: todos los del set de pruebas y uno por tipo de la
-      simulación.
-- [ ] Subirlos en «Upload de Muestras Impresas».
+Los datos del emisor en el impreso tienen que coincidir con los que el SII
+tiene registrados («Datos para la construcción de DTE» en Maullín), no con los
+de la ficha. Por eso la ficha se corrigió a CORDOVA 356 URMENETA, RANCAGUA, sin
+sucursal, unidad del SII RANCAGUA, y **los sets se reemitieron con esa
+dirección** el 17-09-2026 (todos `EPR`, sin rechazos ni reparos):
+
+| Set | Sobre | TrackID |
+|---|---|---|
+| Básico | 49 | 0259124380 |
+| Factura exenta | 50 | 0259124384 |
+| Guías | 51 | 0259124386 |
+| Exportación 1 | 52 | 0259124390 |
+| Exportación 2 | 53 | 0259124392 |
+| Liquidación factura | 54 | 0259124396 |
+| Factura de compra | 55 | 0259124398 |
+| Simulación | 56 | 0259124400 |
+
+De esos 8 sobres salen **61 PDF** (1,2 MB en total, el mayor de 24 KB). Libros
+y boletas no llevan muestra.
+
+**La aplicación de upload** es `https://www4.sii.cl/pdfdteInternet/` (la misma
+que enlaza el menú de certificación). Se ingresa Rut Empresa → «Rut», Rut
+Proveedor → «Consultar» (el proveedor del software es la propia empresa,
+77262159-0) → «Crear», y recién ahí se arrastran los PDF; la lista valida en
+línea tipo, folio, copia, caso, timbre, CAF y TED antes de «Enviar al SII».
+
+> **17-09-2026: «Crear» responde «Contribuyente 77262159-0 no tiene Set de
+> Pruebas»**, aunque «Ver avance» dice «paso DOCUMENTOS IMPRESOS — POR
+> REALIZAR». Es la respuesta del servicio (`ServicePdfDte`), no un dato mal
+> ingresado. Hipótesis sin confirmar: la aplicación aún no ve la postulación,
+> que pasó a este paso ese mismo día. Reintentar al día siguiente; si persiste, consultar a la mesa
+> de ayuda del SII.
+
+- [x] Leer el «Manual de Muestras Impresas».
+- [x] Generar los impresos desde el sistema: todos los del set de pruebas y uno
+      por tipo de la simulación.
+- [ ] Subirlos en «Upload de Muestras Impresas» (bloqueado por el aviso de
+      arriba).
 
 ### Paso 6 — Declaración de cumplimiento
 
