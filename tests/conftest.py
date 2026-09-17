@@ -142,15 +142,56 @@ def headers(customer_code="cust-1", apikey="secret"):
     return {"customerCode": customer_code, "apiKey": apikey}
 
 
-# CAF de juguete (sin llave real; load_caf_bytes solo parsea estructura).
-def fake_caf_xml(doc_type=33, folio_from=1, folio_to=5, rut="76158145-7") -> bytes:
+_CAF_KEY = None
+
+
+def _caf_key():
+    """Una llave RSA real para los CAF de prueba, generada una vez por sesión.
+
+    Real porque la carga de un CAF comprueba que su llave privada corresponda a
+    la pública (``CAF.keys_match``).
+    """
+    global _CAF_KEY
+    if _CAF_KEY is None:
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        _CAF_KEY = rsa.generate_private_key(public_exponent=65537, key_size=1024)
+    return _CAF_KEY
+
+
+def _b64_int(value: int) -> str:
+    import base64
+
+    return base64.b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")).decode()
+
+
+# CAF de prueba: estructura y llaves reales, sin la firma del SII (FRMA).
+def fake_caf_xml(
+    doc_type=33,
+    folio_from=1,
+    folio_to=5,
+    rut="76158145-7",
+    authorized_on: dt.date | None = None,
+    idk: int = 100,
+) -> bytes:
+    from cryptography.hazmat.primitives import serialization
+
+    key = _caf_key()
+    numbers = key.public_key().public_numbers()
+    pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
+    ).decode()
+    fa = (authorized_on or dt.date.today()).isoformat()
     return (
         f'<AUTORIZACION><CAF version="1.0"><DA>'
         f"<RE>{rut}</RE><RS>DEMO</RS><TD>{doc_type}</TD>"
-        f"<RNG><D>{folio_from}</D><H>{folio_to}</H></RNG><FA>2026-01-01</FA>"
-        f"<RSAPK><M>eA==</M><E>Aw==</E></RSAPK><IDK>100</IDK></DA>"
+        f"<RNG><D>{folio_from}</D><H>{folio_to}</H></RNG><FA>{fa}</FA>"
+        f"<RSAPK><M>{_b64_int(numbers.n)}</M><E>{_b64_int(numbers.e)}</E></RSAPK>"
+        f"<IDK>{idk}</IDK></DA>"
         f'<FRMA algoritmo="SHA1withRSA">eA==</FRMA></CAF>'
-        f"<RSASK>-----BEGIN RSA PRIVATE KEY-----\nZHVtbXk=\n-----END RSA PRIVATE KEY-----</RSASK>"
+        f"<RSASK>{pem}</RSASK>"
         f"</AUTORIZACION>"
     ).encode()
 

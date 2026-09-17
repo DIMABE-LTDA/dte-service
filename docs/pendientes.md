@@ -193,6 +193,30 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
   cuadra el libro sumando, y redondear cada parte por su cuenta puede dejar el
   total a un peso de la suma. Y un decimal sin moneda declarada se rechaza, que
   es justo el error que se buscaba evitar.
+- ~~**Funciones de la declaración de cumplimiento de boleta**~~ — **agregado el
+  2026-09-17** (motor v0.4.29). La declaración pide, entre otras, «cuadratura de
+  envíos aceptados, rechazados y aceptados con reparos» y «generar, guardar y
+  enviar al SII las boletas cuando sean solicitadas». Faltaba:
+  - Cada `EnvioBOLETA` queda en `receipt_submission` con su TrackID.
+    `GET /boletas/submissions` los lista con la cuadratura y
+    `POST /boletas/submissions/{track}/refresh` consulta al SII.
+  - `GET /boletas/{tipo}/{folio}/xml` entrega el XML firmado guardado.
+  - **CAF**: al cargarlo se rechaza si su llave privada no corresponde a la
+    pública, si es de otro ambiente (IDK 100 = certificación) o si venció. Los
+    de documentos con crédito fiscal (33, 43, 46, 56, 61) vencen a los seis meses
+    de su autorización (Res. Ex. SII N° 58/2017) y el SII rechaza sus folios. El
+    asignador salta los CAF vencidos o de otro ambiente, también los cargados
+    antes (completa sus fechas al usarlos).
+  - `GET /dte/folios` y `GET /admin/customers/{id}/folios`: por tipo, estado de
+    cada CAF, folios utilizables, folios **sin usar** de CAF vencidos (hay que
+    anularlos en el SII) y folios fallidos o huérfanos (asignados sin desenlace
+    hace más de 15 minutos).
+- **Pendiente, del mismo trabajo:** mostrar el inventario de folios y la
+  cuadratura de boletas en el portal (hoy sólo por API); un aviso activo
+  (correo) cuando un CAF está por vencer o quedan pocos folios; y consultar
+  automáticamente el estado de los envíos de boleta en vez de a pedido. El RCOF
+  diario existe (`POST /boletas/folio-report`) pero es a pedido; dejó de ser
+  obligatorio en 2022 (Res. Ex. 53).
 - **Las tres ramas están empujadas pero sin mergear** a la principal:
   `feat/certificacion-sii` en el motor y en el servicio, `feat/guia-despacho`
   en el conector. Son fast-forward limpios.

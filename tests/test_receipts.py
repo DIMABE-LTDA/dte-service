@@ -292,3 +292,99 @@ def test_stored_xml_is_the_single_document_not_the_envelope(client, db, fake_rec
     assert b"<DTE" in xml
     assert b"EnvioBOLETA" not in xml
     assert xml.count(b"<Documento") == 1
+
+
+# --------------------------------------------------------------------------- #
+#  Cuadratura de envíos y recuperación
+# --------------------------------------------------------------------------- #
+class _FakeReceiptClient:
+    """Cliente REST de boleta que no sale a la red."""
+
+    state = "EPR"
+    stats = [{"tipo": 39, "informados": 5, "aceptados": 3, "rechazados": 1, "reparos": 1}]
+    details = [{"tipo": 39, "folio": 4, "estado": "RCH", "error": [{"descripcion": "x"}]}]
+
+    def __init__(self, *a, **k):
+        self.session = type("S", (), {"close": lambda self: None})()
+
+    def send_receipts(self, xml, issuer_rut, sender_rut):
+        return SubmissionResult(track_id="123456789012345", status="REC", detail="")
+
+    def submission_status(self, track_id, issuer_rut):
+        from dte_chile.receipt_client import ReceiptSubmissionStatus
+
+        return ReceiptSubmissionStatus(
+            track_id=track_id, state=self.state, stats=self.stats, details=self.details
+        )
+
+
+def _send(client, db, monkeypatch):
+    _setup(db)
+    monkeypatch.setattr(receipt_service, "ReceiptClient", _FakeReceiptClient)
+    r = client.post("/boletas/issue-batch", json=_payload(send=True), headers=headers())
+    assert r.status_code == 200, r.text
+
+
+def test_sent_batch_is_registered_for_reconciliation(client, db, fake_receipt_engine, monkeypatch):
+    """Sin el TrackID guardado no hay cuadratura posible."""
+    from app.db.models import IssuedReceipt, ReceiptSubmission
+
+    _send(client, db, monkeypatch)
+
+    row = db.query(ReceiptSubmission).one()
+    assert (row.track_id, row.document_count, row.upload_status) == ("123456789012345", 5, "REC")
+    assert {r.submission_id for r in db.query(IssuedReceipt)} == {row.id}
+
+    listed = client.get("/boletas/submissions", headers=headers()).json()
+    assert [s["track_id"] for s in listed] == ["123456789012345"]
+    assert listed[0]["in_process"] is True
+
+
+def test_unsent_batch_registers_no_submission(client, db, fake_receipt_engine):
+    from app.db.models import ReceiptSubmission
+
+    _setup(db)
+    client.post("/boletas/issue-batch", json=_payload(), headers=headers())
+    assert db.query(ReceiptSubmission).count() == 0
+
+
+def test_refresh_reconciles_accepted_repaired_and_rejected(
+    client, db, fake_receipt_engine, monkeypatch
+):
+    _send(client, db, monkeypatch)
+
+    r = client.post("/boletas/submissions/123456789012345/refresh", headers=headers())
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["sii_state"] == "EPR"
+    assert body["in_process"] is False
+    assert body["totals"] == {"informed": 5, "accepted": 3, "repaired": 1, "rejected": 1}
+    assert body["sii_details"][0]["folio"] == 4
+
+
+def test_refresh_of_unknown_track_is_404(client, db, fake_receipt_engine, monkeypatch):
+    _send(client, db, monkeypatch)
+    r = client.post("/boletas/submissions/999/refresh", headers=headers())
+    assert r.status_code == 404
+
+
+def test_stored_receipt_xml_can_be_delivered(client, db, fake_receipt_engine):
+    """Para entregar la boleta al SII cuando la pida."""
+    _setup(db)
+    client.post("/boletas/issue-batch", json=_payload(), headers=headers())
+
+    r = client.get("/boletas/39/2/xml", headers=headers())
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("application/xml")
+    assert b'ID="F2T39"' in r.content
+
+    assert client.get("/boletas/39/99/xml", headers=headers()).status_code == 404
+
+
+def test_other_customer_cannot_read_a_receipt(client, db, fake_receipt_engine):
+    _setup(db)
+    client.post("/boletas/issue-batch", json=_payload(), headers=headers())
+    other = make_customer(db, rut="11111111-1", key="cust-2")
+    grant(db, other, SERVICE_DTE, apikey="other")
+    r = client.get("/boletas/39/1/xml", headers=headers("cust-2", "other"))
+    assert r.status_code == 404

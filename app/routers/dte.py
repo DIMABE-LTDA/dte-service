@@ -12,6 +12,7 @@ from app.db.models import Customer
 from app.db.session import get_db
 from app.deps.auth import require_dte
 from app.deps.certificate import cert_dte
+from app.schemas.admin import FolioTypeReportOut
 from app.schemas.dte import (
     DteBatchDocumentOut,
     DteBatchRequest,
@@ -27,7 +28,7 @@ from app.schemas.dte import (
     SettlementIssueRequest,
     SubmissionResultOut,
 )
-from app.services import dte_service
+from app.services import dte_service, folio_service
 
 router = APIRouter(prefix="/dte", tags=["DTE"])
 
@@ -158,3 +159,12 @@ async def issue_settlement_batch(
         xml_base64=result["xml_base64"],
         submission=SubmissionResultOut.model_validate(submission) if submission else None,
     )
+
+
+@router.get("/folios", response_model=list[FolioTypeReportOut])
+def folios(
+    customer: Customer = Depends(require_dte),
+    db: Session = Depends(get_db),
+) -> list[FolioTypeReportOut]:
+    """Inventario de CAF y folios del propio cliente, con los que hay que revisar."""
+    return [FolioTypeReportOut(**r) for r in folio_service.folio_report(db, customer)]

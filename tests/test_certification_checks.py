@@ -31,7 +31,7 @@ from tests.conftest import auth_header, fake_caf_xml, make_customer, make_user
 RUT = "76158145-7"  # el de make_customer
 
 
-def _caf_real(doc_type, rut=RUT, desde=1, hasta=50, fa="2026-01-01", clave_publica=None):
+def _caf_real(doc_type, rut=RUT, desde=1, hasta=50, fa=None, clave_publica=None):
     """Un CAF con par de claves coherente y una FRMA del largo de una del SII.
 
     `clave_publica` permite poner en RSAPK la de OTRA clave, para el caso de un
@@ -47,6 +47,8 @@ def _caf_real(doc_type, rut=RUT, desde=1, hasta=50, fa="2026-01-01", clave_publi
         serialization.NoEncryption(),
     ).decode()
     frma = base64.b64encode(os.urandom(64)).decode()
+    # Vigente: los CAF de documentos con crédito fiscal vencen a los seis meses.
+    fa = fa or dt.date.today().isoformat()
     return (
         f'<AUTORIZACION><CAF version="1.0"><DA><RE>{rut}</RE><RS>DEMO</RS>'
         f"<TD>{doc_type}</TD><RNG><D>{desde}</D><H>{hasta}</H></RNG><FA>{fa}</FA>"
@@ -203,6 +205,22 @@ def test_avisa_cuando_los_folios_no_alcanzan(db):
     db.commit()
     c = _check(certification_checks.run(db, customer), "caf_33")
     assert c["state"] == "atencion"  # 5 alcanzan para un intento de 4, no para dos
+
+
+def test_avisa_un_caf_vencido_o_de_otro_ambiente(db):
+    """El SII rechaza en la recepción los folios de un CAF vencido (Res. 58/2017)."""
+    customer = make_customer(db)
+    vencido = (dt.date.today() - dt.timedelta(days=400)).isoformat()
+    _cargar_caf(db, customer, _caf_real(33, fa=vencido), 33)
+    c = _check(certification_checks.run(db, customer), "caf_33")
+    assert c["state"] == "error"
+    assert "venció" in c["detail"]
+
+    customer.environment = SiiEnvironment.PRODUCTION
+    db.commit()
+    _cargar_caf(db, customer, _caf_real(61), 61)
+    c = _check(certification_checks.run(db, customer), "caf_61")
+    assert "es de certificación" in c["detail"]
 
 
 # --------------------------------------------------------------------------- #

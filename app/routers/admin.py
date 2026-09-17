@@ -26,6 +26,7 @@ from app.schemas.admin import (
     CustomerCreate,
     CustomerOut,
     CustomerUpdate,
+    FolioTypeReportOut,
     GrantedServiceOut,
     ServiceGrant,
     ServiceGrantOut,
@@ -43,6 +44,7 @@ from app.services import (
     bhe_service,
     certificate_service,
     customer_service,
+    folio_service,
     rcv_service,
     sii_credential_service,
 )
@@ -273,6 +275,17 @@ def delete_sii_key(
         "clave tributaria eliminada",
     )
     return SiiKeyStatus(configured=False)
+
+
+@router.get("/customers/{customer_id}/folios", response_model=list[FolioTypeReportOut])
+def customer_folios(
+    customer_id: int,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> list[FolioTypeReportOut]:
+    """Inventario de CAF y folios por tipo, con los folios gastados sin documento."""
+    customer = _get_customer(db, customer_id)
+    return [FolioTypeReportOut(**r) for r in folio_service.folio_report(db, customer)]
 
 
 @router.post("/customers/{customer_id}/caf", response_model=CafOut)

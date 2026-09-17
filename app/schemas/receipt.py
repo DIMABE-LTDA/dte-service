@@ -118,3 +118,30 @@ class FolioReportResponse(BaseModel):
     end_date: dt.date
     xml_base64: str
     submission: SubmissionOut | None = None
+
+
+class ReceiptTotalsOut(BaseModel):
+    """Cuadratura de un envío: la suma de todos los tipos."""
+
+    informed: int = 0
+    accepted: int = 0
+    repaired: int = 0
+    rejected: int = 0
+
+
+class ReceiptSubmissionOut(BaseModel):
+    """Un EnvioBOLETA y lo que el SII dijo de él."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    track_id: str
+    document_count: int
+    upload_status: str
+    sii_state: str | None = None
+    #: True mientras el SII no termina de procesarlo: todavía no cuadra.
+    in_process: bool = True
+    totals: ReceiptTotalsOut = ReceiptTotalsOut()
+    sii_stats: list | None = None
+    sii_details: list | None = None
+    sent_at: dt.datetime
+    checked_at: dt.datetime | None = None

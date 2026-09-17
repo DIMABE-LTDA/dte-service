@@ -403,6 +403,15 @@ def _caf(db, customer: Customer, necesarios: Counter) -> tuple[list[dict], dict]
             problemas.append("no trae la firma del SII: no es un CAF emitido por el Servicio")
         if not _par_de_claves_coincide(caf):
             problemas.append("su clave privada no corresponde a su clave pública")
+        if caf.key_id is not None and caf.is_certification != (
+            customer.environment == SiiEnvironment.CERTIFICATION
+        ):
+            problemas.append(
+                f"es de {'certificación' if caf.is_certification else 'producción'},"
+                " otro ambiente que el del cliente"
+            )
+        if caf.is_expired():
+            problemas.append(f"venció el {caf.expires_on:%d-%m-%Y} (Res. Ex. SII N° 58/2017)")
         if problemas:
             salida.append(
                 _check(

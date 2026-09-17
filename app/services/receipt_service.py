@@ -36,7 +36,7 @@ from sqlalchemy.orm import Session
 from app.core import crypto
 from app.core.config import get_settings
 from app.core.logging import request_id_var
-from app.db.models import Customer, IssuedReceipt
+from app.db.models import Customer, IssuedReceipt, ReceiptSubmission
 from app.errors.exceptions import DomainError
 
 _CL_TZ = ZoneInfo("America/Santiago")
@@ -149,7 +149,7 @@ def issue_batch(db: Session, customer: Customer, cert, req) -> dict:
         _mark(db, customer, assigned, "failed")
         raise
 
-    _store(db, customer, receipts, signed)
+    _store(db, customer, receipts, signed, _register(db, customer, submission, len(receipts)))
     _mark(db, customer, assigned, "issued")
     return {
         "receipts": [
@@ -211,7 +211,28 @@ def _mark(db: Session, customer: Customer, assigned, status: str) -> None:
         folio_service.mark_assignment(db, customer.id, doc_type, folio, status)
 
 
-def _store(db: Session, customer: Customer, receipts: list[DTE], signed: list) -> None:
+def _register(db: Session, customer: Customer, submission, count: int) -> ReceiptSubmission | None:
+    """Anota el envío para poder cuadrarlo después contra lo que diga el SII."""
+    if submission is None or not submission.track_id:
+        return None
+    row = ReceiptSubmission(
+        customer_id=customer.id,
+        track_id=str(submission.track_id),
+        document_count=count,
+        upload_status=str(submission.status or "")[:40],
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _store(
+    db: Session,
+    customer: Customer,
+    receipts: list[DTE],
+    signed: list,
+    submission: ReceiptSubmission | None = None,
+) -> None:
     """Guarda cada boleta para que el consumidor pueda recuperarla después.
 
     Se almacena el ``<DTE>`` **individual**, no el sobre: es lo que hace falta
@@ -231,6 +252,86 @@ def _store(db: Session, customer: Customer, receipts: list[DTE], signed: list) -
                 issue_date=receipt.issue_date,
                 total_amount=receipt.total_amount,
                 xml_encrypted=crypto.encrypt(single),
+                submission_id=submission.id if submission else None,
             )
         )
     db.commit()
+
+
+# --------------------------------------------------------------------------- #
+#  Cuadratura y recuperación
+# --------------------------------------------------------------------------- #
+#: Estados en que el SII todavía no termina de procesar el envío.
+IN_PROCESS_STATES = {"REC", "SOK", "CRT", "FOK", "PRD", "PDR"}
+
+
+def summarize(stats: list | None) -> dict[str, int]:
+    """Suma por tipo lo informado, aceptado, con reparos y rechazado."""
+    total = {"informed": 0, "accepted": 0, "repaired": 0, "rejected": 0}
+    keys = {
+        "informed": "informados",
+        "accepted": "aceptados",
+        "repaired": "reparos",
+        "rejected": "rechazados",
+    }
+    for line in stats or []:
+        if not isinstance(line, dict):
+            continue
+        for ours, sii in keys.items():
+            try:
+                total[ours] += int(line.get(sii) or 0)
+            except (TypeError, ValueError):
+                continue
+    return total
+
+
+def list_submissions(db: Session, customer: Customer, limit: int = 100) -> list[ReceiptSubmission]:
+    return (
+        db.query(ReceiptSubmission)
+        .filter(ReceiptSubmission.customer_id == customer.id)
+        .order_by(ReceiptSubmission.sent_at.desc(), ReceiptSubmission.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def refresh_submission(db: Session, customer: Customer, cert, track_id: str) -> ReceiptSubmission:
+    """Consulta al SII el estado de un envío de boletas y lo guarda."""
+    row = (
+        db.query(ReceiptSubmission)
+        .filter(
+            ReceiptSubmission.customer_id == customer.id,
+            ReceiptSubmission.track_id == track_id,
+        )
+        .one_or_none()
+    )
+    if row is None:
+        raise LookupError(f"No hay un envío de boletas con TrackID {track_id}.")
+    client = _client(customer, cert, get_settings())
+    try:
+        status = client.submission_status(track_id, customer.rut)
+    finally:
+        client.session.close()
+    row.sii_state = status.state[:20]
+    row.sii_stats = status.stats or None
+    row.sii_details = status.details or None
+    row.checked_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def stored_receipt_xml(db: Session, customer: Customer, doc_type: int, folio: int) -> bytes:
+    """El XML firmado de una boleta emitida, para entregarlo si el SII lo pide."""
+    row = (
+        db.query(IssuedReceipt)
+        .filter(
+            IssuedReceipt.customer_id == customer.id,
+            IssuedReceipt.doc_type == doc_type,
+            IssuedReceipt.folio == folio,
+        )
+        .one_or_none()
+    )
+    if row is None:
+        raise LookupError(f"No hay una boleta tipo {doc_type} folio {folio} emitida.")
+    return crypto.decrypt(row.xml_encrypted)

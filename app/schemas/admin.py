@@ -163,3 +163,40 @@ class CafInfo(BaseModel):
     folio_to: int
     exhausted: bool
     last_folio: int
+
+
+class FolioCafOut(BaseModel):
+    id: int
+    folio_from: int
+    folio_to: int
+    authorized_on: dt.date | None = None
+    expires_on: dt.date | None = None
+    #: in_use | pending | exhausted | retired | expired | wrong_environment
+    state: str
+    #: Folios que el asignador todavía puede entregar de este CAF.
+    remaining: int
+    #: Folios del rango nunca asignados. En un CAF vencido o de otro ambiente,
+    #: son los que hay que anular en el SII.
+    unused: int
+
+
+class FolioReviewOut(BaseModel):
+    folio: int
+    #: failed: la emisión falló con el folio ya tomado; orphaned: quedó asignado
+    #: sin desenlace (la emisión se cortó).
+    status: str
+    request_id: str
+    assigned_at: dt.datetime
+
+
+class FolioTypeReportOut(BaseModel):
+    """Inventario y trazabilidad de los folios de un tipo de documento."""
+
+    doc_type: int
+    last_folio: int
+    usable_remaining: int
+    issued: int
+    failed: int
+    assigned: int
+    cafs: list[FolioCafOut]
+    to_review: list[FolioReviewOut]

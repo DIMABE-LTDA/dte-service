@@ -183,6 +183,13 @@ class Caf(Base):
     folio_to: Mapped[int] = mapped_column(Integer)
     xml_encrypted: Mapped[str] = mapped_column(String)  # CAF completo (con RSASK), Fernet-cifrado
     exhausted: Mapped[bool] = mapped_column(Boolean, default=False)
+    # <FA> y <IDK> del CAF, en claro para decidir sin descifrarlo. Nulos en los
+    # cargados antes de guardarlos: el asignador los completa al usarlos.
+    authorized_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True, default=None)
+    # Último día de emisión (Res. Ex. SII N° 58/2017); NULL = no vence.
+    expires_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True, default=None)
+    # 100 = CAF del ambiente de certificación.
+    key_id: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -244,7 +251,38 @@ class IssuedReceipt(Base):
     # El XML del <DTE> firmado, cifrado en reposo como el resto del material
     # tributario. Los campos de búsqueda van en claro porque se consultan.
     xml_encrypted: Mapped[str] = mapped_column(String)
+    # En qué envío viajó. NULL si se emitió sin enviar.
+    submission_id: Mapped[int | None] = mapped_column(
+        ForeignKey("receipt_submission.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ReceiptSubmission(Base):
+    """Un EnvioBOLETA subido al SII, para cuadrar lo aceptado y lo rechazado.
+
+    La declaración de cumplimiento de boleta exige «cuadratura de envíos
+    aceptados, rechazados y aceptados con reparos por el SII». Sin guardar el
+    TrackID, esa cuadratura dependía de que quien emite lo anotara.
+    """
+
+    __tablename__ = "receipt_submission"
+    __table_args__ = (UniqueConstraint("customer_id", "track_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
+    track_id: Mapped[str] = mapped_column(String(32))
+    document_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Lo que respondió la recepción del sobre.
+    upload_status: Mapped[str] = mapped_column(String(40), default="")
+    # Lo que responde la consulta de estado (REC, EPR, RCT, RFR, ...), tal cual.
+    sii_state: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
+    # Por tipo: informados, aceptados, rechazados y reparos.
+    sii_stats: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
+    # Cada boleta con reparo o rechazo, con su motivo.
+    sii_details: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
+    sent_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    checked_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
 
 class User(Base):

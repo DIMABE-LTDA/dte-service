@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import base64
 import binascii
+import datetime as dt
 import secrets
 
-from dte_chile.caf import load_caf_bytes
+from dte_chile.caf import CAF, load_caf_bytes
 from dte_chile.rut import format_rut
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -321,18 +322,51 @@ def retire_caf(db: Session, customer: Customer, caf_id: int, *, commit: bool = T
     return row
 
 
+def caf_problem(parsed: CAF, customer: Customer, today: dt.date | None = None) -> str | None:
+    """Por qué este CAF no sirve para emitir con este cliente, o None si sirve."""
+    label = f"El CAF tipo {parsed.doc_type} ({parsed.folio_from}-{parsed.folio_to})"
+    if not parsed.keys_match():
+        return (
+            f"{label} trae una llave privada que no corresponde a su llave pública: "
+            "los timbres saldrían inválidos. Descárguelo de nuevo desde el SII."
+        )
+    if parsed.key_id is None:
+        return f"{label} no trae <IDK>: no se puede saber de qué ambiente es."
+    certification = customer.environment == SiiEnvironment.CERTIFICATION
+    if parsed.is_certification != certification:
+        own = "certificación" if parsed.is_certification else "producción"
+        other = "certificación" if certification else "producción"
+        return f"{label} es de {own} y el cliente emite en {other}."
+    if parsed.is_expired(today):
+        return (
+            f"{label} venció el {parsed.expires_on:%d-%m-%Y} (seis meses desde su "
+            "autorización, Res. Ex. SII N° 58/2017). Sus folios sin usar deben anularse "
+            "en el SII."
+        )
+    return None
+
+
 def add_caf(db: Session, customer: Customer, xml_base64: str, *, commit: bool = True) -> Caf:
     try:
         raw = base64.b64decode(xml_base64, validate=True)
     except (binascii.Error, ValueError) as ex:
         raise DomainError("xml_base64 no es base64 válido") from ex
-    parsed = load_caf_bytes(raw)  # valida + extrae rango/tipo
+    try:
+        parsed = load_caf_bytes(raw)  # valida + extrae rango/tipo
+    except ValueError as ex:
+        raise DomainError(str(ex)) from ex
 
     # El CAF pertenece al cliente: su RUT emisor (<RE>) debe ser el del cliente.
     if not _same_rut(parsed.issuer_rut, customer.rut):
         raise DomainError(
             f"El RUT del CAF ({parsed.issuer_rut}) no coincide con el del cliente ({customer.rut})."
         )
+
+    # Tres defectos que el SII sólo revela rechazando documentos, con sus folios
+    # ya gastados: se detectan aquí, antes de guardar el CAF.
+    problem = caf_problem(parsed, customer)
+    if problem:
+        raise DomainError(problem)
 
     # Rechazar rangos solapados con un CAF ya cargado del mismo tipo.
     overlap = (
@@ -357,6 +391,9 @@ def add_caf(db: Session, customer: Customer, xml_base64: str, *, commit: bool = 
         folio_from=parsed.folio_from,
         folio_to=parsed.folio_to,
         xml_encrypted=crypto.encrypt(raw),
+        authorized_on=parsed.authorized_on,
+        expires_on=parsed.expires_on,
+        key_id=parsed.key_id,
     )
     db.add(row)
     db.flush()
