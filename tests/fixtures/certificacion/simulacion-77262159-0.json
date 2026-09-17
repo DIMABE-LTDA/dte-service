@@ -331,7 +331,9 @@
                       {
                         "kind_code": 13,
                         "quantity": 50,
-                        "marks": "MOLDAJE METALICO"
+                        "marks": "MOLDAJE METALICO",
+                        "container_id": "TCLU1234567",
+                        "seal": "SL-4471209"
                       }
                     ],
                     "freight": "300",

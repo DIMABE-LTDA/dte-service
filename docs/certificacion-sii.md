@@ -288,7 +288,9 @@ con un ensayo permanente.
 
 - [x] Primer intento (TrackID 0259049720, 11 documentos, 4 tipos): **no se
       declara**, no cumple el formulario.
-- [ ] Emitir la simulación de 22 documentos, verificar y subir por Maullín.
+- [x] Envío #48: 22 documentos, 10 tipos, 23/23 firmas y 22/22 timbres, XSD, sin
+      «SET». El bulto de exportación lleva contenedor y sello (el SII los exige:
+      HED-2-804). Subido por Maullín el 17-09-2026: TrackID **0259115468**.
 - [ ] Confirmar con el correo «Resultado de Validación de Envío» que no hay
       rechazos ni reparos.
 - [ ] Declararla en «Declarar avance» con su número y fecha de envío.
