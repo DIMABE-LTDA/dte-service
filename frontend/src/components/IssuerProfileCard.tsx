@@ -58,6 +58,13 @@ const CAMPOS: {
     numero: true,
     ayuda: "Lo ves en Mi SII → Direcciones.",
   },
+  {
+    key: "sii_office",
+    label: "Unidad del SII",
+    max: 40,
+    ayuda:
+      "Dirección Regional de tu domicilio (p. ej. RANCAGUA). Va impresa bajo el recuadro del documento.",
+  },
 ];
 
 export default function IssuerProfileCard({ customer, writable, onSaved }: Props) {

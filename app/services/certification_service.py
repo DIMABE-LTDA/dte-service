@@ -1314,34 +1314,97 @@ def printable_envelopes(db, customer: Customer) -> list[CertificationSubmission]
     return list(por_set.values())
 
 
-def print_samples(db, customer: Customer, sii_office: str = "SANTIAGO") -> dict:
-    """Genera los impresos de todos los sobres del expediente.
+def print_samples(db, customer: Customer, sii_office: str | None = None) -> dict:
+    """Las muestras impresas del paso 5, una página por ejemplar.
 
-    El paso 5 exige la representación impresa de **todos** los documentos del
-    set, con su timbre PDF417. Sin los sobres guardados esto no se podía hacer:
-    el servicio no almacena DTE y de la tanda aceptada se habían perdido seis.
+    Qué va, según el «Manual de Muestras Impresas» del SII y el formulario de
+    avance: «todos los documentos del Set de Pruebas y una muestra de cada tipo
+    de documentos de la Simulación, con las copias cedibles si corresponde».
+    Los libros no se imprimen; las boletas tienen su propio trámite.
+
+    Cada ejemplar es una página: la aplicación del SII exige que «cada archivo
+    solo debe contener una página con un documento DTE».
     """
-    from app.schemas.dte import PrintRequest
-    from app.services import dte_service
+    import datetime as _dt
 
-    documentos = []
-    saltados = []
+    from dte_chile.representation import ResolutionInfo, generate_pages
+
+    from app.services.certification_catalog import BY_KIND
+
+    resolution = ResolutionInfo(
+        number=customer.resolution_number,
+        date=customer.resolution_date or _dt.date.today(),
+        sii_office=sii_office or customer.issuer_sii_office or "SANTIAGO",
+    )
+    sets = {
+        s.id: s.kind
+        for s in db.query(CertificationSet).filter(CertificationSet.customer_id == customer.id)
+    }
+
+    documentos: list[dict] = []
+    saltados: list[dict] = []
     for envio in printable_envelopes(db, customer):
-        # Los libros no tienen representación impresa: son un registro, no un
-        # documento tributario que se entregue a nadie.
-        if envio.envelope_kind not in ("EnvioDTE", "EnvioBOLETA"):
-            saltados.append({"track_id": envio.track_id, "reason": envio.envelope_kind})
+        kind = sets.get(envio.set_id, "")
+        tipo = BY_KIND.get(kind)
+        es_simulacion = kind == "simulacion"
+        if envio.envelope_kind != "EnvioDTE" or tipo is None or not tipo.doc_types:
+            # Libros, boletas o envíos sin set: no son muestras de factura.
+            saltados.append({"track_id": envio.track_id, "reason": envio.envelope_kind or kind})
             continue
-        req = PrintRequest(
-            xml_base64=base64.b64encode(envelope(envio)).decode("ascii"),
-            copies="both",
-            sii_office=sii_office,
-        )
+        if not es_simulacion and not tipo.declarable:
+            saltados.append({"track_id": envio.track_id, "reason": kind})
+            continue
         try:
-            resultado = dte_service.print_documents(customer, req)
+            paginas = generate_pages(envelope(envio), resolution)
         except Exception as ex:  # noqa: BLE001 - se informa, no se interrumpe
             saltados.append({"track_id": envio.track_id, "reason": str(ex)[:200]})
             continue
-        for doc in resultado["documents"]:
-            documentos.append({**doc, "track_id": envio.track_id})
+        elegidos: dict[int, int] = {}
+        for pagina in paginas:
+            if es_simulacion:
+                # «una muestra de cada tipo»: el primer documento de cada tipo.
+                folio = elegidos.setdefault(pagina.doc_type, pagina.folio)
+                if folio != pagina.folio:
+                    continue
+            documentos.append(
+                {
+                    "set_kind": kind,
+                    "track_id": envio.track_id,
+                    "type": pagina.doc_type,
+                    "folio": pagina.folio,
+                    "copy": pagina.copy,
+                    "name": f"{kind}_{pagina.doc_type}_{pagina.folio}_{pagina.copy.lower()}.pdf",
+                    "html": pagina.html,
+                }
+            )
     return {"documents": documentos, "skipped": saltados}
+
+
+def print_samples_zip(db, customer: Customer, sii_office: str | None = None) -> bytes:
+    """Las muestras como un ZIP de PDF, uno por ejemplar y de una sola página.
+
+    Una muestra de más de una página no se entrega: el SII la rechazaría, y es
+    mejor saberlo aquí.
+    """
+    import io
+    import zipfile
+
+    from app.services import pdf_service
+
+    muestras = print_samples(db, customer, sii_office)
+    if not muestras["documents"]:
+        raise EmissionError("no hay documentos enviados que imprimir")
+    buffer = io.BytesIO()
+    largas = []
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for doc in muestras["documents"]:
+            pdf, paginas = pdf_service.render_pdf(doc["html"])
+            if paginas != 1:
+                largas.append(doc["name"])
+                continue
+            zf.writestr(doc["name"], pdf)
+    if largas:
+        raise EmissionError(
+            "estas muestras no caben en una página y el SII las rechazaría: " + ", ".join(largas)
+        )
+    return buffer.getvalue()

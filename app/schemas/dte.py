@@ -223,7 +223,9 @@ class PrintRequest(BaseModel):
     xml_base64: str  # EnvioDTE completo, o un DTE suelto
     # both = tributario + cedible (el que exige el SII para adjuntar muestras).
     copies: Literal["both", "tax", "transferable"] = "both"
-    sii_office: str = "SANTIAGO"
+    # Unidad del SII bajo el recuadro. Si no se indica, la de la ficha del
+    # emisor; y sin ella, SANTIAGO.
+    sii_office: str | None = None
     # Sitio donde el consumidor consulta su boleta. El SII lo exige impreso en
     # la boleta electrónica; en los demás documentos se ignora.
     verification_url: str = ""

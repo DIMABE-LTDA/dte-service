@@ -15,8 +15,9 @@ jobs:
           python-version: "3.11"
 
       # En Linux las deps nativas de firma del motor son paquetes del sistema.
-      - name: Instalar libs nativas (xmlsec/libxml2)
-        run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxmlsec1-dev pkg-config
+      # Pango: WeasyPrint genera los PDF de las muestras impresas (y su test).
+      - name: Instalar libs nativas (xmlsec/libxml2, Pango)
+        run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxmlsec1-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-liberation
 
       # El motor (cl_dte_lib) es privado: el extra `engine` lo instala desde
       # el tag fijado en pyproject. ENGINE_TOKEN = PAT fine-grained / deploy key con lectura a

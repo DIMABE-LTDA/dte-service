@@ -214,8 +214,10 @@ def test_print_returns_both_copies(client, db, signing_cert, real_caf):
     }
 
     html = _html(body)
-    assert "TRIBUTARIO" in html
-    assert "CEDIBLE" in html
+    # Manual de muestras impresas: el tributario va sin leyenda de destino; el
+    # cedible, con «CEDIBLE» abajo a la derecha.
+    assert html.count('class="doc"') == 2
+    assert '<div class="destino">CEDIBLE</div>' in html
     assert "data:image/png;base64," in html  # timbre PDF417 embebido
 
 
@@ -237,7 +239,7 @@ def test_print_every_document_of_a_batch_envelope(client, db, signing_cert, real
     assert [(d["type"], d["folio"]) for d in body["documents"]] == [(33, 4), (61, 1)]
     # La nota de crédito no es cedible; la factura sí.
     assert [d["cedible"] for d in body["documents"]] == [True, False]
-    assert "Factura Electrónica N° 4" in _html(body, 1)  # la referencia de la nota
+    assert "Factura electrónica N° 4" in _html(body, 1)  # la referencia de la nota
 
 
 def test_internal_transfer_guide_has_no_transferable_copy(client, db, signing_cert, real_caf):
@@ -262,7 +264,7 @@ def test_can_ask_for_a_single_copy(client, db, signing_cert, real_caf):
             "/dte/print", json={"xml_base64": envelope, "copies": "tax"}, headers=headers()
         ).json()
     )
-    assert "TRIBUTARIO" in tax
+    assert tax.count('class="doc"') == 1
     assert "CEDIBLE" not in tax
 
     transferable = _html(
@@ -283,7 +285,7 @@ def test_sii_office_is_configurable(client, db, signing_cert, real_caf):
         "sii_office": "MAIPU",
     }
     html = _html(client.post("/dte/print", json=payload, headers=headers()).json())
-    assert "S.I.I. — MAIPU" in html
+    assert "S.I.I. - MAIPU" in html  # bajo el recuadro, como el ejemplo del manual
 
 
 def test_invalid_base64_is_a_400(client, db):

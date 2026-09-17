@@ -33,6 +33,7 @@ export interface IssuerProfile {
   city: string | null;
   branch_name: string | null;
   branch_code: number | null;
+  sii_office?: string | null;
 }
 
 export interface Customer {

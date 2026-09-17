@@ -4,8 +4,11 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
+# Pango y fuentes: WeasyPrint genera los PDF de los impresos. Liberation Sans
+# tiene las métricas de Arial, la letra del ejemplo del manual del SII.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libxml2-dev libxmlsec1-dev libxmlsec1-openssl pkg-config build-essential \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /srv

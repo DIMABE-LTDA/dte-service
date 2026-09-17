@@ -601,24 +601,38 @@ def test_enviar_un_borrador_le_pone_el_trackid(client, db, fake_book_engine, mon
 # --- muestras de impresión (paso 5) ---------------------------------------
 
 
+def _paginas_falsas(monkeypatch, folio=19):
+    from dte_chile import representation
+
+    monkeypatch.setattr(
+        representation,
+        "generate_pages",
+        lambda xml, res, **kw: [representation.PrintedCopy(33, folio, "TRIBUTARIO", "<html/>")],
+    )
+
+
+def _set_kind(db, code, kind):
+    s = db.query(CertificationSet).filter_by(code=code).one()
+    s.kind = kind
+    db.commit()
+
+
 def test_las_muestras_salen_de_los_sobres_guardados(client, db, monkeypatch):
     """Sin los sobres esto no se podía hacer: el servicio no almacena DTE y de la
     tanda aceptada se habían perdido seis."""
-    from app.services import dte_service
-
     c = make_customer(db)
     h = _op(client, db)
     _con_envio(db, c, code="5038170", estado="EPR")
-    monkeypatch.setattr(
-        dte_service,
-        "print_documents",
-        lambda customer, req: {"documents": [{"type": 33, "folio": 19, "html": "<html/>"}]},
-    )
+    _set_kind(db, "5038170", "basico")
+    _paginas_falsas(monkeypatch)
 
     r = client.post(f"{_base(c.id)}/print-samples", headers=h)
     assert r.status_code == 200
-    assert r.json()["documents"][0]["folio"] == 19
-    assert r.json()["documents"][0]["track_id"] == "0257259806"
+    doc = r.json()["documents"][0]
+    assert doc["folio"] == 19
+    assert doc["track_id"] == "0257259806"
+    assert doc["name"] == "basico_33_19_tributario.pdf"
+    assert "html" not in doc  # el listado no carga el impreso
 
 
 def test_un_libro_no_se_imprime_pero_se_informa(client, db):
@@ -656,17 +670,12 @@ def test_un_sobre_sin_enviar_no_entra_en_las_muestras(client, db, fake_book_engi
 
 def test_de_varios_intentos_se_imprime_el_aceptado(client, db, monkeypatch):
     """Imprimir el rechazado junto al bueno confundiría al revisor del SII."""
-    from app.services import dte_service
-
     c = make_customer(db)
     h = _op(client, db)
     _con_envio(db, c, code="5038170", track="0257260576", estado="RFR")
     _con_envio(db, c, code="5038170", track="0257264862", estado="EPR")
-    monkeypatch.setattr(
-        dte_service,
-        "print_documents",
-        lambda customer, req: {"documents": [{"type": 33, "folio": 19}]},
-    )
+    _set_kind(db, "5038170", "basico")
+    _paginas_falsas(monkeypatch)
 
     body = client.post(f"{_base(c.id)}/print-samples", headers=h).json()
     assert len(body["documents"]) == 1

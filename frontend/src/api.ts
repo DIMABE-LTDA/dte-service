@@ -188,6 +188,29 @@ export const api = {
       `/admin/customers/${cid}/certification/print-samples`,
       { method: "POST" },
     ),
+  /** Las muestras impresas en PDF (un ZIP), generadas en el servidor. */
+  async certDownloadPrintSamples(cid: number): Promise<void> {
+    const res = await fetch(`${BASE}/admin/customers/${cid}/certification/print-samples.zip`, {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        const body = await res.json();
+        detail = body.detail ?? body.error?.message ?? detail;
+      } catch {
+        // la respuesta no era JSON: queda el código HTTP
+      }
+      throw new Error(detail);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `muestras-impresas-${cid}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
   certNotes: (cid: number) => req<CertNote[]>(`/admin/customers/${cid}/certification/notes`),
   certAddNote: (cid: number, set_id: number, text: string) =>
     req<CertNote>(`/admin/customers/${cid}/certification/notes`, body({ set_id, text })),

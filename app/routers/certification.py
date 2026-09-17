@@ -18,7 +18,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -869,11 +869,11 @@ def exchange(
 @router.post("/print-samples", response_model=PrintSamplesOut)
 def print_samples(
     customer_id: int,
-    sii_office: str = "SANTIAGO",
+    sii_office: str | None = None,
     actor: User | None = Depends(admin_read_access),
     db: Session = Depends(get_db),
 ) -> PrintSamplesOut:
-    """Impresos de todos los documentos enviados, para el paso 5 del trámite.
+    """Qué muestras impresas se entregarán en el paso 5, sin generar los PDF.
 
     Se arma desde los sobres guardados. Antes esto no se podía hacer: el
     servicio no almacena DTE y de la tanda aceptada se habían perdido seis
@@ -881,7 +881,38 @@ def print_samples(
     """
     customer = _customer(db, customer_id)
     resultado = certification_service.print_samples(db, customer, sii_office)
+    for doc in resultado["documents"]:
+        doc.pop("html", None)  # el listado no necesita el impreso completo
     return PrintSamplesOut(**resultado)
+
+
+@router.get("/print-samples.zip")
+def print_samples_zip(
+    customer_id: int,
+    sii_office: str | None = None,
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Las muestras impresas en PDF, listas para «Upload de Muestras Impresas».
+
+    Un PDF por ejemplar (tributario y cedible por separado), de una página.
+    """
+    from app.services.pdf_service import PdfUnavailableError
+
+    customer = _customer(db, customer_id)
+    try:
+        contenido = certification_service.print_samples_zip(db, customer, sii_office)
+    except certification_service.EmissionError as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    except PdfUnavailableError as ex:
+        raise HTTPException(status_code=503, detail=str(ex)) from ex
+    return Response(
+        content=contenido,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="muestras-impresas-{customer.rut}.zip"'
+        },
+    )
 
 
 @router.get("/sets/{set_id}/preview", response_model=PreviewOut)

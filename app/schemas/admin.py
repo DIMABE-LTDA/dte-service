@@ -25,6 +25,8 @@ class IssuerProfile(BaseModel):
     city: str | None = Field(default=None, max_length=20)  # CiudadOrigen
     branch_name: str | None = Field(default=None, max_length=20)  # Sucursal
     branch_code: int | None = Field(default=None, ge=1)  # CdgSIISucur
+    # Dirección Regional o Unidad del SII (sólo en el impreso, bajo el recuadro).
+    sii_office: str | None = Field(default=None, max_length=40)
 
 
 class CustomerCreate(BaseModel):

@@ -758,20 +758,10 @@ export default function Certification() {
                     disabled={busy}
                     onClick={() =>
                       correr(async () => {
+                        // Un PDF por ejemplar y de una página, como los pide
+                        // «Upload de Muestras Impresas» del SII.
                         const r = await api.certPrintSamples(cid);
-                        const partes = r.documents.map((d) => String(d.html ?? ""));
-                        const blob = new Blob(
-                          [
-                            `<!doctype html><meta charset="utf-8"><title>Muestras de impresión</title>${partes.join("<hr>")}`,
-                          ],
-                          { type: "text/html" },
-                        );
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = "muestras-impresion.html";
-                        a.click();
-                        URL.revokeObjectURL(url);
+                        await api.certDownloadPrintSamples(cid);
                         if (r.skipped.length) {
                           setActionError(
                             `Se saltaron ${r.skipped.length} sobre(s): ${r.skipped
@@ -779,11 +769,11 @@ export default function Certification() {
                               .join(", ")}`,
                           );
                         }
-                      }, "Muestras generadas: ábrelas e imprímelas a PDF.")
+                      }, "Muestras descargadas: súbelas en «Upload de Muestras Impresas» del SII.")
                     }
                   >
                     <Icon name="download" />
-                    Generar muestras
+                    Descargar muestras (PDF)
                   </button>
                 )}
                 {!p.automatic && writable && (

@@ -300,7 +300,7 @@ def print_documents(customer: Customer, req) -> dict:
     resolution = ResolutionInfo(
         number=customer.resolution_number,
         date=customer.resolution_date,
-        sii_office=req.sii_office,
+        sii_office=req.sii_office or customer.issuer_sii_office or "SANTIAGO",
     )
 
     documents = []

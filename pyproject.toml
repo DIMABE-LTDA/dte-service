@@ -24,6 +24,9 @@ dependencies = [
     "redis>=5.0",
     # TOTP del segundo factor del portal (RFC 6238).
     "pyotp>=2.9",
+    # PDF de los impresos (muestras del paso 5 de la certificación). Necesita
+    # Pango en el sistema: ver Dockerfile y el workflow de CI.
+    "weasyprint>=66",
     # El motor dte_chile NO va en dependencies directas: rompería el editable
     # local de dev y el vendoring offline de Docker (referencia directa de git).
     # Dev: `pip install -e ../dte_chile`. CI: extra `engine` (pineado, abajo).
@@ -33,7 +36,7 @@ dependencies = [
 [project.optional-dependencies]
 # Motor pineado al tag → builds reproducibles (lo usa el CI). Requiere acceso al
 # repo privado cl_dte_lib (token de git).
-engine = ["dte_chile @ git+https://github.com/leonardodimabe/cl_dte_lib.git@v0.4.26"]
+engine = ["dte_chile @ git+https://github.com/leonardodimabe/cl_dte_lib.git@v0.4.28"]
 dev = [
     "pytest>=8.0",
     "httpx>=0.27",

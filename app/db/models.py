@@ -64,6 +64,9 @@ class Customer(Base):
     issuer_city: Mapped[str | None] = mapped_column(String(20), nullable=True)
     issuer_branch_name: Mapped[str | None] = mapped_column(String(20), nullable=True)
     issuer_branch_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Dirección Regional o Unidad del SII del domicilio (p. ej. RANCAGUA). No va
+    # en el XML: el impreso la exige bajo el recuadro del tipo de documento.
+    issuer_sii_office: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # Receptores para el set de pruebas: clientes reales del contribuyente. El
     # instructivo del SII pide «un Rut receptor de un cliente existente» y «RUT
     # distintos para las distintas facturas»; las definiciones traían el propio

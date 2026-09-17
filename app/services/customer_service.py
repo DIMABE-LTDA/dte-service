@@ -133,6 +133,7 @@ _ISSUER_COLUMNS = {
     "city": "issuer_city",
     "branch_name": "issuer_branch_name",
     "branch_code": "issuer_branch_code",
+    "sii_office": "issuer_sii_office",
 }
 
 #: Sin estos el SII no acepta el encabezado del documento.

@@ -284,3 +284,90 @@ def test_la_simulacion_sale_valida_y_sin_referencias_a_casos(db):
             ref.findtext("s:FolioRef", namespaces=ns),
         )
         assert apuntado in emitidos, f"la nota apunta a {apuntado}, que no va en el envío"
+
+
+# --------------------------------------------------------------------------- #
+#  Paso 5: muestras impresas
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def expediente_enviado(db):
+    """Los sets de prueba y la simulación emitidos y dados por enviados."""
+    from app.db.models import CertificationSet
+
+    cliente = _cliente(db)
+    cliente.issuer_sii_office = "RANCAGUA"
+    hoja = certification_sheet.parse((RAIZ / "sii/set_pruebas_77262159-0.txt").read_bytes())
+    hoja.sets.update(
+        certification_sheet.parse((RAIZ / "sii/set_boletas_77262159-0.txt").read_bytes()).sets
+    )
+    simulacion = json.loads(
+        (RAIZ / "certificacion/simulacion-77262159-0.json").read_text(encoding="utf-8")
+    )
+    hoja.sets.update(simulacion["sets"])
+    certification_rehearsal.cargar(db, cliente, hoja)
+    certification_rehearsal.emitir_todo(db, cliente, _certificado(CLIENTE["signer_rut"]))
+    s = db.query(CertificationSet).filter_by(customer_id=cliente.id, kind="simulacion").one()
+    envio = certification_service.emit(db, cliente, _certificado(CLIENTE["signer_rut"]), s)
+    envio.track_id = "ENSAYOSIM"
+    envio.sii_state = "EPR"
+    db.commit()
+    return cliente
+
+
+def test_las_muestras_son_las_que_pide_el_manual(db, expediente_enviado):
+    """«Todos los documentos del Set de Pruebas y una muestra de cada tipo de
+    documentos de la Simulación, con las copias cedibles si corresponde».
+
+    Sin libros ni boletas; tributario y cedible por separado; y la Unidad del
+    SII de la ficha bajo el recuadro.
+    """
+    muestras = certification_service.print_samples(db, expediente_enviado)
+    docs = muestras["documents"]
+    kinds = {d["set_kind"] for d in docs}
+    assert kinds == {
+        "basico", "exenta", "guias", "exportacion_1", "exportacion_2",
+        "liquidacion", "factura_compra", "simulacion",
+    }  # fmt: skip
+    assert not any(d["type"] == 39 for d in docs)
+
+    # De la simulación, un documento por tipo (con su cedible si corresponde).
+    sim = [(d["type"], d["folio"]) for d in docs if d["set_kind"] == "simulacion"]
+    assert sorted({t for t, _ in sim}) == [33, 34, 43, 46, 52, 56, 61, 110, 111, 112]
+    for tipo in {t for t, _ in sim}:
+        assert len({f for t, f in sim if t == tipo}) == 1
+
+    copias = {(d["type"], d["copy"]) for d in docs}
+    for tipo in (33, 34, 43, 46):
+        assert (tipo, "CEDIBLE") in copias
+    for tipo in (56, 61, 110, 111, 112):
+        assert (tipo, "CEDIBLE") not in copias
+
+    assert all("S.I.I. - RANCAGUA" in d["html"] for d in docs)
+    assert len({d["name"] for d in docs}) == len(docs)
+
+
+def test_las_muestras_se_entregan_en_pdf_de_una_pagina(db, expediente_enviado):
+    """El formato de «Upload de Muestras Impresas»: un PDF por ejemplar, una
+    página. Necesita Pango: en Windows sin GTK se salta; en Linux (CI, Docker)
+    corre."""
+    import io
+    import zipfile
+
+    from app.services import pdf_service
+
+    try:
+        pdf_service.html_to_pdf("<p>x</p>")
+    except pdf_service.PdfUnavailableError:
+        pytest.skip("WeasyPrint/Pango no disponibles en este sistema")
+
+    muestras = certification_service.print_samples(db, expediente_enviado)
+    for doc in muestras["documents"]:
+        pdf, paginas = pdf_service.render_pdf(doc["html"])
+        assert paginas == 1, doc["name"]
+        assert len(pdf) < 500 * 1024, doc["name"]  # límite de la aplicación del SII
+
+    contenido = certification_service.print_samples_zip(db, expediente_enviado)
+    with zipfile.ZipFile(io.BytesIO(contenido)) as zf:
+        nombres = zf.namelist()
+        assert len(nombres) == len(muestras["documents"])
+        assert all(zf.read(n).startswith(b"%PDF") for n in nombres)
