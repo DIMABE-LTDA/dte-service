@@ -260,8 +260,29 @@ Nuestro expediente todavía no hace esa distinción y la estadística llega vac�
 
 ### Paso 3 — Simulación
 
-Un envío con la facturación real de los últimos 2 meses: máximo 100
-documentos, mínimo 10.
+Manual de certificación del SII (pág. 27): «un envío, recibido en el SII sin
+rechazos ni reparos, con los documentos tributarios electrónicos
+correspondientes a su facturación de los últimos 2 meses, con un máximo de 100
+documentos, con datos representativos, paralelos de la operación real». Con
+poca facturación, «un mínimo de 10». Se informa en «Declarar avance» con fecha
+y número de envío.
+
+CONSTRUCTORA DIMABE SPA **no tiene ventas en el RCV** desde enero de 2025, así
+que se armaron 11 documentos representativos del giro, a los receptores del set
+de pruebas: 6 facturas (33), 2 guías (52: venta y traslado interno a obra),
+2 notas de crédito (61) y 1 nota de débito (56), cada nota sobre una factura del
+mismo envío. Sin datos de la Res. Ex. N°154 (camión y chofer): rige desde el
+01-11-2026 y el motor los exigirá solo desde esa fecha. La definición está en
+`tests/fixtures/certificacion/simulacion-77262159-0.json` y un ensayo permanente
+la emite con esquema, firmas y timbres verificados.
+
+- [x] Set «simulacion» cargado (set 13). Para eso hubo que corregir la unicidad
+      de `certification_set`: boletas y simulación entran con código vacío.
+- [x] Envío #47 verificado (12/12 firmas, 11/11 timbres, XSD, sin «SET») y
+      subido por Maullín el 16-09-2026 21:50: TrackID **0259049720** → EPR.
+- [ ] Confirmar con el correo «Resultado de Validación de Envío» que no hay
+      rechazos ni reparos.
+- [ ] Declarar el avance de la simulación con la fecha y ese número de envío.
 
 ### Paso 4 — Intercambio de información
 
