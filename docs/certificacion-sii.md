@@ -291,13 +291,25 @@ con un ensayo permanente.
 - [x] Envío #48: 22 documentos, 10 tipos, 23/23 firmas y 22/22 timbres, XSD, sin
       «SET». El bulto de exportación lleva contenedor y sello (el SII los exige:
       HED-2-804). Subido por Maullín el 17-09-2026: TrackID **0259115468**.
-- [ ] Confirmar con el correo «Resultado de Validación de Envío» que no hay
-      rechazos ni reparos.
-- [ ] Declararla en «Declarar avance» con su número y fecha de envío.
+- [x] Correo «Resultado de Validación de Envío»: EPR, **22 aceptados, 0 rechazos,
+      0 reparos** en los 10 tipos.
+- [x] Declarada el 17-09-2026 (envío 259115468): **«SET DE SIMULACION REVISADO
+      CONFORME»** al instante, y la postulación pasó sola a INTERCAMBIO DE
+      INFORMACIÓN.
 
-### Paso 4 — Intercambio de información
+### Paso 4 — Intercambio de información *(en curso desde el 17-09-2026)*
 
-Responder acuses de recibo y respuestas de DTE recibidos.
+Lo que dice el formulario de avance al llegar a este paso:
+
+> Primero debe Bajar un SET de Intercambio, el cual consiste en un archivo xml
+> que contiene 2 documentos electrónicos. Luego Ud. debe construir los archivos
+> xml de Respuesta de Intercambio y Recepción de Mercaderias y enviarlos a
+> través de la página indicada anteriormente en la opción "Subir archivos". La
+> revisión es automática y el resultado es mostrado en la misma pantalla.
+
+- [ ] Bajar el SET de Intercambio (página «ETAPA DE INTERCAMBIO»).
+- [ ] Construir la Respuesta de Intercambio y la Recepción de Mercaderías.
+- [ ] Subirlas y revisar el resultado en pantalla.
 
 ### Paso 5 — Muestras de impresión
 
