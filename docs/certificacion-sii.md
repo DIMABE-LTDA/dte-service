@@ -233,7 +233,8 @@ certificada —Odoo está en el disco—.
 - [x] El mismo sobre #45 (folios 116-120, sin gastar folios) subido por Maullín
       el 16-09-2026 20:58: TrackID **0259045066** → EPR «Envío Procesado».
 - [x] Revisión solicitada con **259045066** → «Recepción conforme».
-- [ ] Esperar el correo con el resultado (V°B°).
+- [x] **SOK — SET DE PRUEBA CORRECTO** (set 5038181, envío 259045066),
+      16-09-2026. Paso 2 terminado.
 
 Nota de Odoo (`l10n_cl_edi_boletas/models/l10n_cl_edi_util.py`): si la API
 responde `detalle_rep_rech` = `null`, el envío **sigue en proceso** aunque el
