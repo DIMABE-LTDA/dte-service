@@ -943,6 +943,15 @@ def emit(
                 " anterior y declararía folios que quizá no valen; espera la respuesta"
                 " y vuelve a emitir"
             )
+    if cert_set.kind == "simulacion":
+        # Manual de certificación del SII, etapa 2: «con un máximo de 100
+        # documentos» y, sin facturación suficiente, «un mínimo de 10». Fuera de
+        # ese rango se gastan folios en un envío que no sirve.
+        cantidad = len((definicion.payload or {}).get("documents") or [])
+        if not 10 <= cantidad <= 100:
+            raise EmissionError(
+                f"la simulación lleva {cantidad} documento(s): el SII pide entre 10 y 100"
+            )
     cuerpo, _notas = certification_fill.fill(
         db, customer, cert_set, definicion.endpoint, definicion.payload
     )

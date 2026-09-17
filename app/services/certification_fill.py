@@ -43,6 +43,8 @@ from zoneinfo import ZoneInfo
 from dte_chile.text import MAX_LENGTHS
 from lxml import etree
 
+from app.services.certification_catalog import WITHOUT_CASE_REFERENCE
+
 _CL = ZoneInfo("America/Santiago")
 
 #: Endpoints que emiten documentos (con emisor, fecha y referencias).
@@ -228,14 +230,16 @@ def fill(db, customer, cert_set, endpoint: str, payload: dict, *, hoy=None) -> t
             # casos. Si el set los numera de otra forma, la definición puede
             # traer su propio `case`.
             caso = doc.pop("case", None)
-            refs = [
-                {
-                    "doc_type": "SET",
-                    "folio": "0",
-                    "date": hoy.isoformat(),
-                    "reason": f"CASO {caso}" if caso else case_reason(cert_set.code, n),
-                }
-            ]
+            refs = []
+            if (cert_set.kind or "") not in WITHOUT_CASE_REFERENCE:
+                refs.append(
+                    {
+                        "doc_type": "SET",
+                        "folio": "0",
+                        "date": hoy.isoformat(),
+                        "reason": f"CASO {caso}" if caso else case_reason(cert_set.code, n),
+                    }
+                )
             for ref in doc.get("references", []) or []:
                 if ref.get("batch_index") is None:
                     ref["date"] = hoy.isoformat()

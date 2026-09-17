@@ -1,0 +1,88 @@
+{
+  "sets": {
+    "simulacion": {
+      "code": "",
+      "endpoint": "issue-batch",
+      "payload": {
+        "documents": [
+          {
+            "type": 33,
+            "items": [
+              {"name": "ESTADO DE PAGO N 1 OBRAS DE HORMIGON ARMADO", "quantity": 1, "unit_price": 2450000}
+            ]
+          },
+          {
+            "type": 33,
+            "items": [
+              {"name": "ARRIENDO DE ANDAMIOS", "quantity": 30, "unit_price": 4500, "unit": "DIA"},
+              {"name": "MONTAJE Y DESMONTAJE DE ANDAMIOS", "quantity": 1, "unit_price": 180000}
+            ]
+          },
+          {
+            "type": 33,
+            "items": [
+              {"name": "INSTALACION DE CERAMICA DE PISO", "quantity": 120, "unit_price": 9800, "unit": "M2"}
+            ]
+          },
+          {
+            "type": 33,
+            "items": [
+              {"name": "REPARACION DE TECHUMBRE BODEGA", "quantity": 1, "unit_price": 640000}
+            ]
+          },
+          {
+            "type": 33,
+            "items": [
+              {"name": "PINTURA EXTERIOR DE FACHADA", "quantity": 350, "unit_price": 3200, "unit": "M2", "discount_pct": 5}
+            ]
+          },
+          {
+            "type": 33,
+            "items": [
+              {"name": "RETIRO DE ESCOMBROS", "quantity": 4, "unit_price": 65000, "unit": "UN"}
+            ]
+          },
+          {
+            "type": 52,
+            "transfer_type": 1,
+            "dispatch_type": 1,
+            "items": [
+              {"name": "PLANCHA DE YESO CARTON 15 MM", "quantity": 40, "unit_price": 8900, "unit": "UN"},
+              {"name": "PERFIL METALICO MONTANTE 60 MM", "quantity": 60, "unit_price": 3100, "unit": "UN"}
+            ]
+          },
+          {
+            "type": 52,
+            "transfer_type": 5,
+            "items": [
+              {"name": "BETONERA ELECTRICA 150 LITROS", "quantity": 1, "unit_price": 0, "unit": "UN"},
+              {"name": "PUNTAL METALICO 3 METROS", "quantity": 20, "unit_price": 0, "unit": "UN"}
+            ],
+            "transport": {"dest_address": "OBRA SECTOR LA ISLA S/N, LOTE A", "dest_commune": "RANCAGUA"}
+          },
+          {
+            "type": 61,
+            "items": [
+              {"name": "M2 DE CERAMICA NO EJECUTADOS", "quantity": 10, "unit_price": 9800, "unit": "M2"}
+            ],
+            "references": [{"batch_index": 3, "code": 3, "reason": "CORRIGE MONTO: 10 M2 NO EJECUTADOS"}]
+          },
+          {
+            "type": 61,
+            "items": [
+              {"name": "REPARACION DE TECHUMBRE BODEGA", "quantity": 1, "unit_price": 640000}
+            ],
+            "references": [{"batch_index": 4, "code": 1, "reason": "ANULA FACTURA POR ERROR EN RECEPTOR"}]
+          },
+          {
+            "type": 56,
+            "items": [
+              {"name": "INTERESES POR PAGO FUERA DE PLAZO", "quantity": 1, "unit_price": 35000}
+            ],
+            "references": [{"batch_index": 1, "code": 3, "reason": "COBRO DE INTERESES ESTADO DE PAGO N 1"}]
+          }
+        ]
+      }
+    }
+  }
+}

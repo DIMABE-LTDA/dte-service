@@ -135,6 +135,53 @@ def test_el_sistema_pone_emisor_fecha_y_caso(db):
     assert any("sin receptores de prueba" in n for n in notas)
 
 
+def test_la_simulacion_no_lleva_referencia_a_casos(db):
+    """La simulación replica la operación real: no responde a una hoja de casos.
+
+    Manual de certificación del SII, etapa 2: «un envío, recibido en el SII sin
+    rechazos ni reparos, con los documentos tributarios electrónicos
+    correspondientes a su facturación». Un «SET — CASO n» ahí no corresponde.
+    """
+    customer = make_customer(db)
+    _perfil(customer)
+    s = _set(db, customer, "simulacion", "")
+
+    cuerpo, _ = certification_fill.fill(db, customer, s, "issue-batch", _DEFINICION, hoy=HOY)
+    docs = cuerpo["documents"]
+
+    assert all(str(r.get("doc_type")) != "SET" for d in docs for r in d["references"])
+    # Emisor y fecha los pone el sistema igual que en los sets.
+    assert {d["issuer"]["rut"] for d in docs} == {customer.rut}
+    assert {d["issue_date"] for d in docs} == {"2026-09-10"}
+    # La nota sigue apuntando a su factura del mismo envío.
+    assert docs[1]["references"] == [{"batch_index": 1, "code": 1, "reason": "ANULA FACTURA"}]
+
+
+@pytest.mark.parametrize("cantidad", [9, 101])
+def test_la_simulacion_fuera_de_10_a_100_documentos_no_se_emite(db, cantidad):
+    """«Máximo de 100 documentos» y «mínimo de 10»: fuera de eso no quema folios."""
+    customer = make_customer(db)
+    _perfil(customer)
+    s = _set(db, customer, "simulacion", "")
+    doc = {"type": 33, "items": [{"name": "OBRA", "quantity": 1, "unit_price": 1000}]}
+    db.add(
+        CertificationDefinition(
+            set_id=s.id, endpoint="issue-batch", payload={"documents": [doc] * cantidad}
+        )
+    )
+    db.commit()
+
+    with pytest.raises(certification_service.EmissionError, match="entre 10 y 100"):
+        certification_service.emit(db, customer, None, s)
+
+
+def test_la_simulacion_entra_al_expediente_sin_numero_de_atencion(db):
+    from app.services.certification_catalog import BY_KIND
+
+    assert BY_KIND["simulacion"].declarable is False
+    assert set(BY_KIND["simulacion"].doc_types) == {33, 52, 56, 61}
+
+
 def test_avisa_de_un_bulto_sin_contenedor_ni_sello(db):
     """El reparo (HED-2-804) del set de exportación (2), folio 8.
 

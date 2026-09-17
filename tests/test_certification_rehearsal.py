@@ -34,6 +34,7 @@ from app.db.models import Caf, FolioPointer
 from app.services import (
     certification_compare,
     certification_rehearsal,
+    certification_service,
     certification_sheet,
     customer_service,
 )
@@ -94,8 +95,7 @@ def _certificado(rut: str) -> Certificate:
     )
 
 
-@pytest.fixture
-def emitidos(db):
+def _cliente(db):
     cliente = make_customer(db, rut=CLIENTE["rut"])
     cliente.resolution_number = CLIENTE["resolution_number"]
     cliente.resolution_date = dt.date.fromisoformat(CLIENTE["resolution_date"])
@@ -113,7 +113,12 @@ def emitidos(db):
         )
         db.add(FolioPointer(customer_id=cliente.id, doc_type=tipo, last_folio=0))
     db.commit()
+    return cliente
 
+
+@pytest.fixture
+def emitidos(db):
+    cliente = _cliente(db)
     hoja = certification_sheet.parse((RAIZ / "sii/set_pruebas_77262159-0.txt").read_bytes())
     hoja.sets.update(
         certification_sheet.parse((RAIZ / "sii/set_boletas_77262159-0.txt").read_bytes()).sets
@@ -198,3 +203,48 @@ def test_el_rcof_reporta_los_folios_y_montos_del_sobre_de_boletas(emitidos):
         folios[0],
         folios[-1],
     )
+
+
+# --------------------------------------------------------------------------- #
+#  Paso 3: simulación
+# --------------------------------------------------------------------------- #
+def test_la_simulacion_sale_valida_y_sin_referencias_a_casos(db):
+    """La definición de la simulación de este contribuyente, emitida de verdad.
+
+    El manual del SII pide «un envío, recibido en el SII sin rechazos ni
+    reparos». Aquí se comprueba lo que se puede comprobar sin el SII: esquema,
+    firmas y timbres tal como viajan, que ningún documento referencie un caso
+    del set y que cada nota apunte a una factura del mismo envío.
+    """
+    from lxml import etree
+
+    from app.db.models import CertificationSet
+
+    cliente = _cliente(db)
+    definicion = json.loads(
+        (RAIZ / "certificacion/simulacion-77262159-0.json").read_text(encoding="utf-8")
+    )
+    certification_rehearsal.cargar(
+        db, cliente, certification_sheet.Sheet(sets=definicion["sets"], notas=[])
+    )
+    cert_set = db.query(CertificationSet).filter_by(customer_id=cliente.id, kind="simulacion").one()
+
+    envio = certification_service.emit(db, cliente, _certificado(CLIENTE["signer_rut"]), cert_set)
+    xml = certification_service.envelope(envio)
+
+    assert certification_rehearsal._forma(xml) == []
+
+    ns = {"s": "http://www.sii.cl/SiiDte"}
+    raiz = etree.fromstring(xml)
+    tipos = raiz.xpath("//s:Documento//s:IdDoc/s:TipoDTE/text()", namespaces=ns)
+    assert 10 <= len(tipos) <= 100
+    assert set(tipos) == {"33", "52", "56", "61"}
+    assert raiz.xpath("//s:Referencia[s:TpoDocRef='SET']", namespaces=ns) == []
+
+    facturas = set(
+        raiz.xpath("//s:Documento[.//s:TipoDTE='33']//s:IdDoc/s:Folio/text()", namespaces=ns)
+    )
+    for nota in raiz.xpath("//s:Documento[.//s:TipoDTE='56' or .//s:TipoDTE='61']", namespaces=ns):
+        ref = nota.find(".//s:Referencia", ns)
+        assert ref.findtext("s:TpoDocRef", namespaces=ns) == "33"
+        assert ref.findtext("s:FolioRef", namespaces=ns) in facturas

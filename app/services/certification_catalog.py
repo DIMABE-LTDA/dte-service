@@ -101,7 +101,21 @@ SET_TYPES: tuple[SetType, ...] = (
         " de «Declarar avance»: sus TrackID se informan aparte.",
         declarable=False,
     ),
+    SetType(
+        "simulacion",
+        "Simulación",
+        (33, 52, 56, 61),
+        "Paso 3: un envío «recibido sin rechazos ni reparos» con la facturación de"
+        " los últimos dos meses (entre 10 y 100 documentos). Sin facturación"
+        " suficiente, mínimo 10 con datos representativos de la operación real. No"
+        " lleva referencia a casos: no es un set de pruebas.",
+        declarable=False,
+    ),
 )
+
+#: Sets cuyos documentos NO llevan la referencia «SET — CASO n»: no responden a
+#: una hoja de casos del SII sino a la operación del contribuyente.
+WITHOUT_CASE_REFERENCE = {"simulacion"}
 
 BY_KIND = {s.kind: s for s in SET_TYPES}
 
