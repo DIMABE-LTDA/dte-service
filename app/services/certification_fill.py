@@ -49,6 +49,10 @@ _CL = ZoneInfo("America/Santiago")
 
 #: Endpoints que emiten documentos (con emisor, fecha y referencias).
 DOC_ENDPOINTS = {"issue-batch", "issue-export-batch", "issue-settlement-batch"}
+#: Varios lotes de documentos en UN solo sobre: la simulación los necesita
+#: todos «dentro del mismo envío». Su payload es ``{"groups": [{endpoint,
+#: payload}, ...]}`` y cada grupo se trata como una definición normal.
+MIXED_ENDPOINT = "mixed-batch"
 #: Endpoints de libros.
 BOOK_ENDPOINTS = {"books", "books/guides"}
 #: El set de boletas. Va aparte porque su cuerpo lleva las boletas en
@@ -145,7 +149,15 @@ def strip(endpoint: str, kind: str, payload: dict) -> dict:
     un emisor, una fecha o un número de atención que contradiga la ficha.
     """
     salida = copy.deepcopy(payload or {})
-    if endpoint in DOC_ENDPOINTS:
+    if endpoint == MIXED_ENDPOINT:
+        salida["groups"] = [
+            {
+                "endpoint": g.get("endpoint", ""),
+                "payload": strip(g.get("endpoint", ""), kind, g.get("payload") or {}),
+            }
+            for g in salida.get("groups") or []
+        ]
+    elif endpoint in DOC_ENDPOINTS:
         for doc in salida.get("documents", []):
             doc.pop("issuer", None)
             doc.pop("issue_date", None)
@@ -217,6 +229,15 @@ def fill(db, customer, cert_set, endpoint: str, payload: dict, *, hoy=None) -> t
     from app.services import customer_service
 
     hoy = hoy or today()
+    if endpoint == MIXED_ENDPOINT:
+        grupos, notas_mixtas = [], []
+        for g in (payload or {}).get("groups") or []:
+            cuerpo, notas_grupo = fill(
+                db, customer, cert_set, g.get("endpoint", ""), g.get("payload") or {}, hoy=hoy
+            )
+            grupos.append({"endpoint": g.get("endpoint", ""), "payload": cuerpo})
+            notas_mixtas.extend(notas_grupo)
+        return {"groups": grupos}, notas_mixtas
     salida = strip(endpoint, cert_set.kind or "", payload)
     notas: list[str] = []
 

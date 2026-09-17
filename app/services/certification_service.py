@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import base64
 import contextvars
+import copy
 import datetime as dt
 import logging
 from zoneinfo import ZoneInfo
@@ -37,6 +38,7 @@ from app.db.models import (
     Customer,
     SiiEnvironment,
 )
+from app.services.certification_fill import MIXED_ENDPOINT
 
 logger = logging.getLogger(__name__)
 
@@ -912,16 +914,66 @@ def emit(
             " folios nuevos"
         )
 
+    if cert_set.kind == "simulacion":
+        _regla_simulacion(db, customer, definicion.endpoint, definicion.payload or {})
+    if definicion.endpoint == MIXED_ENDPOINT:
+        xml = _emitir_mixto(db, customer, cert, cert_set, definicion.payload or {})
+    else:
+        xml = _emitir(
+            db, customer, cert, cert_set, definicion.endpoint, definicion.payload, timeout_s
+        )
+    kind, docs = _contents(etree.fromstring(xml))
+    envio = CertificationSubmission(
+        set_id=cert_set.id,
+        customer_id=customer.id,
+        track_id=None,
+        sent_at=None,
+        envelope_kind=kind,
+        envelope_encrypted=crypto.encrypt(xml),
+        signed_thumbprint=_thumbprint(db, customer),
+    )
+    db.add(envio)
+    db.flush()
+    for doc_type, folio in docs:
+        db.add(CertificationDocument(submission_id=envio.id, doc_type=doc_type, folio=folio))
+    db.commit()
+    db.refresh(envio)
+    return envio
+
+
+#: Paso de simulación, según el formulario «Declarar avance» del SII (más
+#: estricto que el manual de 2009, que decía mínimo 10): «Debe contener una
+#: cantidad de 20 a 100 documentos (dentro del mismo envío)» y «todos los tipos
+#: de documentos que está certificando».
+SIMULATION_MIN_DOCS = 20
+SIMULATION_MAX_DOCS = 100
+
+
+def _emitir(
+    db, customer: Customer, cert, cert_set, endpoint: str, payload, timeout_s: int
+) -> bytes:
+    """Emite un lote con su emisor y devuelve el sobre, sin enviarlo."""
+    cuerpo, schema, funcion, con_db = _preparar(
+        db, customer, cert, cert_set, endpoint, payload, timeout_s
+    )
+    # send=False siempre: en esta ruta emitir NO envía.
+    req = schema.model_validate({**cuerpo, "send": False})
+    resultado = funcion(db, customer, cert, req) if con_db else funcion(customer, cert, req)
+    return base64.b64decode(resultado["xml_base64"])
+
+
+def _preparar(db, customer: Customer, cert, cert_set, endpoint: str, payload, timeout_s: int):
+    """La definición completada por el sistema, con el emisor que la procesa."""
     emisores = _emitters()
-    if definicion.endpoint not in emisores:
-        raise EmissionError(f"endpoint desconocido: {definicion.endpoint}")
-    schema, funcion, con_db = emisores[definicion.endpoint]
+    if endpoint not in emisores:
+        raise EmissionError(f"endpoint desconocido: {endpoint}")
+    schema, funcion, con_db = emisores[endpoint]
 
     # Lo que depende del cliente o del día —emisor, fecha, referencia al caso,
     # período y líneas de los libros— lo pone el sistema, no la definición.
     from app.services import certification_fill
 
-    if definicion.endpoint in certification_fill.DOC_ENDPOINTS:
+    if endpoint in certification_fill.DOC_ENDPOINTS:
         from app.services import customer_service
 
         faltan = customer_service.issuer_missing(customer)
@@ -943,44 +995,113 @@ def emit(
                 " anterior y declararía folios que quizá no valen; espera la respuesta"
                 " y vuelve a emitir"
             )
-    if cert_set.kind == "simulacion":
-        # Manual de certificación del SII, etapa 2: «con un máximo de 100
-        # documentos» y, sin facturación suficiente, «un mínimo de 10». Fuera de
-        # ese rango se gastan folios en un envío que no sirve.
-        cantidad = len((definicion.payload or {}).get("documents") or [])
-        if not 10 <= cantidad <= 100:
-            raise EmissionError(
-                f"la simulación lleva {cantidad} documento(s): el SII pide entre 10 y 100"
-            )
-    cuerpo, _notas = certification_fill.fill(
-        db, customer, cert_set, definicion.endpoint, definicion.payload
-    )
-    if definicion.endpoint in certification_fill.BOOK_ENDPOINTS and not cuerpo.get("lines"):
+    cuerpo, notas = certification_fill.fill(db, customer, cert_set, endpoint, payload)
+    if endpoint in certification_fill.BOOK_ENDPOINTS and not cuerpo.get("lines"):
         raise EmissionError(
-            "el libro no tiene líneas: " + ("; ".join(_notas) or "no hay documentos que declarar")
+            "el libro no tiene líneas: " + ("; ".join(notas) or "no hay documentos que declarar")
         )
-    # send=False siempre: en esta ruta emitir NO envía.
-    req = schema.model_validate({**cuerpo, "send": False})
-    resultado = funcion(db, customer, cert, req) if con_db else funcion(customer, cert, req)
+    return cuerpo, schema, funcion, con_db
 
-    xml = base64.b64decode(resultado["xml_base64"])
-    kind, docs = _contents(etree.fromstring(xml))
-    envio = CertificationSubmission(
-        set_id=cert_set.id,
-        customer_id=customer.id,
-        track_id=None,
-        sent_at=None,
-        envelope_kind=kind,
-        envelope_encrypted=crypto.encrypt(xml),
-        signed_thumbprint=_thumbprint(db, customer),
-    )
-    db.add(envio)
-    db.flush()
-    for doc_type, folio in docs:
-        db.add(CertificationDocument(submission_id=envio.id, doc_type=doc_type, folio=folio))
-    db.commit()
-    db.refresh(envio)
-    return envio
+
+def _tipos_de_la_definicion(endpoint: str, payload: dict) -> list[int]:
+    """Tipo de cada documento que emitiría la definición, en orden."""
+    if endpoint == MIXED_ENDPOINT:
+        return [
+            t
+            for grupo in payload.get("groups") or []
+            for t in _tipos_de_la_definicion(grupo.get("endpoint", ""), grupo.get("payload") or {})
+        ]
+    docs = payload.get("documents") or []
+    if endpoint == "issue-settlement-batch":
+        return [43] * len(docs)
+    return [int(d.get("type") or 0) for d in docs]
+
+
+def certified_types(db, customer: Customer) -> set[int]:
+    """Los tipos de documento que el contribuyente está certificando.
+
+    Los de sus sets de pruebas (los del formulario «Declarar avance»). La
+    boleta tiene su propio trámite y no entra.
+    """
+    from app.services.certification_catalog import BY_KIND
+
+    kinds = {
+        s.kind
+        for s in db.query(CertificationSet).filter(CertificationSet.customer_id == customer.id)
+    }
+    return {
+        t for k in kinds if k in BY_KIND and BY_KIND[k].declarable for t in BY_KIND[k].doc_types
+    }
+
+
+def _regla_simulacion(db, customer: Customer, endpoint: str, payload: dict) -> None:
+    """No gasta folios en una simulación que el SII no aprobaría."""
+    tipos = _tipos_de_la_definicion(endpoint, payload)
+    if not SIMULATION_MIN_DOCS <= len(tipos) <= SIMULATION_MAX_DOCS:
+        raise EmissionError(
+            f"la simulación lleva {len(tipos)} documento(s): el SII pide entre"
+            f" {SIMULATION_MIN_DOCS} y {SIMULATION_MAX_DOCS} en el mismo envío"
+        )
+    faltan = sorted(certified_types(db, customer) - set(tipos))
+    if faltan:
+        raise EmissionError(
+            "la simulación debe contener todos los tipos de documento que se están"
+            f" certificando; faltan: {', '.join(map(str, faltan))}"
+        )
+
+
+def _emitir_mixto(db, customer: Customer, cert, cert_set, payload: dict) -> bytes:
+    """Emite varios lotes y los entrega en UN solo sobre.
+
+    La simulación exige todos los tipos certificados «dentro del mismo envío»,
+    pero la exportación y la liquidación-factura tienen su propio emisor. Cada
+    grupo se emite con el suyo —asignación de folios, timbre y firma de siempre—
+    y sus <DTE> ya firmados se reúnen en un <EnvioDTE> nuevo, firmado otra vez.
+    La firma de un <DTE> no depende del sobre que lo contiene.
+
+    Todos los grupos se validan antes de emitir el primero: un error en el
+    último no debe dejar folios gastados en los anteriores.
+    """
+    from dte_chile.envelope import build_envelope
+    from dte_chile.envelope import serialize as serialize_envelope
+    from dte_chile.validation import Validator
+
+    from app.core.config import get_settings
+    from app.services.dte_service import _cover
+
+    grupos = payload.get("groups") or []
+    if not grupos:
+        raise EmissionError("la definición mixta no trae grupos")
+
+    preparados = []
+    for n, grupo in enumerate(grupos, start=1):
+        endpoint = grupo.get("endpoint", "")
+        if endpoint not in {"issue-batch", "issue-export-batch", "issue-settlement-batch"}:
+            raise EmissionError(f"grupo {n}: un sobre de documentos no admite «{endpoint}»")
+        cuerpo, schema, funcion, _con_db = _preparar(
+            db, customer, cert, cert_set, endpoint, grupo.get("payload") or {}, 0
+        )
+        try:
+            req = schema.model_validate({**cuerpo, "send": False})
+        except Exception as ex:  # noqa: BLE001 — se informa con el grupo
+            raise EmissionError(f"grupo {n} ({endpoint}): {ex}") from ex
+        preparados.append((funcion, req))
+
+    dtes: list[etree._Element] = []
+    for funcion, req in preparados:
+        resultado = funcion(db, customer, cert, req)
+        sobre = etree.fromstring(base64.b64decode(resultado["xml_base64"]))
+        dtes.extend(copy.deepcopy(d) for d in sobre.iter() if _local(d.tag) == "DTE")
+
+    tipos: dict[int, int] = {}
+    for dte in dtes:
+        tipo = int(next(n.text for n in dte.iter() if _local(n.tag) == "TipoDTE"))
+        tipos[tipo] = tipos.get(tipo, 0) + 1
+    ts = dt.datetime.now(ZoneInfo("America/Santiago")).replace(microsecond=0, tzinfo=None)
+    cover = _cover(customer, cert, customer.rut, sorted(tipos.items()))
+    xml = serialize_envelope(build_envelope(dtes, cover, cert, ts))
+    Validator(get_settings().schemas_dir).validate(xml)
+    return xml
 
 
 def _thumbprint(db, customer: Customer) -> str | None:

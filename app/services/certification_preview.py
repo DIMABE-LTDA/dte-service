@@ -214,6 +214,18 @@ def _book_line(line: dict, position: int) -> dict:
 
 def definition(endpoint: str, payload: dict) -> dict:
     """Qué se va a emitir, legible, a partir de la definición del set."""
+    if endpoint == "mixed-batch":
+        partes = [definition(g["endpoint"], g["payload"]) for g in payload.get("groups", [])]
+        documentos = [d for parte in partes for d in parte["documents"]]
+        for posicion, d in enumerate(documentos, start=1):
+            d["position"] = posicion
+        return {
+            "kind": "documentos",
+            "summary": f"{len(documentos)} documento(s) de {len(partes)} grupo(s) en un solo sobre",
+            "detail": " ".join(p["detail"] for p in partes if p["detail"]),
+            "documents": documentos,
+            "note": "Cada grupo se emite con su emisor y todos van en el mismo envío.",
+        }
     if endpoint in ("books", "books/guides"):
         lineas = payload.get("lines", [])
         return {

@@ -1,85 +1,481 @@
 {
+  "_nota": "Simulación de CONSTRUCTORA DIMABE SPA. Sin ventas en el RCV desde 2025: documentos representativos del giro. El formulario «Declarar avance» del SII exige 20 a 100 documentos en el mismo envío y todos los tipos que se certifican (33, 34, 43, 46, 52, 56, 61, 110, 111, 112).",
   "sets": {
     "simulacion": {
       "code": "",
-      "endpoint": "issue-batch",
+      "endpoint": "mixed-batch",
       "payload": {
-        "documents": [
+        "groups": [
           {
-            "type": 33,
-            "items": [
-              {"name": "ESTADO DE PAGO N 1 OBRAS DE HORMIGON ARMADO", "quantity": 1, "unit_price": 2450000}
-            ]
+            "endpoint": "issue-batch",
+            "payload": {
+              "documents": [
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "ESTADO DE PAGO N 1 OBRAS DE HORMIGON ARMADO",
+                      "quantity": 1,
+                      "unit_price": 2450000
+                    }
+                  ]
+                },
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "ARRIENDO DE ANDAMIOS",
+                      "quantity": 30,
+                      "unit_price": 4500,
+                      "unit": "DIA"
+                    },
+                    {
+                      "name": "MONTAJE Y DESMONTAJE DE ANDAMIOS",
+                      "quantity": 1,
+                      "unit_price": 180000
+                    }
+                  ]
+                },
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "INSTALACION DE CERAMICA DE PISO",
+                      "quantity": 120,
+                      "unit_price": 9800,
+                      "unit": "M2"
+                    }
+                  ]
+                },
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "REPARACION DE TECHUMBRE BODEGA",
+                      "quantity": 1,
+                      "unit_price": 640000
+                    }
+                  ]
+                },
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "PINTURA EXTERIOR DE FACHADA",
+                      "quantity": 350,
+                      "unit_price": 3200,
+                      "unit": "M2",
+                      "discount_pct": 5
+                    }
+                  ]
+                },
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "RETIRO DE ESCOMBROS",
+                      "quantity": 4,
+                      "unit_price": 65000,
+                      "unit": "UN"
+                    }
+                  ]
+                },
+                {
+                  "type": 52,
+                  "transfer_type": 1,
+                  "dispatch_type": 1,
+                  "items": [
+                    {
+                      "name": "PLANCHA DE YESO CARTON 15 MM",
+                      "quantity": 40,
+                      "unit_price": 8900,
+                      "unit": "UN"
+                    },
+                    {
+                      "name": "PERFIL METALICO MONTANTE 60 MM",
+                      "quantity": 60,
+                      "unit_price": 3100,
+                      "unit": "UN"
+                    }
+                  ]
+                },
+                {
+                  "type": 52,
+                  "transfer_type": 5,
+                  "items": [
+                    {
+                      "name": "BETONERA ELECTRICA 150 LITROS",
+                      "quantity": 1,
+                      "unit_price": 0,
+                      "unit": "UN"
+                    },
+                    {
+                      "name": "PUNTAL METALICO 3 METROS",
+                      "quantity": 20,
+                      "unit_price": 0,
+                      "unit": "UN"
+                    }
+                  ],
+                  "transport": {
+                    "dest_address": "OBRA SECTOR LA ISLA S/N, LOTE A",
+                    "dest_commune": "RANCAGUA"
+                  }
+                },
+                {
+                  "type": 61,
+                  "items": [
+                    {
+                      "name": "M2 DE CERAMICA NO EJECUTADOS",
+                      "quantity": 10,
+                      "unit_price": 9800,
+                      "unit": "M2"
+                    }
+                  ],
+                  "references": [
+                    {
+                      "batch_index": 3,
+                      "code": 3,
+                      "reason": "CORRIGE MONTO: 10 M2 NO EJECUTADOS"
+                    }
+                  ]
+                },
+                {
+                  "type": 61,
+                  "items": [
+                    {
+                      "name": "REPARACION DE TECHUMBRE BODEGA",
+                      "quantity": 1,
+                      "unit_price": 640000
+                    }
+                  ],
+                  "references": [
+                    {
+                      "batch_index": 4,
+                      "code": 1,
+                      "reason": "ANULA FACTURA POR ERROR EN RECEPTOR"
+                    }
+                  ]
+                },
+                {
+                  "type": 56,
+                  "items": [
+                    {
+                      "name": "INTERESES POR PAGO FUERA DE PLAZO",
+                      "quantity": 1,
+                      "unit_price": 35000
+                    }
+                  ],
+                  "references": [
+                    {
+                      "batch_index": 1,
+                      "code": 3,
+                      "reason": "COBRO DE INTERESES ESTADO DE PAGO N 1"
+                    }
+                  ]
+                },
+                {
+                  "type": 34,
+                  "items": [
+                    {
+                      "name": "ASESORIA EN PREVENCION DE RIESGOS",
+                      "quantity": 8,
+                      "unit_price": 45000,
+                      "unit": "HORA",
+                      "exempt": true
+                    }
+                  ]
+                },
+                {
+                  "type": 34,
+                  "items": [
+                    {
+                      "name": "CAPACITACION EN SEGURIDAD DE OBRA",
+                      "quantity": 1,
+                      "unit_price": 380000,
+                      "exempt": true
+                    }
+                  ]
+                },
+                {
+                  "type": 61,
+                  "items": [
+                    {
+                      "name": "HORAS DE ASESORIA NO REALIZADAS",
+                      "quantity": 2,
+                      "unit_price": 45000,
+                      "unit": "HORA",
+                      "exempt": true
+                    }
+                  ],
+                  "references": [
+                    {
+                      "batch_index": 12,
+                      "code": 3,
+                      "reason": "CORRIGE MONTO: 2 HORAS NO REALIZADAS"
+                    }
+                  ]
+                },
+                {
+                  "type": 46,
+                  "items": [
+                    {
+                      "name": "ARENA GRUESA",
+                      "quantity": 12,
+                      "unit_price": 18500,
+                      "unit": "M3"
+                    },
+                    {
+                      "name": "GRAVILLA",
+                      "quantity": 8,
+                      "unit_price": 21000,
+                      "unit": "M3"
+                    }
+                  ],
+                  "retentions": [
+                    {
+                      "code": 15
+                    }
+                  ],
+                  "receiver": {
+                    "rut": "17099910-K",
+                    "business_name": "PROVEEDOR EJEMPLO LIMITADA",
+                    "activity": "Venta por mayor materiales construccion",
+                    "address": "Calle Proveedor 456",
+                    "commune": "Providencia",
+                    "city": "Santiago"
+                  }
+                },
+                {
+                  "type": 56,
+                  "items": [
+                    {
+                      "name": "FLETE DE ARIDOS",
+                      "quantity": 1,
+                      "unit_price": 40000
+                    }
+                  ],
+                  "retentions": [
+                    {
+                      "code": 15
+                    }
+                  ],
+                  "references": [
+                    {
+                      "batch_index": 15,
+                      "code": 3,
+                      "reason": "AGREGA FLETE NO INCLUIDO"
+                    }
+                  ]
+                },
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "INSTALACION DE PUERTAS Y VENTANAS",
+                      "quantity": 14,
+                      "unit_price": 38000,
+                      "unit": "UN"
+                    }
+                  ]
+                },
+                {
+                  "type": 33,
+                  "items": [
+                    {
+                      "name": "HORMIGONADO DE RADIER",
+                      "quantity": 85,
+                      "unit_price": 14500,
+                      "unit": "M2"
+                    }
+                  ]
+                }
+              ]
+            }
           },
           {
-            "type": 33,
-            "items": [
-              {"name": "ARRIENDO DE ANDAMIOS", "quantity": 30, "unit_price": 4500, "unit": "DIA"},
-              {"name": "MONTAJE Y DESMONTAJE DE ANDAMIOS", "quantity": 1, "unit_price": 180000}
-            ]
+            "endpoint": "issue-export-batch",
+            "payload": {
+              "documents": [
+                {
+                  "type": 110,
+                  "currency": "DOLAR USA",
+                  "payment_mode": 21,
+                  "items": [
+                    {
+                      "name": "MOLDAJE METALICO USADO",
+                      "quantity": "50",
+                      "unit_price": "120",
+                      "unit": "UN"
+                    }
+                  ],
+                  "receiver": {
+                    "rut": "55555555-5",
+                    "business_name": "IMPORTADORA EXTRANJERA SA",
+                    "activity": "IMPORTACION",
+                    "address": "CALLE EXTRANJERA 1",
+                    "commune": "BARCELONA",
+                    "city": "BARCELONA"
+                  },
+                  "customs": {
+                    "sale_mode": 4,
+                    "sale_clause": 2,
+                    "clause_total": "6000",
+                    "transport_route": 1,
+                    "loading_port": 906,
+                    "unloading_port": 563,
+                    "tare_unit": 17,
+                    "gross_weight_unit": 9,
+                    "net_weight_unit": 9,
+                    "total_packages": 50,
+                    "packages": [
+                      {
+                        "kind_code": 13,
+                        "quantity": 50,
+                        "marks": "MOLDAJE METALICO"
+                      }
+                    ],
+                    "freight": "300",
+                    "insurance": "100",
+                    "receiver_country": 517,
+                    "destination_country": 517
+                  },
+                  "global_charges": [
+                    {
+                      "value": 300,
+                      "kind": "R",
+                      "value_type": "$",
+                      "reason": "FLETE"
+                    },
+                    {
+                      "value": 100,
+                      "kind": "R",
+                      "value_type": "$",
+                      "reason": "SEGURO"
+                    }
+                  ],
+                  "references": [
+                    {
+                      "doc_type": 810,
+                      "folio": "1",
+                      "reason": "MIC"
+                    }
+                  ],
+                  "other_currency": {
+                    "exchange_rate": "940.91",
+                    "currency": "PESO CL"
+                  }
+                },
+                {
+                  "type": 112,
+                  "currency": "DOLAR USA",
+                  "items": [
+                    {
+                      "name": "MOLDAJE METALICO USADO",
+                      "quantity": "5",
+                      "unit_price": "120",
+                      "unit": "UN"
+                    }
+                  ],
+                  "receiver": {
+                    "rut": "55555555-5",
+                    "business_name": "IMPORTADORA EXTRANJERA SA",
+                    "activity": "IMPORTACION",
+                    "address": "CALLE EXTRANJERA 1",
+                    "commune": "BARCELONA",
+                    "city": "BARCELONA"
+                  },
+                  "customs": {
+                    "receiver_country": 517,
+                    "destination_country": 517
+                  },
+                  "references": [
+                    {
+                      "batch_index": 1,
+                      "code": 3,
+                      "reason": "DEVOLUCION DE MERCADERIA"
+                    }
+                  ],
+                  "other_currency": {
+                    "exchange_rate": "940.91",
+                    "currency": "PESO CL"
+                  }
+                },
+                {
+                  "type": 111,
+                  "currency": "DOLAR USA",
+                  "items": [
+                    {
+                      "name": "MOLDAJE METALICO USADO",
+                      "quantity": "5",
+                      "unit_price": "120",
+                      "unit": "UN"
+                    }
+                  ],
+                  "receiver": {
+                    "rut": "55555555-5",
+                    "business_name": "IMPORTADORA EXTRANJERA SA",
+                    "activity": "IMPORTACION",
+                    "address": "CALLE EXTRANJERA 1",
+                    "commune": "BARCELONA",
+                    "city": "BARCELONA"
+                  },
+                  "customs": {
+                    "receiver_country": 517,
+                    "destination_country": 517
+                  },
+                  "references": [
+                    {
+                      "batch_index": 2,
+                      "code": 1,
+                      "reason": "ANULA NOTA DE CREDITO"
+                    }
+                  ],
+                  "other_currency": {
+                    "exchange_rate": "940.91",
+                    "currency": "PESO CL"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 33,
-            "items": [
-              {"name": "INSTALACION DE CERAMICA DE PISO", "quantity": 120, "unit_price": 9800, "unit": "M2"}
-            ]
-          },
-          {
-            "type": 33,
-            "items": [
-              {"name": "REPARACION DE TECHUMBRE BODEGA", "quantity": 1, "unit_price": 640000}
-            ]
-          },
-          {
-            "type": 33,
-            "items": [
-              {"name": "PINTURA EXTERIOR DE FACHADA", "quantity": 350, "unit_price": 3200, "unit": "M2", "discount_pct": 5}
-            ]
-          },
-          {
-            "type": 33,
-            "items": [
-              {"name": "RETIRO DE ESCOMBROS", "quantity": 4, "unit_price": 65000, "unit": "UN"}
-            ]
-          },
-          {
-            "type": 52,
-            "transfer_type": 1,
-            "dispatch_type": 1,
-            "items": [
-              {"name": "PLANCHA DE YESO CARTON 15 MM", "quantity": 40, "unit_price": 8900, "unit": "UN"},
-              {"name": "PERFIL METALICO MONTANTE 60 MM", "quantity": 60, "unit_price": 3100, "unit": "UN"}
-            ]
-          },
-          {
-            "type": 52,
-            "transfer_type": 5,
-            "items": [
-              {"name": "BETONERA ELECTRICA 150 LITROS", "quantity": 1, "unit_price": 0, "unit": "UN"},
-              {"name": "PUNTAL METALICO 3 METROS", "quantity": 20, "unit_price": 0, "unit": "UN"}
-            ],
-            "transport": {"dest_address": "OBRA SECTOR LA ISLA S/N, LOTE A", "dest_commune": "RANCAGUA"}
-          },
-          {
-            "type": 61,
-            "items": [
-              {"name": "M2 DE CERAMICA NO EJECUTADOS", "quantity": 10, "unit_price": 9800, "unit": "M2"}
-            ],
-            "references": [{"batch_index": 3, "code": 3, "reason": "CORRIGE MONTO: 10 M2 NO EJECUTADOS"}]
-          },
-          {
-            "type": 61,
-            "items": [
-              {"name": "REPARACION DE TECHUMBRE BODEGA", "quantity": 1, "unit_price": 640000}
-            ],
-            "references": [{"batch_index": 4, "code": 1, "reason": "ANULA FACTURA POR ERROR EN RECEPTOR"}]
-          },
-          {
-            "type": 56,
-            "items": [
-              {"name": "INTERESES POR PAGO FUERA DE PLAZO", "quantity": 1, "unit_price": 35000}
-            ],
-            "references": [{"batch_index": 1, "code": 3, "reason": "COBRO DE INTERESES ESTADO DE PAGO N 1"}]
+            "endpoint": "issue-settlement-batch",
+            "payload": {
+              "documents": [
+                {
+                  "receiver": {
+                    "rut": "17099910-K",
+                    "business_name": "MANDANTE EJEMPLO LIMITADA",
+                    "activity": "Comercio al por mayor",
+                    "address": "Calle Mandante 456",
+                    "commune": "Providencia",
+                    "city": "Santiago"
+                  },
+                  "lines": [
+                    {
+                      "liquidated_type": "33",
+                      "name": "NETO FACTURAS ELECTRONICAS",
+                      "amount": 1850000,
+                      "quantity": 3,
+                      "exempt": false
+                    },
+                    {
+                      "liquidated_type": "34",
+                      "name": "EXENTO FACTURAS ELECTRONICAS",
+                      "amount": 420000,
+                      "quantity": 1,
+                      "exempt": true
+                    }
+                  ],
+                  "commissions": [
+                    {
+                      "description": "COMISION POR VENTA",
+                      "net_amount": 92500
+                    }
+                  ]
+                }
+              ]
+            }
           }
         ]
       }

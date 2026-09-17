@@ -157,9 +157,10 @@ def test_la_simulacion_no_lleva_referencia_a_casos(db):
     assert docs[1]["references"] == [{"batch_index": 1, "code": 1, "reason": "ANULA FACTURA"}]
 
 
-@pytest.mark.parametrize("cantidad", [9, 101])
-def test_la_simulacion_fuera_de_10_a_100_documentos_no_se_emite(db, cantidad):
-    """«Máximo de 100 documentos» y «mínimo de 10»: fuera de eso no quema folios."""
+@pytest.mark.parametrize("cantidad", [19, 101])
+def test_la_simulacion_fuera_de_20_a_100_documentos_no_se_emite(db, cantidad):
+    """Formulario «Declarar avance» del SII: «Debe contener una cantidad de 20 a
+    100 documentos (dentro del mismo envío)». Fuera de eso no quema folios."""
     customer = make_customer(db)
     _perfil(customer)
     s = _set(db, customer, "simulacion", "")
@@ -171,8 +172,51 @@ def test_la_simulacion_fuera_de_10_a_100_documentos_no_se_emite(db, cantidad):
     )
     db.commit()
 
-    with pytest.raises(certification_service.EmissionError, match="entre 10 y 100"):
+    with pytest.raises(certification_service.EmissionError, match="entre 20 y 100"):
         certification_service.emit(db, customer, None, s)
+
+
+def test_la_simulacion_sin_todos_los_tipos_certificados_no_se_emite(db):
+    """«Debe contener todos los tipos de documentos que está certificando»."""
+    customer = make_customer(db)
+    _perfil(customer)
+    _set(db, customer, "basico", "5038170")  # certifica 33, 56 y 61
+    _set(db, customer, "guias", "5038174")  # y 52
+    s = _set(db, customer, "simulacion", "")
+    doc = {"type": 33, "items": [{"name": "OBRA", "quantity": 1, "unit_price": 1000}]}
+    db.add(
+        CertificationDefinition(
+            set_id=s.id, endpoint="issue-batch", payload={"documents": [doc] * 25}
+        )
+    )
+    db.commit()
+
+    with pytest.raises(certification_service.EmissionError, match="faltan: 52, 56, 61"):
+        certification_service.emit(db, customer, None, s)
+
+
+def test_la_definicion_mixta_cuenta_los_documentos_de_todos_sus_grupos():
+    tipos = certification_service._tipos_de_la_definicion(
+        "mixed-batch",
+        {
+            "groups": [
+                {"endpoint": "issue-batch", "payload": {"documents": [{"type": 33}, {"type": 61}]}},
+                {"endpoint": "issue-export-batch", "payload": {"documents": [{"type": 110}]}},
+                {"endpoint": "issue-settlement-batch", "payload": {"documents": [{}, {}]}},
+            ]
+        },
+    )
+    assert tipos == [33, 61, 110, 43, 43]
+
+
+def test_la_definicion_mixta_se_guarda_sin_lo_que_pone_el_sistema():
+    guardada = certification_fill.strip(
+        "mixed-batch",
+        "simulacion",
+        {"groups": [{"endpoint": "issue-batch", "payload": _DEFINICION}]},
+    )
+    docs = guardada["groups"][0]["payload"]["documents"]
+    assert all("issuer" not in d and "issue_date" not in d for d in docs)
 
 
 def test_boletas_y_simulacion_conviven_sin_numero_de_atencion(db):

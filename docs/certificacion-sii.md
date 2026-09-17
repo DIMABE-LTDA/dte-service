@@ -260,29 +260,38 @@ Nuestro expediente todavía no hace esa distinción y la estadística llega vac�
 
 ### Paso 3 — Simulación
 
-Manual de certificación del SII (pág. 27): «un envío, recibido en el SII sin
-rechazos ni reparos, con los documentos tributarios electrónicos
-correspondientes a su facturación de los últimos 2 meses, con un máximo de 100
-documentos, con datos representativos, paralelos de la operación real». Con
-poca facturación, «un mínimo de 10». Se informa en «Declarar avance» con fecha
-y número de envío.
+**Manda el formulario «Declarar avance» del SII, no el manual de 2009.** El
+manual dice mínimo 10 documentos; el formulario, al declarar, exige:
 
-CONSTRUCTORA DIMABE SPA **no tiene ventas en el RCV** desde enero de 2025, así
-que se armaron 11 documentos representativos del giro, a los receptores del set
-de pruebas: 6 facturas (33), 2 guías (52: venta y traslado interno a obra),
-2 notas de crédito (61) y 1 nota de débito (56), cada nota sobre una factura del
-mismo envío. Sin datos de la Res. Ex. N°154 (camión y chofer): rige desde el
-01-11-2026 y el motor los exigirá solo desde esa fecha. La definición está en
-`tests/fixtures/certificacion/simulacion-77262159-0.json` y un ensayo permanente
-la emite con esquema, firmas y timbres verificados.
+> - Debe ser preparado con datos de la operación real del contribuyente que se
+>   está certificando.
+> - **Debe contener todos los tipos de documentos que está certificando.**
+> - No debe contener Documentos con Reparos o Rechazos.
+> - **Debe contener una cantidad de 20 a 100 documentos (dentro del mismo envío).**
+> - Haber sido enviado al SII en el mes actual o anterior.
 
-- [x] Set «simulacion» cargado (set 13). Para eso hubo que corregir la unicidad
-      de `certification_set`: boletas y simulación entran con código vacío.
-- [x] Envío #47 verificado (12/12 firmas, 11/11 timbres, XSD, sin «SET») y
-      subido por Maullín el 16-09-2026 21:50: TrackID **0259049720** → EPR.
+Y antes de declarar hay que pulsar **«Avanzar Siguiente Paso»** en ese mismo
+formulario: hasta entonces la postulación sigue en «SET DE PRUEBAS» (se hizo el
+17-09-2026).
+
+CONSTRUCTORA DIMABE SPA **no tiene ventas en el RCV** desde enero de 2025: la
+simulación son 22 documentos representativos del giro con los **10 tipos
+certificados** (33, 34, 43, 46, 52, 56, 61, 110, 111, 112) en un solo sobre. Sin
+datos de la Res. Ex. N°154: rige desde el 01-11-2026.
+
+**Un sobre con todos los tipos.** Exportación y liquidación-factura tienen su
+propio emisor. La definición `mixed-batch` agrupa lotes: cada grupo se emite con
+el suyo y sus `<DTE>` firmados se reúnen en un `EnvioDTE` nuevo. El sistema no
+emite una simulación fuera de 20 a 100 documentos o sin todos los tipos de los
+sets del cliente. Definición: `tests/fixtures/certificacion/simulacion-77262159-0.json`,
+con un ensayo permanente.
+
+- [x] Primer intento (TrackID 0259049720, 11 documentos, 4 tipos): **no se
+      declara**, no cumple el formulario.
+- [ ] Emitir la simulación de 22 documentos, verificar y subir por Maullín.
 - [ ] Confirmar con el correo «Resultado de Validación de Envío» que no hay
       rechazos ni reparos.
-- [ ] Declarar el avance de la simulación con la fecha y ese número de envío.
+- [ ] Declararla en «Declarar avance» con su número y fecha de envío.
 
 ### Paso 4 — Intercambio de información
 

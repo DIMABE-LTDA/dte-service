@@ -211,10 +211,13 @@ def test_el_rcof_reporta_los_folios_y_montos_del_sobre_de_boletas(emitidos):
 def test_la_simulacion_sale_valida_y_sin_referencias_a_casos(db):
     """La definición de la simulación de este contribuyente, emitida de verdad.
 
-    El manual del SII pide «un envío, recibido en el SII sin rechazos ni
-    reparos». Aquí se comprueba lo que se puede comprobar sin el SII: esquema,
-    firmas y timbres tal como viajan, que ningún documento referencie un caso
-    del set y que cada nota apunte a una factura del mismo envío.
+    El formulario «Declarar avance» del SII la aprueba si: «No debe contener
+    Documentos con Reparos o Rechazos», «Debe contener todos los tipos de
+    documentos que está certificando» y «una cantidad de 20 a 100 documentos
+    (dentro del mismo envío)». Aquí se comprueba lo que se puede comprobar sin
+    el SII: un solo sobre con esquema, firmas y timbres válidos tal como viajan,
+    los diez tipos, ninguna referencia a casos del set y cada nota apuntando a
+    un documento del mismo envío.
     """
     from lxml import etree
 
@@ -236,15 +239,48 @@ def test_la_simulacion_sale_valida_y_sin_referencias_a_casos(db):
 
     ns = {"s": "http://www.sii.cl/SiiDte"}
     raiz = etree.fromstring(xml)
-    tipos = raiz.xpath("//s:Documento//s:IdDoc/s:TipoDTE/text()", namespaces=ns)
-    assert 10 <= len(tipos) <= 100
-    assert set(tipos) == {"33", "52", "56", "61"}
+    assert raiz.tag == "{http://www.sii.cl/SiiDte}EnvioDTE"
+    # <Documento>, <Liquidacion> o <Exportaciones>, según el tipo: el nodo
+    # firmado que cuelga de cada <DTE>.
+    documentos = raiz.xpath("//s:DTE/*[@ID]", namespaces=ns)
+    assert (
+        certification_service.SIMULATION_MIN_DOCS
+        <= len(documentos)
+        <= certification_service.SIMULATION_MAX_DOCS
+    )
+    emitidos = {
+        (d.findtext(".//s:TipoDTE", namespaces=ns), d.findtext(".//s:IdDoc/s:Folio", namespaces=ns))
+        for d in documentos
+    }
+    assert {t for t, _ in emitidos} == {
+        "33",
+        "34",
+        "43",
+        "46",
+        "52",
+        "56",
+        "61",
+        "110",
+        "111",
+        "112",
+    }
     assert raiz.xpath("//s:Referencia[s:TpoDocRef='SET']", namespaces=ns) == []
 
-    facturas = set(
-        raiz.xpath("//s:Documento[.//s:TipoDTE='33']//s:IdDoc/s:Folio/text()", namespaces=ns)
-    )
-    for nota in raiz.xpath("//s:Documento[.//s:TipoDTE='56' or .//s:TipoDTE='61']", namespaces=ns):
-        ref = nota.find(".//s:Referencia", ns)
-        assert ref.findtext("s:TpoDocRef", namespaces=ns) == "33"
-        assert ref.findtext("s:FolioRef", namespaces=ns) in facturas
+    # La carátula declara lo que el sobre trae.
+    subtotales = {
+        st.findtext("s:TpoDTE", namespaces=ns): int(st.findtext("s:NroDTE", namespaces=ns))
+        for st in raiz.xpath("//s:Caratula/s:SubTotDTE", namespaces=ns)
+    }
+    assert sum(subtotales.values()) == len(documentos)
+
+    for nota in documentos:
+        if nota.findtext(".//s:TipoDTE", namespaces=ns) not in {"56", "61", "111", "112"}:
+            continue
+        ref = next(
+            r for r in nota.iterfind("s:Referencia", ns) if r.findtext("s:CodRef", namespaces=ns)
+        )
+        apuntado = (
+            ref.findtext("s:TpoDocRef", namespaces=ns),
+            ref.findtext("s:FolioRef", namespaces=ns),
+        )
+        assert apuntado in emitidos, f"la nota apunta a {apuntado}, que no va en el envío"
