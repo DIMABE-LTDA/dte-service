@@ -315,7 +315,13 @@ class CertificationSet(Base):
     """
 
     __tablename__ = "certification_set"
-    __table_args__ = (UniqueConstraint("customer_id", "code"),)
+    # Con el tipo: los sets que el SII no numera (boletas, simulación) entran
+    # todos con código vacío y se distinguen por su tipo.
+    __table_args__ = (
+        UniqueConstraint(
+            "customer_id", "code", "kind", name="uq_certification_set_customer_code_kind"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))

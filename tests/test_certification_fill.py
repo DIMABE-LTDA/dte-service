@@ -175,6 +175,31 @@ def test_la_simulacion_fuera_de_10_a_100_documentos_no_se_emite(db, cantidad):
         certification_service.emit(db, customer, None, s)
 
 
+def test_boletas_y_simulacion_conviven_sin_numero_de_atencion(db):
+    """Los dos entran con código vacío. En producción el segundo respondía 409."""
+    from app.routers.certification import _apply_sets
+
+    customer = make_customer(db)
+    doc = {"type": 33, "items": [{"name": "OBRA", "quantity": 1, "unit_price": 1000}]}
+    cargados = _apply_sets(
+        db,
+        customer,
+        {
+            "boletas": {"code": "", "endpoint": "boletas", "payload": {"receipts": []}},
+            "simulacion": {
+                "code": "",
+                "endpoint": "issue-batch",
+                "payload": {"documents": [doc] * 10},
+            },
+        },
+    )
+    db.commit()
+
+    assert cargados == 2
+    kinds = {s.kind for s in db.query(CertificationSet).filter_by(customer_id=customer.id)}
+    assert kinds == {"boletas", "simulacion"}
+
+
 def test_la_simulacion_entra_al_expediente_sin_numero_de_atencion(db):
     from app.services.certification_catalog import BY_KIND
 
