@@ -307,9 +307,25 @@ Lo que dice el formulario de avance al llegar a este paso:
 > través de la página indicada anteriormente en la opción "Subir archivos". La
 > revisión es automática y el resultado es mostrado en la misma pantalla.
 
-- [ ] Bajar el SET de Intercambio (página «ETAPA DE INTERCAMBIO»).
-- [ ] Construir la Respuesta de Intercambio y la Recepción de Mercaderías.
-- [ ] Subirlas y revisar el resultado en pantalla.
+Página: https://www4.sii.cl/pfeInternet/ (el RUT va en **un solo campo**,
+«77262159-0»).
+
+**El set trae una trampa:** dos facturas de 88888888-8, y la segunda (folio
+52299) está dirigida a otro receptor, 69507000-4. Según el «Formato Mensaje de
+Respuesta a DTE» del SII (`formato_ic.pdf`) esa se informa «3 DTE No Recibido -
+Error en RUT Receptor», se rechaza comercialmente («2», glosa RECHAZADO con la
+Ley 19.983) y no lleva recibo de mercaderías. El motor lo hacía todo conforme y
+Odoo tampoco lo distingue: se corrigió en el motor v0.4.26.
+
+`POST /admin/customers/1/certification/exchange` con el XML del set devuelve
+las tres respuestas firmadas con el certificado del cliente y validadas contra
+su XSD: acuse de recibo (`RespuestaEnvio_…`), recibo de mercaderías
+(`EnvioRecibos_…`) y resultado comercial (`ResultadoDTE_…`).
+
+- [x] Set bajado el 17-09-2026: `tests/fixtures/sii/set_intercambio_77262159-0.xml`.
+- [ ] Generar las tres respuestas en producción.
+- [ ] Subirlas en «Subir archivos XML de respuesta de Intercambio» y revisar el
+      resultado en pantalla.
 
 ### Paso 5 — Muestras de impresión
 

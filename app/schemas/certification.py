@@ -392,3 +392,31 @@ class ReceiverOut(BaseModel):
 
 class ReceiversRequest(BaseModel):
     receivers: list[ReceiverOut] = Field(default_factory=list, max_length=50)
+
+
+class ExchangeRequest(BaseModel):
+    """El XML del set de intercambio tal como lo entrega el SII."""
+
+    file_name: str = "envio.xml"
+    envelope_base64: str
+
+
+class ExchangeDocumentOut(BaseModel):
+    doc_type: int
+    folio: int
+    receiver_rut: str
+    total_amount: int
+    received: bool  # False: va a otro receptor, se rechaza y no lleva recibo
+
+
+class ExchangeFileOut(BaseModel):
+    kind: str  # acuse_recibo | recibo_mercaderias | resultado_comercial
+    name: str
+    xml_base64: str
+
+
+class ExchangeOut(BaseModel):
+    envelope_id: str
+    issuer_rut: str
+    documents: list[ExchangeDocumentOut]
+    files: list[ExchangeFileOut]

@@ -48,6 +48,8 @@ from app.schemas.certification import (
     DocStatsOut,
     DocumentStatusOut,
     EnvelopeOut,
+    ExchangeOut,
+    ExchangeRequest,
     ImportRequest,
     NoteOut,
     NoteRequest,
@@ -70,6 +72,7 @@ from app.services import (
     certificate_service,
     certification_causes,
     certification_checks,
+    certification_exchange,
     certification_fill,
     certification_preview,
     certification_service,
@@ -826,6 +829,41 @@ def send_submission(
         f"enviado con TrackID {envio.track_id}",
     )
     return _envio(envio)
+
+
+@router.post("/exchange", response_model=ExchangeOut)
+def exchange(
+    customer_id: int,
+    data: ExchangeRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> ExchangeOut:
+    """Paso 4: las tres respuestas al set de intercambio que entrega el SII.
+
+    Acuse de recibo, recibo de mercaderías y resultado comercial, firmados con
+    el certificado del cliente y validados contra su XSD. Se suben a mano en la
+    página «Etapa de intercambio» del SII: la revisión es automática y se ve en
+    la misma pantalla.
+    """
+    customer = _customer(db, customer_id)
+    cert = _cert(db, customer)
+    try:
+        xml = base64.b64decode(data.envelope_base64, validate=True)
+    except ValueError as ex:
+        raise HTTPException(status_code=422, detail="el archivo no viene en base64") from ex
+    try:
+        resultado = certification_exchange.respond(customer, cert, data.file_name, xml)
+    except certification_exchange.ExchangeError as ex:
+        raise HTTPException(status_code=422, detail=str(ex)) from ex
+    audit_service.record_change(
+        db,
+        actor.id if actor else None,
+        "certification.exchange",
+        "customer",
+        str(customer.id),
+        f"respuestas al set de intercambio {resultado['envelope_id']} de {resultado['issuer_rut']}",
+    )
+    return ExchangeOut(**resultado)
 
 
 @router.post("/print-samples", response_model=PrintSamplesOut)
