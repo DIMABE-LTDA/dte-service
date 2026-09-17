@@ -297,7 +297,7 @@ con un ensayo permanente.
       CONFORME»** al instante, y la postulación pasó sola a INTERCAMBIO DE
       INFORMACIÓN.
 
-### Paso 4 — Intercambio de información *(en curso desde el 17-09-2026)*
+### Paso 4 — Intercambio de información *(terminado el 17-09-2026)*
 
 Lo que dice el formulario de avance al llegar a este paso:
 
@@ -323,15 +323,31 @@ su XSD: acuse de recibo (`RespuestaEnvio_…`), recibo de mercaderías
 (`EnvioRecibos_…`) y resultado comercial (`ResultadoDTE_…`).
 
 - [x] Set bajado el 17-09-2026: `tests/fixtures/sii/set_intercambio_77262159-0.xml`.
-- [ ] Generar las tres respuestas en producción.
-- [ ] Subirlas en «Subir archivos XML de respuesta de Intercambio» y revisar el
-      resultado en pantalla.
+- [x] Tres respuestas generadas en producción (XSD y firmas verificados) y
+      subidas el 17-09-2026: «Validación archivo Respuesta de Intercambio OK»,
+      «Recibo de Mercaderias OK» y «Resultado Aprobación Comercial de Documento
+      OK». La postulación pasó sola a DOCUMENTOS IMPRESOS.
 
-### Paso 5 — Muestras de impresión
+### Paso 5 — Muestras de impresión *(en curso desde el 17-09-2026)*
 
-Un PDF con la impresión de **todos** los documentos del set de pruebas más 10
-de la simulación, con el timbre PDF417, a **sii_dte_impresos@sii.cl**.
-`POST /dte/print` genera los impresos, incluidas las copias cedibles.
+Lo que dice el formulario de avance al llegar a este paso (manda sobre el
+manual de 2009, que hablaba de 10 documentos de la simulación y de un correo):
+
+> Para la siguiente etapa, deben enviar al SII las muestras impresas en formato
+> PDF a través de la aplicación dispuesta en www.sii.cl – Factura Electrónica –
+> Ambiente de certificación y prueba – opción "Upload de Muestras Impresas",
+> todos los documentos del Set de Pruebas y una muestra de cada tipo de
+> documentos de la Simulación. - Revisar manual de muestras impresas en
+> www.sii.cl – Factura Electrónica - Ayudas "Manual de Muestras Impresas"
+
+`POST /certification/print-samples` genera los impresos, incluidas las copias
+cedibles. Pendiente antes de generarlos: la unidad del SII («S.I.I. —
+SANTIAGO» para todos; a esta empresa le corresponde Rancagua).
+
+- [ ] Leer el «Manual de Muestras Impresas».
+- [ ] Generar los impresos: todos los del set de pruebas y uno por tipo de la
+      simulación.
+- [ ] Subirlos en «Upload de Muestras Impresas».
 
 ### Paso 6 — Declaración de cumplimiento
 
