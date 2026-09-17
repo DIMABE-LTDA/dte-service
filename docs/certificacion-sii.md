@@ -226,6 +226,13 @@ certificada —Odoo está en el disco—.
 - [x] Revisión solicitada el 16-09-2026 20:42 con el TrackID **32169835** en
       https://www4.sii.cl/certBolElectDteInternet/?SET=2 → «Recepción conforme.
       Se le enviará un correo con el resultado de la validación.»
+- [x] Resultado: **SRH — «El Documento no esta en el envio»** en los cinco
+      casos. Causa: el set salió por la API REST de boleta y el correo pedía
+      «vía UPLOAD». El sistema ahora sube todo sobre de certificación por
+      Maullín.
+- [x] El mismo sobre #45 (folios 116-120, sin gastar folios) subido por Maullín
+      el 16-09-2026 20:58: TrackID **0259045066** → EPR «Envío Procesado».
+- [x] Revisión solicitada con **259045066** → «Recepción conforme».
 - [ ] Esperar el correo con el resultado (V°B°).
 
 Nota de Odoo (`l10n_cl_edi_boletas/models/l10n_cl_edi_util.py`): si la API
