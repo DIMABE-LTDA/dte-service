@@ -139,12 +139,33 @@ class FolioReservationOut(BaseModel):
     folio: int
 
 
+class DocTypeStatsOut(BaseModel):
+    """Cuántos documentos de un tipo aceptó, rechazó o reparó el SII."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    doc_type: int
+    informed: int = 0
+    accepted: int = 0
+    rejected: int = 0
+    flagged: int = 0
+
+
 class SubmissionResultOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     track_id: str | None = None
+    #: El estado del SOBRE, con los códigos del SII (EPR, RCH, RFR, SOK...).
     status: str
     detail: str = ""
+    #: Desglose por tipo de documento. Es lo que de verdad dice cómo fue el
+    #: envío: un sobre «EPR – envío procesado» puede traer todos sus documentos
+    #: rechazados dentro. Sin esto, quien integra no puede distinguir «el SII
+    #: recibió el sobre» de «el SII aceptó el documento», que es el error que
+    #: costó una semana en la certificación.
+    stats: list[DocTypeStatsOut] = []
+    #: True mientras el SII no termina de procesar: todavía no hay veredicto.
+    in_process: bool = False
 
 
 class DteIssueResponse(BaseModel):

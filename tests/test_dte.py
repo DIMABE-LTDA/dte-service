@@ -512,3 +512,60 @@ def test_export_declares_the_foreign_receiver(client, db, fake_export_engine):
     document = fake_export_engine["document"]
     assert document.foreign_id == "DE-99887766"
     assert document.receiver_nationality == 563
+
+
+# --------------------------------------------------------------------------- #
+#  El estado del envío, con su desglose
+# --------------------------------------------------------------------------- #
+def test_el_estado_distingue_sobre_recibido_de_documento_aceptado(client, db, monkeypatch):
+    """«EPR – envío procesado» no es «documento aceptado».
+
+    El sobre puede procesarse con todos sus documentos rechazados dentro. Sin
+    el desglose, quien integra lee un envío recibido como un documento bueno,
+    que es el error que costó una semana en la certificación.
+    """
+    from dte_chile.sii_client import DocTypeStats, SubmissionResult
+
+    from app.routers import dte as router_dte
+
+    _setup(db)
+
+    class _Cliente:
+        def __init__(self, *a, **k):
+            self.session = type("S", (), {"close": lambda self: None})()
+
+        def query_status(self, track_id, rut):
+            return SubmissionResult(
+                track_id=track_id,
+                status="EPR",
+                detail="Envio Procesado",
+                stats=[DocTypeStats(doc_type=33, informed=2, accepted=1, rejected=1, flagged=0)],
+            )
+
+    monkeypatch.setattr(router_dte, "SIIClient", _Cliente)
+    r = client.get("/dte/status/0259000001", headers=headers())
+    assert r.status_code == 200, r.text
+    cuerpo = r.json()
+    assert cuerpo["status"] == "EPR"
+    assert cuerpo["in_process"] is False
+    assert cuerpo["stats"] == [
+        {"doc_type": 33, "informed": 2, "accepted": 1, "rejected": 1, "flagged": 0}
+    ]
+
+
+def test_un_envio_recien_recibido_se_marca_en_proceso(client, db, monkeypatch):
+    from dte_chile.sii_client import SubmissionResult
+
+    from app.routers import dte as router_dte
+
+    _setup(db)
+
+    class _Cliente:
+        def __init__(self, *a, **k):
+            self.session = type("S", (), {"close": lambda self: None})()
+
+        def query_status(self, track_id, rut):
+            return SubmissionResult(track_id=track_id, status="REC", detail="Recibido")
+
+    monkeypatch.setattr(router_dte, "SIIClient", _Cliente)
+    assert client.get("/dte/status/1", headers=headers()).json()["in_process"] is True

@@ -63,6 +63,20 @@ async def _emitir(db, customer, key: str | None, endpoint: str, fn, *args) -> di
 router = APIRouter(prefix="/dte", tags=["DTE"])
 
 
+def _estado(submission) -> SubmissionResultOut | None:
+    """La respuesta del SII, diciendo además si todavía está en proceso.
+
+    Un sobre «EPR – envío procesado» no significa documento aceptado: eso lo
+    dice el desglose. Publicarlo evita que quien integra lea un envío recibido
+    como un documento aceptado.
+    """
+    if submission is None:
+        return None
+    salida = SubmissionResultOut.model_validate(submission)
+    salida.in_process = dte_service.in_process(salida.status)
+    return salida
+
+
 @router.post("/issue", response_model=DteIssueResponse)
 async def issue(
     req: DteIssueRequest,
@@ -79,7 +93,7 @@ async def issue(
         type=result["type"],
         folio=result["folio"],
         xml_base64=result["xml_base64"],
-        submission=SubmissionResultOut.model_validate(submission) if submission else None,
+        submission=_estado(submission),
     )
 
 
@@ -107,7 +121,7 @@ async def issue_batch(
     return DteBatchResponse(
         documents=[DteBatchDocumentOut(**d) for d in result["documents"]],
         xml_base64=result["xml_base64"],
-        submission=SubmissionResultOut.model_validate(submission) if submission else None,
+        submission=_estado(submission),
     )
 
 
@@ -122,7 +136,9 @@ async def status(
         res = await run_blocking(client.query_status, track_id, customer.rut)
     finally:
         client.session.close()  # liberar la sesión HTTP
-    return SubmissionResultOut.model_validate(res)
+    salida = _estado(res)
+    assert salida is not None
+    return salida
 
 
 @router.post("/print", response_model=PrintResponse)
@@ -160,7 +176,7 @@ async def issue_settlement(
         type=result["type"],
         folio=result["folio"],
         xml_base64=result["xml_base64"],
-        submission=SubmissionResultOut.model_validate(submission) if submission else None,
+        submission=_estado(submission),
     )
 
 
@@ -189,7 +205,7 @@ async def issue_export(
         type=result["type"],
         folio=result["folio"],
         xml_base64=result["xml_base64"],
-        submission=SubmissionResultOut.model_validate(submission) if submission else None,
+        submission=_estado(submission),
     )
 
 
@@ -217,7 +233,7 @@ async def issue_export_batch(
     return DteBatchResponse(
         documents=[DteBatchDocumentOut(**d) for d in result["documents"]],
         xml_base64=result["xml_base64"],
-        submission=SubmissionResultOut.model_validate(submission) if submission else None,
+        submission=_estado(submission),
     )
 
 
@@ -245,7 +261,7 @@ async def issue_settlement_batch(
     return DteBatchResponse(
         documents=[DteBatchDocumentOut(**d) for d in result["documents"]],
         xml_base64=result["xml_base64"],
-        submission=SubmissionResultOut.model_validate(submission) if submission else None,
+        submission=_estado(submission),
     )
 
 

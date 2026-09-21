@@ -130,6 +130,17 @@ def _send(customer: Customer, cert, xml: bytes, issuer_rut: str, settings):
     return sii_upload.upload(customer, cert, xml, issuer_rut, settings.request_timeout_s)
 
 
+#: Estados con que el SII dice que todavía está procesando el sobre: recibido
+#: (REC), esquema validado (SOK), carátula OK (CRT), firma OK (FOK), pendiente
+#: (PDR) y libro en proceso (LSO). Ninguno es veredicto del documento.
+IN_PROCESS_STATES = frozenset({"REC", "SOK", "CRT", "FOK", "PDR", "LSO"})
+
+
+def in_process(status: str | None) -> bool:
+    """¿El SII aún no termina con este envío?"""
+    return not status or status.upper() in IN_PROCESS_STATES
+
+
 def issue(db: Session, customer: Customer, cert, req) -> dict:
     from app.services import folio_service
 
