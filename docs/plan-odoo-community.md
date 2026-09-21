@@ -30,10 +30,29 @@ con tests unitarios: los tres defectos más graves que encontraron las auditorí
 folio que se quema en un timeout— son todos de integración, y ninguno se ve
 desde un test unitario de ninguno de los dos lados.
 
-### El banco de pruebas
+### El banco de pruebas — **montado el 21-09-2026**
 
-El repo del conector ya trae `docker-compose.yml` con Odoo 19 Community y
-Postgres. Se le agrega el facturador y una siembra de datos:
+Vive en `l10n_cl_dte_service/e2e` (ver su README). Se levanta con
+`node scripts/entorno.js up` y se corre con `npm test`. Odoo queda en el puerto
+8070 para no chocar con la instancia de desarrollo, y el facturador en el 8001.
+
+Cuatro pruebas hoy: la compañía lee su configuración del facturador; una factura
+confirmada emite su DTE, consume **un** folio y queda archivada; el documento no
+se duplica al reintentar; y —fallando a propósito— que el número que muestra
+Odoo sea el folio timbrado, que es el defecto D-01.
+
+Montarlo ya destapó tres cosas que ninguna lectura de código había visto:
+
+- **Los botones de la ficha de compañía no hacían nada.** Estaban dentro de un
+  `<group>`, y Odoo 19 no los compila ahí: se ven, se pulsan y no pasa nada.
+  Corregido en el módulo.
+- **«Leer del servicio» guarda pero no refresca** el formulario: el usuario cree
+  que no funcionó hasta que recarga.
+- **Sin el plan de cuentas chileno cargado**, Odoo numera con su correlativo
+  interno y el conector no puede emitir.
+
+El repo del conector ya traía `docker-compose.yml` con Odoo 19 Community y
+Postgres; se le agregó el facturador y la siembra:
 
 | Pieza | Cómo |
 |---|---|
