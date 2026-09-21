@@ -82,7 +82,7 @@ Ninguna cuesta código; todas cambian lo que se escribe después.
 | # | Decisión | Opciones | Recomendación |
 |---|---|---|---|
 | D1 | **De dónde sale el número del documento** | (a) Odoo reserva el folio *antes* de postear y numera con él; (b) se escribe el folio sobre el número después de emitir | **(a)**. Es la única que garantiza que el papel y el XML digan lo mismo siempre. Obliga a un endpoint de reserva de folio en el servicio |
-| D2 | **Cómo sube Odoo el certificado y los CAF** | (a) endpoints acotados al propio cliente (`/me/certificate`, `/me/caf`); (b) clave de administración guardada en Odoo; (c) sólo lectura en Odoo y carga en el portal | **(a)**. La clave de administración no está acotada a un cliente: guardarla en Odoo le entrega a esa instalación las llaves de todos los inquilinos |
+| D2 | **Cómo sube Odoo el certificado y los CAF** | (a) endpoints acotados al propio cliente; (b) clave de administración guardada en Odoo; (c) sólo lectura en Odoo | **Decidido (a) el 21-09-2026 y ya implementado en el servicio** (§3.6). La clave de administración no está acotada a un cliente: guardarla en Odoo le entregaría a esa instalación las llaves de todos los inquilinos |
 | D3 | **Boletas en el POS** | (a) emitir una a una al validar el ticket; (b) cola asíncrona; (c) reservar rangos de folios en Odoo | **(a)** con reintento, salvo que el volumen del cliente no lo tolere. (b) incumple la entrega del documento timbrado |
 | D4 | **Dónde vive el módulo** | (a) repo propio; (b) absorberlo al repo del cliente | (b) si lo mantiene el mismo equipo; da CI y revisión común |
 | D5 | **Impreso en PDF** | (a) el servicio devuelve PDF; (b) Odoo convierte el HTML | (a). El servicio ya genera PDF para las muestras impresas y controla el formato del SII |
@@ -116,9 +116,14 @@ ser robusto por mucho que se arregle.
 5. **Desenlace desconocido.** Si el envío al SII se corta por tiempo, el folio
    no es «fallido»: es de desenlace desconocido. Tercer estado y resolución
    consultando el documento por folio.
-6. **Carga de certificado y CAF por el propio cliente** (D2): `POST
-   /me/certificate`, `POST /me/caf`, `GET /me/cafs`, con la credencial que la
-   empresa ya tiene. Igual que se hizo con el perfil del emisor.
+6. **Carga de certificado y CAF por el propio cliente** (D2) — **hecho el
+   21-09-2026**. Con la credencial que la empresa ya tiene: `GET/POST
+   /me/certificate(s)`, `GET/POST /me/caf(s)`, `POST /me/cafs/{id}/retire`,
+   `GET /me/folios` y `GET/POST/DELETE /me/sii-key` (la clave tributaria, con
+   la credencial de BHE). Las guardas son las mismas del portal —llaves que no
+   corresponden, CAF de otro ambiente o vencido, rango solapado— y cada carga
+   queda en la auditoría marcada como hecha por máquina. Falta la contraparte
+   en Odoo (§5).
 7. **Tiempos de espera coherentes.** El del servicio hacia el SII debe ser menor
    que el del cliente hacia el servicio; hoy son iguales, lo que hace que el
    corte ocurra justo en el peor momento.
@@ -173,6 +178,7 @@ Por valor para la empresa, y con la fecha del 01-11 mandando en el orden.
 
 | # | Qué | Por qué ahora |
 |---|---|---|
+| 0 | **Puesta en marcha desde Odoo**: asistentes para cargar el certificado y los CAF, ver los cargados y su vencimiento, y guardar la clave tributaria | Requisito del cliente: todo se registra desde Odoo. El servicio ya lo expone; falta la interfaz |
 | 1 | **Inventario de folios en Odoo** | La mejor relación valor/esfuerzo: el endpoint existe y usa la credencial que el módulo ya tiene. Hoy la empresa se entera de que se quedó sin folios cuando falla una emisión |
 | 2 | **Impresión con timbre** | Es lo que recibe el receptor. Hoy sale el PDF genérico de Odoo: sin timbre, sin folio en formato SII y sin copia cedible |
 | 3 | **Guía de despacho desde el albarán + Res. 154** | Fecha dura 01-11-2026. Hoy obliga a fabricar una factura de venta, que además genera un asiento de venta para un traslado que no lo es |
@@ -233,8 +239,10 @@ Sale de la auditoría del flujo de certificación.
   muestras impresas por un problema del SII. Las otras empresas del grupo no
   pueden emitir en producción hasta certificarse: cualquier plan que suponga
   mover al grupo entero de una vez es irreal.
-- **Emitir con el módulo hoy** deja documentos cuyo número impreso no es el
-  folio timbrado. Antes de ampliar el uso hay que confirmar qué se emitió.
+- **No hay ninguna empresa emitiendo en producción** (confirmado el
+  21-09-2026), así que el defecto del número impreso no dejó documentos malos.
+  Todas las pruebas se hacen en **certificación, con CONSTRUCTORA DIMABE SPA**
+  (77262159-0), que es el contribuyente que ya tiene sets, CAF y certificado.
 - **Las pruebas e2e contra el SII real gastan folios.** Por eso el banco corre
   con el envío apagado, y los escenarios contra Maullín son pocos, marcados y
   manuales.
