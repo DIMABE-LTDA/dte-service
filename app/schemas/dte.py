@@ -137,6 +137,11 @@ class FolioReservationRequest(BaseModel):
 class FolioReservationOut(BaseModel):
     type: int
     folio: int
+    #: CERTIFICATION o PRODUCTION: el ambiente de la credencial que reservó.
+    #: Lo publica aquí para que el ERP compruebe, ANTES de emitir, que está
+    #: emitiendo donde cree. Una apiKey de producción configurada en un diario
+    #: de certificación gasta folios reales sin que nadie se entere.
+    environment: str
 
 
 class DocTypeStatsOut(BaseModel):

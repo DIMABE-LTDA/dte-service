@@ -313,4 +313,10 @@ async def reserve_folio(
     folio, _caf = await run_blocking(
         folio_service.next_folio, db, customer.id, req.type, request_id_var.get()
     )
-    return FolioReservationOut(type=req.type, folio=folio)
+    return FolioReservationOut(
+        type=req.type,
+        folio=folio,
+        environment=customer.environment.value
+        if hasattr(customer.environment, "value")
+        else str(customer.environment),
+    )

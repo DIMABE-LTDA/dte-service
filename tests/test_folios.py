@@ -320,7 +320,7 @@ def test_el_endpoint_reserva_y_la_emision_lo_usa(client, db):
 
     r = client.post("/dte/folios/reserve", json={"type": 33}, headers=headers())
     assert r.status_code == 200, r.text
-    assert r.json() == {"type": 33, "folio": 1}
+    assert r.json() == {"type": 33, "folio": 1, "environment": "CERTIFICATION"}
 
     # El inventario lo muestra reservado, todavía sin documento.
     tipo = client.get("/dte/folios", headers=headers()).json()[0]
