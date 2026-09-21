@@ -258,6 +258,53 @@ class IssuedReceipt(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class EmissionRequest(Base):
+    """Marca de idempotencia de una emisión pedida por un ERP.
+
+    Se inserta ANTES de emitir: si dos peticiones con la misma clave llegan a
+    la vez, sólo una pasa. Guarda la respuesta para devolverla tal cual a un
+    reintento, en vez de emitir otro documento con otro folio.
+    """
+
+    __tablename__ = "emission_request"
+    __table_args__ = (UniqueConstraint("customer_id", "key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
+    #: La que manda el ERP en la cabecera `Idempotency-Key`.
+    key: Mapped[str] = mapped_column(String(100))
+    endpoint: Mapped[str] = mapped_column(String(40))
+    #: running | done | failed
+    state: Mapped[str] = mapped_column(String(10), default="running")
+    #: La respuesta completa, cifrada: lleva el sobre emitido dentro.
+    response_encrypted: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    error: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+
+class IssuedDocument(Base):
+    """Un DTE emitido, guardado para poder recuperarlo.
+
+    El servicio no era archivo tributario: el sobre sólo se guardaba en
+    certificación y en producción la única copia viajaba en la respuesta HTTP,
+    así que una respuesta perdida se llevaba el documento. El emisor sigue
+    siendo el responsable de conservarlos; esto es la red de seguridad.
+    """
+
+    __tablename__ = "issued_document"
+    __table_args__ = (UniqueConstraint("customer_id", "doc_type", "folio"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
+    doc_type: Mapped[int] = mapped_column(Integer)
+    folio: Mapped[int] = mapped_column(Integer)
+    track_id: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    #: El <DTE> firmado, cifrado en reposo.
+    xml_encrypted: Mapped[str] = mapped_column(String)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class ReceiptSubmission(Base):
     """Un EnvioBOLETA subido al SII, para cuadrar lo aceptado y lo rechazado.
 

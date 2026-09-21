@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from dte_chile.certificate import Certificate
 from dte_chile.sii_client import Environment, SIIClient
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.concurrency import run_blocking
@@ -28,7 +30,32 @@ from app.schemas.dte import (
     SettlementIssueRequest,
     SubmissionResultOut,
 )
-from app.services import dte_service, folio_service
+from app.services import dte_service, folio_service, idempotency
+
+#: Clave que el ERP deriva de su propio documento (p. ej. `odoo:<bd>:<id>`).
+#: Sin ella se emite como antes: cada petición, un documento.
+IdempotencyKey = Annotated[
+    str | None,
+    Header(
+        alias="Idempotency-Key",
+        description=(
+            "Clave estable del documento en el sistema que llama. Con ella, "
+            "reintentar devuelve lo ya emitido en vez de emitir otro documento."
+        ),
+        max_length=100,
+    ),
+]
+
+
+async def _emitir(db, customer, key: str | None, endpoint: str, fn, *args) -> dict:
+    """Emite cuidando que un reintento no emita dos veces."""
+    try:
+        return await run_blocking(idempotency.run, db, customer, key, endpoint, lambda: fn(*args))
+    except idempotency.EmissionInProgress as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    except idempotency.EmissionAlreadyFailed as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+
 
 router = APIRouter(prefix="/dte", tags=["DTE"])
 
@@ -36,11 +63,14 @@ router = APIRouter(prefix="/dte", tags=["DTE"])
 @router.post("/issue", response_model=DteIssueResponse)
 async def issue(
     req: DteIssueRequest,
+    idempotency_key: IdempotencyKey = None,
     customer: Customer = Depends(require_dte),
     cert: Certificate = Depends(cert_dte),
     db: Session = Depends(get_db),
 ) -> DteIssueResponse:
-    result = await run_blocking(dte_service.issue, db, customer, cert, req)
+    result = await _emitir(
+        db, customer, idempotency_key, "dte.issue", dte_service.issue, db, customer, cert, req
+    )
     submission = result["submission"]
     return DteIssueResponse(
         type=result["type"],
@@ -53,12 +83,23 @@ async def issue(
 @router.post("/issue-batch", response_model=DteBatchResponse)
 async def issue_batch(
     req: DteBatchRequest,
+    idempotency_key: IdempotencyKey = None,
     customer: Customer = Depends(require_dte),
     cert: Certificate = Depends(cert_dte),
     db: Session = Depends(get_db),
 ) -> DteBatchResponse:
     """Emite N documentos dentro de un único EnvioDTE (un set de certificación)."""
-    result = await run_blocking(dte_service.issue_batch, db, customer, cert, req)
+    result = await _emitir(
+        db,
+        customer,
+        idempotency_key,
+        "dte.issue-batch",
+        dte_service.issue_batch,
+        db,
+        customer,
+        cert,
+        req,
+    )
     submission = result["submission"]
     return DteBatchResponse(
         documents=[DteBatchDocumentOut(**d) for d in result["documents"]],
@@ -94,12 +135,23 @@ async def print_documents(
 @router.post("/issue-settlement", response_model=DteIssueResponse)
 async def issue_settlement(
     req: SettlementIssueRequest,
+    idempotency_key: IdempotencyKey = None,
     customer: Customer = Depends(require_dte),
     cert: Certificate = Depends(cert_dte),
     db: Session = Depends(get_db),
 ) -> DteIssueResponse:
     """Emite una Liquidación Factura Electrónica (tipo 43)."""
-    result = await run_blocking(dte_service.issue_settlement, db, customer, cert, req)
+    result = await _emitir(
+        db,
+        customer,
+        idempotency_key,
+        "dte.issue-settlement",
+        dte_service.issue_settlement,
+        db,
+        customer,
+        cert,
+        req,
+    )
     submission = result["submission"]
     return DteIssueResponse(
         type=result["type"],
@@ -112,12 +164,23 @@ async def issue_settlement(
 @router.post("/issue-export", response_model=DteIssueResponse)
 async def issue_export(
     req: ExportIssueRequest,
+    idempotency_key: IdempotencyKey = None,
     customer: Customer = Depends(require_dte),
     cert: Certificate = Depends(cert_dte),
     db: Session = Depends(get_db),
 ) -> DteIssueResponse:
     """Emite factura (110) o nota (111/112) de exportación."""
-    result = await run_blocking(dte_service.issue_export, db, customer, cert, req)
+    result = await _emitir(
+        db,
+        customer,
+        idempotency_key,
+        "dte.issue-export",
+        dte_service.issue_export,
+        db,
+        customer,
+        cert,
+        req,
+    )
     submission = result["submission"]
     return DteIssueResponse(
         type=result["type"],
@@ -130,12 +193,23 @@ async def issue_export(
 @router.post("/issue-export-batch", response_model=DteBatchResponse)
 async def issue_export_batch(
     req: ExportBatchRequest,
+    idempotency_key: IdempotencyKey = None,
     customer: Customer = Depends(require_dte),
     cert: Certificate = Depends(cert_dte),
     db: Session = Depends(get_db),
 ) -> DteBatchResponse:
     """Emite N documentos de exportación dentro de un único sobre."""
-    result = await run_blocking(dte_service.issue_export_batch, db, customer, cert, req)
+    result = await _emitir(
+        db,
+        customer,
+        idempotency_key,
+        "dte.issue-export-batch",
+        dte_service.issue_export_batch,
+        db,
+        customer,
+        cert,
+        req,
+    )
     submission = result["submission"]
     return DteBatchResponse(
         documents=[DteBatchDocumentOut(**d) for d in result["documents"]],
@@ -147,12 +221,23 @@ async def issue_export_batch(
 @router.post("/issue-settlement-batch", response_model=DteBatchResponse)
 async def issue_settlement_batch(
     req: SettlementBatchRequest,
+    idempotency_key: IdempotencyKey = None,
     customer: Customer = Depends(require_dte),
     cert: Certificate = Depends(cert_dte),
     db: Session = Depends(get_db),
 ) -> DteBatchResponse:
     """Emite N liquidaciones dentro de un único sobre."""
-    result = await run_blocking(dte_service.issue_settlement_batch, db, customer, cert, req)
+    result = await _emitir(
+        db,
+        customer,
+        idempotency_key,
+        "dte.issue-settlement-batch",
+        dte_service.issue_settlement_batch,
+        db,
+        customer,
+        cert,
+        req,
+    )
     submission = result["submission"]
     return DteBatchResponse(
         documents=[DteBatchDocumentOut(**d) for d in result["documents"]],
@@ -168,3 +253,26 @@ def folios(
 ) -> list[FolioTypeReportOut]:
     """Inventario de CAF y folios del propio cliente, con los que hay que revisar."""
     return [FolioTypeReportOut(**r) for r in folio_service.folio_report(db, customer)]
+
+
+@router.get("/{doc_type}/{folio}/xml", responses={200: {"content": {"application/xml": {}}}})
+def document_xml(
+    doc_type: int,
+    folio: int,
+    customer: Customer = Depends(require_dte),
+    db: Session = Depends(get_db),
+) -> Response:
+    """El XML firmado de un documento ya emitido.
+
+    El emisor sigue siendo quien debe conservar sus documentos; esto es la red
+    de seguridad para cuando la respuesta de la emisión se perdió por el camino.
+    """
+    try:
+        xml = idempotency.stored_xml(db, customer, doc_type, folio)
+    except LookupError as ex:
+        raise HTTPException(status_code=404, detail=str(ex)) from ex
+    return Response(
+        content=xml,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="dte_{doc_type}_{folio}.xml"'},
+    )

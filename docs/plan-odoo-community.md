@@ -95,16 +95,18 @@ Ninguna cuesta código; todas cambian lo que se escribe después.
 Trabajo en `dte-service`. Es el cuello de botella: sin esto, el módulo no puede
 ser robusto por mucho que se arregle.
 
-1. **Idempotencia de la emisión.** Cabecera `Idempotency-Key` (o `external_id`
-   del tipo `odoo:<bd>:<move_id>`). Se persiste `(cliente, clave) → folio,
-   track_id, XML, respuesta` **en la misma transacción que consume el folio**, y
-   un reenvío con la misma clave devuelve lo guardado en vez de emitir de nuevo.
-   Cierra el agujero del timeout: folio quemado, documento en el SII y Odoo sin
-   rastro.
-2. **Guardar el DTE emitido también en producción.** Hoy sólo se conserva el
-   sobre en certificación; en producción la única copia viaja en la respuesta
-   HTTP. Tabla de documentos emitidos con el XML cifrado y
-   `GET /dte/{tipo}/{folio}/xml`, como ya existe para boletas.
+1. **Idempotencia de la emisión** — **hecha el 21-09-2026**. Cabecera
+   `Idempotency-Key`, que el ERP deriva de su propio documento. La marca se
+   inserta **antes** de emitir, así que dos peticiones simultáneas con la misma
+   clave no emiten dos veces: la segunda recibe «en curso» (409). Un reintento
+   posterior devuelve la respuesta guardada, con su folio y su track. Un error
+   de datos libera la clave —el ERP corrige y reintenta—; un fallo de envío la
+   deja marcada, porque ahí el folio pudo consumirse y el documento pudo llegar
+   igual al SII. Sin clave, todo sigue como antes.
+2. **Guardar el DTE emitido también en producción** — **hecho el 21-09-2026**.
+   Cada documento de cada sobre queda archivado y cifrado, y se recupera con
+   `GET /dte/{tipo}/{folio}/xml`. El emisor sigue siendo el responsable de
+   conservarlos; esto es la red de seguridad para la respuesta que se pierde.
 3. **Reserva de folio** (si se toma D1(a)): `POST /dte/folios/reserve` devuelve
    un folio asignado, y `/dte/issue` acepta emitir con un folio ya reservado.
    Mantiene el bloqueo del puntero y la trazabilidad actual.
