@@ -381,13 +381,59 @@ línea tipo, folio, copia, caso, timbre, CAF y TED antes de «Enviar al SII».
 - [x] Leer el «Manual de Muestras Impresas».
 - [x] Generar los impresos desde el sistema: todos los del set de pruebas y uno
       por tipo de la simulación.
-- [ ] Subirlos en «Upload de Muestras Impresas» (bloqueado por el aviso de
-      arriba).
+- [ ] Subirlos en «Upload de Muestras Impresas» — **no hizo falta**: el
+      21-09-2026 el SII aprobó la etapa sin que la aplicación llegara a
+      aceptar la carga. El aviso «no tiene Set de Pruebas» nunca se resolvió;
+      la revisión se hizo por el lado del Servicio.
 
-### Paso 6 — Declaración de cumplimiento
+> **Aprobado el 21-09-2026:** «Damos por aprobada la etapa de DOCUMENTOS
+> IMPRESOS de DTE. Se informa que APROBÓ satisfactoriamente el proceso de
+> certificación de los documentos tributarios electrónicos de su empresa.»
 
-La hace el **representante legal** en el web del SII. Después de eso el SII
-autoriza a operar.
+### Paso 6 — Declaración de cumplimiento *(hecha el 21-09-2026)*
+
+La hace el **representante legal con certificado digital** —no basta la clave
+tributaria— en `https://maullin.sii.cl/cvc_cgi/dte/pe_avance7`. Vive en Maullín
+aunque el correo del SII diga «www.sii.cl»: cierra el expediente de
+postulación. Es **distinta** de la declaración de boletas, que se hizo en
+`www4.sii.cl/certBolElectDteInternet`.
+
+Se marcan las siete funciones que el SII estima críticas (Res. 45/2003):
+gestión de CAF, foliación controlada, respaldo, envío al SII, **intercambio
+(envío y recepción) incluido el recibo de mercaderías de la Ley 19.983**,
+cuadratura de envíos y **administración de contingencias**. Se declara contar
+con *procedimientos*, que pueden ser manuales, y el SII puede auditarlos. Las
+dos últimas son las que el sistema cubre a medias (ver `docs/pendientes.md`).
+
+Confirmación del SII al enviarla: «ha cumplido con los requisitos para ser
+emisor de documentos tributarios electrónicos bajo lo indicado en la Res. Ex.
+SII N 80 de 2014», con los diez tipos certificados.
+
+**Un dato que ahorra trabajo:** la pantalla final dice que las casillas de
+correo y **uno de los usuarios administradores se traspasan automáticamente al
+ambiente de producción**. Es decir, el permiso «Enviar Doctos» de 12291733-9 no
+habría que rehacerlo en Palena. Conviene comprobarlo igual antes del primer
+envío real: es el error que costó diez envíos rechazados en certificación.
+
+### Paso 7 — Esperar la resolución y pasar a producción
+
+El SII publica quincenalmente la resolución que autoriza y fija **desde qué
+período tributario** valen los documentos. Su número y su fecha van en la
+carátula de cada envío, así que hay que anotarlos.
+
+Antes del primer documento real:
+
+- [ ] Anotar número, fecha y período de la resolución.
+- [ ] Comprobar en Palena («Mantención de Usuarios») que el firmante tiene
+      **Enviar Doctos**.
+- [ ] Pedir **CAF de producción** de cada tipo (`of_solicita_folios` en Palena).
+- [ ] Revisar los datos de la empresa en Palena: correo de intercambio,
+      dirección, sucursales. El impreso debe coincidir con lo registrado allá.
+- [ ] Crear en el portal un **cliente nuevo en ambiente PRODUCTION** —no
+      reutilizar el de certificación— con la resolución real: el valor por
+      omisión (0 / 2014-08-22) es el de certificación y haría rechazar todo.
+- [ ] Correr la **verificación antes de emitir** sobre ese cliente y mandar un
+      primer documento de prueba, de monto bajo y a un receptor propio.
 
 ---
 
