@@ -111,6 +111,42 @@ def _backfill(row: Caf, caf: CAF) -> None:
         row.expires_on = caf.expires_on
 
 
+def caf_for_reserved(db: Session, customer_id: int, doc_type: int, folio: int) -> CAF:
+    """El CAF con que timbrar un folio ya reservado.
+
+    El folio tuvo que salir de ``next_folio`` y seguir sin desenlace: así un
+    ERP no puede pedir que se emita con un folio inventado, ni reemitir sobre
+    uno ya usado.
+    """
+    reserva = db.execute(
+        select(FolioAssignment).where(
+            FolioAssignment.customer_id == customer_id,
+            FolioAssignment.doc_type == doc_type,
+            FolioAssignment.folio == folio,
+        )
+    ).scalar_one_or_none()
+    if reserva is None:
+        raise FolioError(f"El folio {folio} del tipo {doc_type} no está reservado.")
+    if reserva.status != "assigned":
+        raise FolioError(
+            f"El folio {folio} del tipo {doc_type} ya está {reserva.status}: no se puede "
+            "volver a emitir con él."
+        )
+    caf_row = (
+        db.query(Caf)
+        .filter(
+            Caf.customer_id == customer_id,
+            Caf.doc_type == doc_type,
+            Caf.folio_from <= folio,
+            Caf.folio_to >= folio,
+        )
+        .first()
+    )
+    if caf_row is None:
+        raise FolioError(f"Ningún CAF del tipo {doc_type} contiene el folio {folio}.")
+    return load_caf_bytes(crypto.decrypt(caf_row.xml_encrypted))
+
+
 def mark_assignment(db: Session, customer_id: int, doc_type: int, folio: int, status: str) -> None:
     """Actualiza el desenlace de un folio asignado (``issued`` / ``failed``)."""
     row = db.execute(

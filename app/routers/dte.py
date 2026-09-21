@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.concurrency import run_blocking
+from app.core.logging import request_id_var
 from app.db.models import Customer
 from app.db.session import get_db
 from app.deps.auth import require_dte
@@ -23,6 +24,8 @@ from app.schemas.dte import (
     DteIssueResponse,
     ExportBatchRequest,
     ExportIssueRequest,
+    FolioReservationOut,
+    FolioReservationRequest,
     PrintedDocumentOut,
     PrintRequest,
     PrintResponse,
@@ -276,3 +279,22 @@ def document_xml(
         media_type="application/xml",
         headers={"Content-Disposition": f'attachment; filename="dte_{doc_type}_{folio}.xml"'},
     )
+
+
+@router.post("/folios/reserve", response_model=FolioReservationOut)
+async def reserve_folio(
+    req: FolioReservationRequest,
+    customer: Customer = Depends(require_dte),
+    db: Session = Depends(get_db),
+) -> FolioReservationOut:
+    """Reserva el siguiente folio de un tipo, sin emitir todavía.
+
+    Existe para que un ERP numere su documento con el folio **antes** de
+    emitirlo: si numera con su propia secuencia y el folio llega después, el
+    número impreso y el del timbre acaban siendo distintos. El folio queda
+    asignado; si no se usa, aparece como pendiente de revisión en el inventario.
+    """
+    folio, _caf = await run_blocking(
+        folio_service.next_folio, db, customer.id, req.type, request_id_var.get()
+    )
+    return FolioReservationOut(type=req.type, folio=folio)

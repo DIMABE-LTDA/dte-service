@@ -1,7 +1,7 @@
 import base64
 
 import pytest
-from dte_chile import FoliosExhausted
+from dte_chile import FolioError, FoliosExhausted
 
 from app.errors.exceptions import DomainError
 from app.services import customer_service, folio_service
@@ -259,3 +259,69 @@ def test_folio_endpoint_only_shows_the_callers_folios(client, db):
     assert [t["doc_type"] for t in r.json()] == [33]
     r = client.get("/dte/folios", headers=headers("cust-2", "other"))
     assert [t["doc_type"] for t in r.json()] == [61]
+
+
+# --------------------------------------------------------------------------- #
+#  Reservar el folio antes de emitir
+# --------------------------------------------------------------------------- #
+def test_se_reserva_un_folio_y_se_emite_con_el(db):
+    """Para que el ERP numere su documento con el folio que irá timbrado."""
+    from app.db.models import FolioAssignment
+
+    customer = make_customer(db)
+    _add_caf(db, customer, 33, 1, 5)
+
+    folio, caf = folio_service.next_folio(db, customer.id, 33, "reserva-1")
+    assert folio == 1
+    fila = db.query(FolioAssignment).filter(FolioAssignment.folio == 1).one()
+    assert fila.status == "assigned"
+
+    # Emitir con ese folio no pide otro.
+    mismo = folio_service.caf_for_reserved(db, customer.id, 33, folio)
+    assert mismo.folio_from == caf.folio_from
+    assert db.query(FolioAssignment).count() == 1
+
+
+def test_un_folio_ya_emitido_no_se_puede_reutilizar(db):
+    customer = make_customer(db)
+    _add_caf(db, customer, 33, 1, 5)
+    folio, _ = folio_service.next_folio(db, customer.id, 33)
+    folio_service.mark_assignment(db, customer.id, 33, folio, "issued")
+
+    with pytest.raises(FolioError, match="ya está issued"):
+        folio_service.caf_for_reserved(db, customer.id, 33, folio)
+
+
+def test_no_se_puede_emitir_con_un_folio_inventado(db):
+    customer = make_customer(db)
+    _add_caf(db, customer, 33, 1, 5)
+
+    with pytest.raises(FolioError, match="no está reservado"):
+        folio_service.caf_for_reserved(db, customer.id, 33, 4321)
+
+
+def test_el_folio_reservado_es_de_quien_lo_reservo(db):
+    mio = make_customer(db)
+    _add_caf(db, mio, 33, 1, 5)
+    folio, _ = folio_service.next_folio(db, mio.id, 33)
+
+    otro = make_customer(db, rut="11111111-1", key="cust-2")
+    with pytest.raises(FolioError, match="no está reservado"):
+        folio_service.caf_for_reserved(db, otro.id, 33, folio)
+
+
+def test_el_endpoint_reserva_y_la_emision_lo_usa(client, db):
+    from app.security.service_codes import SERVICE_DTE
+    from tests.conftest import grant, headers
+
+    customer = make_customer(db)
+    grant(db, customer, SERVICE_DTE)
+    _add_caf(db, customer, 33, 1, 5)
+
+    r = client.post("/dte/folios/reserve", json={"type": 33}, headers=headers())
+    assert r.status_code == 200, r.text
+    assert r.json() == {"type": 33, "folio": 1}
+
+    # El inventario lo muestra reservado, todavía sin documento.
+    tipo = client.get("/dte/folios", headers=headers()).json()[0]
+    assert (tipo["assigned"], tipo["issued"]) == (1, 0)

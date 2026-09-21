@@ -121,6 +121,22 @@ class DteIssueRequest(BaseModel):
     transport: TransportIn | None = None
     send: bool = True  # subir a Maullín/Palena (según ambiente del cliente)
     validate_xsd: bool = True  # validar contra el XSD antes de enviar
+    #: Folio ya reservado con ``POST /dte/folios/reserve``. Sirve para que el
+    #: ERP numere su documento con el folio ANTES de emitirlo, y así el número
+    #: que imprime sea siempre el que va timbrado. Sin esto, el folio sale en la
+    #: respuesta y el ERP ya numeró con otra cosa.
+    folio: int | None = Field(default=None, ge=1)
+
+
+class FolioReservationRequest(BaseModel):
+    """Pide un folio sin emitir todavía."""
+
+    type: Literal[33, 34, 39, 41, 43, 46, 52, 56, 61, 110, 111, 112]
+
+
+class FolioReservationOut(BaseModel):
+    type: int
+    folio: int
 
 
 class SubmissionResultOut(BaseModel):

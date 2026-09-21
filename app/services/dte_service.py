@@ -146,7 +146,11 @@ def issue(db: Session, customer: Customer, cert, req) -> dict:
         # HTTP es un 400, no un 500.
         raise DomainError(str(ex)) from ex
 
-    folio, caf = folio_service.next_folio(db, customer.id, req.type, request_id_var.get())
+    if req.folio:  # el ERP ya reservó el folio y numeró su documento con él
+        folio = req.folio
+        caf = folio_service.caf_for_reserved(db, customer.id, req.type, folio)
+    else:
+        folio, caf = folio_service.next_folio(db, customer.id, req.type, request_id_var.get())
     dte.folio = folio
     try:
         signed = sign_document(build_document(dte, caf, ts), cert)
