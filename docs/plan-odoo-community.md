@@ -134,9 +134,14 @@ ser robusto por mucho que se arregle.
    motor ya entrega. Sin eso, quien consulta no puede distinguir «envío
    procesado» de «documento aceptado», que es el error que costó una semana en
    la certificación.
-5. **Desenlace desconocido.** Si el envío al SII se corta por tiempo, el folio
-   no es «fallido»: es de desenlace desconocido. Tercer estado y resolución
-   consultando el documento por folio.
+5. **Desenlace desconocido** — **hecho el 22-09-2026**. Si el envío al SII se
+   corta a medias, el folio queda `unknown`, no `failed`: no se sabe si el
+   documento llegó, y darlo por perdido llevaría a anular en el SII un
+   documento que quizá existe allá. Sólo se da por no enviado cuando consta que
+   no salió: falló la autenticación (el token se pide antes de subir) o no se
+   llegó a conectar. El inventario de folios los cuenta aparte
+   (`unknown`) y los lista en `to_review`; Odoo los muestra en su columna «Sin
+   desenlace» con el aviso de consultarlos en el SII.
 6. **Carga de certificado y CAF por el propio cliente** (D2) — **hecho el
    21-09-2026**. Con la credencial que la empresa ya tiene: `GET/POST
    /me/certificate(s)`, `GET/POST /me/caf(s)`, `POST /me/cafs/{id}/retire`,
@@ -145,9 +150,10 @@ ser robusto por mucho que se arregle.
    corresponden, CAF de otro ambiente o vencido, rango solapado— y cada carga
    queda en la auditoría marcada como hecha por máquina. Falta la contraparte
    en Odoo (§5).
-7. **Tiempos de espera coherentes.** El del servicio hacia el SII debe ser menor
-   que el del cliente hacia el servicio; hoy son iguales, lo que hace que el
-   corte ocurra justo en el peor momento.
+7. **Tiempos de espera coherentes** — **hecho el 22-09-2026**. El del servicio
+   hacia el SII (45 s) es ahora menor que el del conector hacia el servicio
+   (60 s): el servicio se rinde primero y alcanza a contestar, en vez de que el
+   corte ocurra con el sobre en camino.
 
 **Criterio de término:** prueba e2e que corta la red a mitad de una emisión y
 comprueba que el reintento no gasta otro folio y recupera el XML.

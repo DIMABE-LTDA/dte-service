@@ -148,7 +148,12 @@ def caf_for_reserved(db: Session, customer_id: int, doc_type: int, folio: int) -
 
 
 def mark_assignment(db: Session, customer_id: int, doc_type: int, folio: int, status: str) -> None:
-    """Actualiza el desenlace de un folio asignado (``issued`` / ``failed``)."""
+    """Actualiza el desenlace de un folio asignado.
+
+    ``issued`` (el sobre salió), ``failed`` (no salió: el folio se quemó sin
+    documento) o ``unknown`` (el envío se cortó y no se sabe si el SII lo
+    recibió; hay que revisarlo allá antes de darlo por anulado).
+    """
     row = db.execute(
         select(FolioAssignment).where(
             FolioAssignment.customer_id == customer_id,
@@ -219,7 +224,7 @@ def folio_report(db: Session, customer: Customer, now: dt.datetime | None = None
         db.query(FolioAssignment)
         .filter(
             FolioAssignment.customer_id == customer.id,
-            (FolioAssignment.status == "failed")
+            FolioAssignment.status.in_(("failed", "unknown"))
             | (
                 (FolioAssignment.status == "assigned") & (FolioAssignment.created_at < stale_before)
             ),
@@ -270,12 +275,13 @@ def folio_report(db: Session, customer: Customer, now: dt.datetime | None = None
                 "usable_remaining": usable,
                 "issued": counts.get((doc_type, "issued"), 0),
                 "failed": counts.get((doc_type, "failed"), 0),
+                "unknown": counts.get((doc_type, "unknown"), 0),
                 "assigned": counts.get((doc_type, "assigned"), 0),
                 "cafs": rows,
                 "to_review": [
                     {
                         "folio": a.folio,
-                        "status": "failed" if a.status == "failed" else "orphaned",
+                        "status": a.status if a.status in ("failed", "unknown") else "orphaned",
                         "request_id": a.request_id,
                         "assigned_at": a.created_at,
                     }

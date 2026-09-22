@@ -182,8 +182,9 @@ class FolioCafOut(BaseModel):
 
 class FolioReviewOut(BaseModel):
     folio: int
-    #: failed: la emisión falló con el folio ya tomado; orphaned: quedó asignado
-    #: sin desenlace (la emisión se cortó).
+    #: failed: la emisión falló con el folio ya tomado; unknown: el envío al SII
+    #: se cortó y no se sabe si llegó; orphaned: quedó asignado sin desenlace
+    #: (la emisión se cortó).
     status: str
     request_id: str
     assigned_at: dt.datetime
@@ -197,6 +198,9 @@ class FolioTypeReportOut(BaseModel):
     usable_remaining: int
     issued: int
     failed: int
+    #: Folios cuyo envío se cortó a medias: hay que consultarlos en el SII
+    #: antes de darlos por anulados.
+    unknown: int = 0
     assigned: int
     cafs: list[FolioCafOut]
     to_review: list[FolioReviewOut]

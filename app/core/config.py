@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     # y no es revocable ni deja identidad en la auditoría. Apagarla en cuanto
     # existan MachineKey, que sí son revocables y tienen rol propio.
     admin_bootstrap_key_enabled: bool = True
-    request_timeout_s: int = 60
+    # Espera del servicio hacia el SII. Tiene que ser MENOR que la del ERP hacia
+    # el servicio (el conector espera 60 s): si fueran iguales, el corte ocurre
+    # justo cuando el sobre va en camino y el folio queda sin desenlace
+    # conocido. Con 45 s, el servicio se rinde primero y alcanza a responder.
+    request_timeout_s: int = 45
     log_level: str = "INFO"
     # Orígenes permitidos para la SPA (coma-separados), con esquema. Vacío = sin
     # CORS, que es lo normal: portal y API se sirven en el mismo sitio.

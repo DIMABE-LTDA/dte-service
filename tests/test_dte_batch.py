@@ -330,7 +330,8 @@ def test_foreign_issuer_names_the_offending_document(client, db, captured):
     assert "Documento 3" in r.json()["error"]["message"]
 
 
-def test_send_failure_marks_every_folio_of_the_batch_as_failed(client, db, captured, monkeypatch):
+def test_un_envio_cortado_deja_todo_el_lote_sin_desenlace(client, db, captured, monkeypatch):
+    """El sobre es uno solo: si se corta su envío, ningún folio del lote se sabe."""
     _setup(db)
 
     class _BoomSII:
@@ -348,7 +349,22 @@ def test_send_failure_marks_every_folio_of_the_batch_as_failed(client, db, captu
 
     rows = db.query(FolioAssignment).all()
     assert len(rows) == 8
-    assert {row.status for row in rows} == {"failed"}
+    assert {row.status for row in rows} == {"unknown"}
+
+
+def test_un_lote_que_no_llega_a_firmarse_no_deja_dudas(client, db, captured, monkeypatch):
+    """Si falla antes del envío, los folios están quemados y consta que no salieron."""
+    _setup(db)
+    monkeypatch.setattr(
+        "app.services.dte_service.sign_document",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("firma rota")),
+    )
+    r = client.post("/dte/issue-batch", json=_payload(send=True), headers=headers())
+    assert r.status_code == 500
+
+    from app.db.models import FolioAssignment
+
+    assert {row.status for row in db.query(FolioAssignment).all()} == {"failed"}
 
 
 def test_successful_batch_marks_every_folio_as_issued(client, db, captured, monkeypatch):

@@ -137,31 +137,78 @@ def test_issue_records_folio_assignment(client, db, fake_dte_engine):
     assert rows[0].folio == 1 and rows[0].doc_type == 33 and rows[0].status == "issued"
 
 
-def test_issue_send_failure_marks_folio_failed_but_consumed(
-    client, db, fake_dte_engine, monkeypatch
-):
-    """Si el envío al SII falla, el folio queda trazado como 'failed' y consumido."""
-    customer = _setup(db)
+def _sii_que_revienta(monkeypatch, ex):
+    """El SII falla al subir el sobre con la excepción dada."""
 
     class _BoomSII:
         def __init__(self, *a, **k):
             self.session = _FakeSession()
 
         def send_dte(self, *a):
-            raise RuntimeError("SII caído")
+            raise ex
 
     monkeypatch.setattr(sii_upload, "SIIClient", _BoomSII)
+
+
+def test_issue_send_cut_marks_folio_unknown_and_consumed(client, db, fake_dte_engine, monkeypatch):
+    """Si el envío se corta a medias, el folio queda 'unknown' y consumido.
+
+    No se sabe si el sobre llegó al SII: darlo por fallido llevaría a anular en
+    el SII un documento que quizá existe allá.
+    """
+    customer = _setup(db)
+    _sii_que_revienta(monkeypatch, RuntimeError("SII caído"))
+
     r = client.post("/dte/issue", json=_payload(send=True), headers=headers())
     assert r.status_code == 500
 
     from app.db.models import FolioAssignment
 
     row = db.query(FolioAssignment).filter_by(customer_id=customer.id, folio=1).one()
-    assert row.status == "failed"
+    assert row.status == "unknown"
 
     # El folio 1 se quemó: la siguiente emisión (sin envío) usa el folio 2.
     f = client.post("/dte/issue", json=_payload(send=False), headers=headers()).json()["folio"]
     assert f == 2
+
+
+def test_issue_sin_llegar_al_sii_marca_el_folio_fallido(client, db, fake_dte_engine, monkeypatch):
+    """Si no se llegó a conectar, consta que el sobre NO salió."""
+    import requests
+    from dte_chile.errors import SiiAuthError
+
+    customer = _setup(db)
+    _sii_que_revienta(monkeypatch, requests.ConnectTimeout("sin conexión"))
+    assert client.post("/dte/issue", json=_payload(send=True), headers=headers()).status_code == 500
+
+    from app.db.models import FolioAssignment
+
+    assert db.query(FolioAssignment).filter_by(customer_id=customer.id, folio=1).one().status == (
+        "failed"
+    )
+
+    # Lo mismo cuando falla la autenticación: el token se pide antes de subir.
+    _sii_que_revienta(monkeypatch, SiiAuthError("semilla rechazada"))
+    assert client.post("/dte/issue", json=_payload(send=True), headers=headers()).status_code >= 400
+    assert db.query(FolioAssignment).filter_by(customer_id=customer.id, folio=2).one().status == (
+        "failed"
+    )
+
+
+def test_el_folio_sin_desenlace_sale_en_lo_que_hay_que_revisar(
+    client, db, fake_dte_engine, monkeypatch
+):
+    """El inventario separa lo que no salió de lo que no se sabe."""
+    customer = _setup(db)
+    _sii_que_revienta(monkeypatch, RuntimeError("se cortó la subida"))
+    client.post("/dte/issue", json=_payload(send=True), headers=headers())
+
+    from app.services import folio_service
+
+    reporte = {r["doc_type"]: r for r in folio_service.folio_report(db, customer)}
+    assert reporte[33]["unknown"] == 1
+    assert reporte[33]["failed"] == 0
+    assert [(x["folio"], x["status"]) for x in reporte[33]["to_review"]] == [(1, "unknown")]
 
 
 def test_unhandled_500_is_logged(client, db, fake_dte_engine, monkeypatch):

@@ -236,12 +236,12 @@ def test_el_impreso_sale_del_documento_archivado(client, emisor, db):
     assert "FACTURA ELECTRÓNICA" in html.text
     assert f"N° {folio}" in html.text
     # Las dos copias: la tributaria y la cedible.
-    assert html.text.count("<div class=\"doc\">") == 2
+    assert html.text.count('<div class="doc">') == 2
 
     solo_tributario = client.get(
         f"/dte/33/{folio}/print?format=html&copies=tax", headers=headers("erp")
     )
-    assert solo_tributario.text.count("<div class=\"doc\">") == 1
+    assert solo_tributario.text.count('<div class="doc">') == 1
     assert "CEDIBLE" not in solo_tributario.text
 
     assert client.get("/dte/33/9999/print", headers=headers("erp")).status_code == 404

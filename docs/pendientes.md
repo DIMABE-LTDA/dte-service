@@ -209,8 +209,13 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
     antes (completa sus fechas al usarlos).
   - `GET /dte/folios` y `GET /admin/customers/{id}/folios`: por tipo, estado de
     cada CAF, folios utilizables, folios **sin usar** de CAF vencidos (hay que
-    anularlos en el SII) y folios fallidos o huérfanos (asignados sin desenlace
-    hace más de 15 minutos).
+    anularlos en el SII) y folios fallidos, sin desenlace o huérfanos (asignados
+    sin desenlace hace más de 15 minutos).
+  - **Folios sin desenlace** (22-09-2026): si el envío al SII se corta a medias
+    el folio queda `unknown`, no `failed`. No se sabe si el documento llegó, y
+    anularlo en el SII por las dudas sería peor que revisarlo. Se dan por no
+    enviados sólo los casos en que consta que no salieron: autenticación
+    fallida o sin conexión. Odoo los muestra en «Sin desenlace».
 - **Pendiente, del mismo trabajo:** mostrar el inventario de folios y la
   cuadratura de boletas en el portal (hoy sólo por API); un aviso activo
   (correo) cuando un CAF está por vencer o quedan pocos folios; y consultar

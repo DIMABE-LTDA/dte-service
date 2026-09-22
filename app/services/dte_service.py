@@ -12,8 +12,10 @@ import datetime as dt
 from collections import Counter
 from zoneinfo import ZoneInfo
 
+import requests
 from dte_chile.document_types import DispatchType, DTEType, ReferenceCode, TransferType
 from dte_chile.envelope import Cover, build_envelope, serialize
+from dte_chile.errors import SiiAuthError
 from dte_chile.export_invoice import (
     Customs,
     ExportDocument,
@@ -130,6 +132,26 @@ def _send(customer: Customer, cert, xml: bytes, issuer_rut: str, settings):
     return sii_upload.upload(customer, cert, xml, issuer_rut, settings.request_timeout_s)
 
 
+def sending_outcome(ex: BaseException) -> str:
+    """Qué pasó con el folio cuando el envío al SII se cayó: ``failed`` o ``unknown``.
+
+    Dar por fallido un sobre que quizá llegó es el peor de los dos errores: el
+    folio se declara anulado ante el SII mientras el documento existe allá.
+    Sólo hay certeza de que no salió si la autenticación falló —el token se
+    pide antes de subir nada— o si nunca se llegó a conectar. En lo demás
+    (corte a mitad de subida, sin respuesta) el desenlace es desconocido y el
+    folio queda para revisar contra el SII.
+    """
+    causa: BaseException | None = ex
+    while causa is not None:
+        if isinstance(causa, SiiAuthError):
+            return "failed"
+        if isinstance(causa, requests.ConnectTimeout):
+            return "failed"  # ni siquiera se estableció la conexión
+        causa = causa.__cause__
+    return "unknown"
+
+
 #: Estados con que el SII dice que todavía está procesando el sobre: recibido
 #: (REC), esquema validado (SOK), carátula OK (CRT), firma OK (FOK), pendiente
 #: (PDR) y libro en proceso (LSO). Ninguno es veredicto del documento.
@@ -171,11 +193,15 @@ def issue(db: Session, customer: Customer, cert, req) -> dict:
 
         if req.validate_xsd:
             Validator(settings.schemas_dir).validate(xml)
-
-        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
     except Exception:
         # El folio ya se consumió; déjalo trazado como quemado sin documento.
         folio_service.mark_assignment(db, customer.id, req.type, folio, "failed")
+        raise
+
+    try:
+        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
+    except Exception as ex:
+        folio_service.mark_assignment(db, customer.id, req.type, folio, sending_outcome(ex))
         raise
 
     folio_service.mark_assignment(db, customer.id, req.type, folio, "issued")
@@ -269,10 +295,14 @@ def issue_batch(db: Session, customer: Customer, cert, req) -> dict:
 
         if req.validate_xsd:
             Validator(settings.schemas_dir).validate(xml)
-
-        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
     except Exception:
         _mark_batch(db, customer, assigned, "failed")
+        raise
+
+    try:
+        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
+    except Exception as ex:
+        _mark_batch(db, customer, assigned, sending_outcome(ex))
         raise
 
     _mark_batch(db, customer, assigned, "issued")
@@ -418,10 +448,14 @@ def issue_settlement(db: Session, customer: Customer, cert, req) -> dict:
 
         if req.validate_xsd:
             Validator(settings.schemas_dir).validate(xml)
-
-        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
     except Exception:
         folio_service.mark_assignment(db, customer.id, doc_type, folio, "failed")
+        raise
+
+    try:
+        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
+    except Exception as ex:
+        folio_service.mark_assignment(db, customer.id, doc_type, folio, sending_outcome(ex))
         raise
 
     folio_service.mark_assignment(db, customer.id, doc_type, folio, "issued")
@@ -491,10 +525,14 @@ def issue_export(db: Session, customer: Customer, cert, req) -> dict:
 
         if req.validate_xsd:
             Validator(settings.schemas_dir).validate(xml)
-
-        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
     except Exception:
         folio_service.mark_assignment(db, customer.id, req.type, folio, "failed")
+        raise
+
+    try:
+        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
+    except Exception as ex:
+        folio_service.mark_assignment(db, customer.id, req.type, folio, sending_outcome(ex))
         raise
 
     folio_service.mark_assignment(db, customer.id, req.type, folio, "issued")
@@ -562,10 +600,14 @@ def issue_export_batch(db: Session, customer: Customer, cert, req) -> dict:
 
         if req.validate_xsd:
             Validator(settings.schemas_dir).validate(xml)
-
-        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
     except Exception:
         _mark_batch(db, customer, assigned, "failed")
+        raise
+
+    try:
+        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
+    except Exception as ex:
+        _mark_batch(db, customer, assigned, sending_outcome(ex))
         raise
 
     _mark_batch(db, customer, assigned, "issued")
@@ -630,10 +672,14 @@ def issue_settlement_batch(db: Session, customer: Customer, cert, req) -> dict:
 
         if req.validate_xsd:
             Validator(settings.schemas_dir).validate(xml)
-
-        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
     except Exception:
         _mark_batch(db, customer, assigned, "failed")
+        raise
+
+    try:
+        submission = _send(customer, cert, xml, issuer_rut, settings) if req.send else None
+    except Exception as ex:
+        _mark_batch(db, customer, assigned, sending_outcome(ex))
         raise
 
     _mark_batch(db, customer, assigned, "issued")

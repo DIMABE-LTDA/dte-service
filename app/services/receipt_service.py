@@ -38,6 +38,7 @@ from app.core.config import get_settings
 from app.core.logging import request_id_var
 from app.db.models import Customer, IssuedReceipt, ReceiptSubmission
 from app.errors.exceptions import DomainError
+from app.services import dte_service
 
 _CL_TZ = ZoneInfo("America/Santiago")
 
@@ -141,7 +142,11 @@ def issue_batch(db: Session, customer: Customer, cert, req) -> dict:
 
         if req.validate_xsd:
             Validator(settings.schemas_dir).validate(xml)
+    except Exception:
+        _mark(db, customer, assigned, "failed")
+        raise
 
+    try:
         submission = None
         if req.send:
             client = _client(customer, cert, settings)
@@ -149,8 +154,8 @@ def issue_batch(db: Session, customer: Customer, cert, req) -> dict:
                 submission = client.send_receipts(xml, customer.rut, cert.rut or customer.rut)
             finally:
                 client.session.close()
-    except Exception:
-        _mark(db, customer, assigned, "failed")
+    except Exception as ex:
+        _mark(db, customer, assigned, dte_service.sending_outcome(ex))
         raise
 
     _store(db, customer, receipts, signed, _register(db, customer, submission, len(receipts)))
