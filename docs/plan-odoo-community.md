@@ -205,13 +205,13 @@ Por valor para la empresa, y con la fecha del 01-11 mandando en el orden.
 
 | # | Qué | Por qué ahora |
 |---|---|---|
-| 0 | **Puesta en marcha desde Odoo**: asistentes para cargar el certificado y los CAF, ver los cargados y su vencimiento, y guardar la clave tributaria | Requisito del cliente: todo se registra desde Odoo. El servicio ya lo expone; falta la interfaz |
-| 1 | **Inventario de folios en Odoo** | La mejor relación valor/esfuerzo: el endpoint existe y usa la credencial que el módulo ya tiene. Hoy la empresa se entera de que se quedó sin folios cuando falla una emisión |
-| 2 | **Impresión con timbre** | Es lo que recibe el receptor. Hoy sale el PDF genérico de Odoo: sin timbre, sin folio en formato SII y sin copia cedible |
-| 3 | **Guía de despacho desde el albarán + Res. 154** | Fecha dura 01-11-2026. Hoy obliga a fabricar una factura de venta, que además genera un asiento de venta para un traslado que no lo es |
-| 4 | **Factura de compra (46) con retención** | El servicio ya la soporta; el módulo la bloquea por aceptar sólo documentos de venta |
-| 5 | **Libro de compras y ventas, y libro de guías** | Obligación mensual. No existe en Odoo Community: es ganancia neta |
-| 6 | **Boletas 39/41 + cuadratura** | Decisión D3 tomada primero. La cuadratura es, además, lo que declara el representante legal |
+| 0 | ~~**Puesta en marcha desde Odoo**~~ — **hecho el 22-09-2026**: *DTE / SII → Certificado y CAF* carga el .pfx y los CAF (varios de una vez) contra la credencial de la compañía, y muestra lo cargado con su vencimiento | Requisito del cliente: todo se registra desde Odoo |
+| 1 | ~~**Inventario de folios en Odoo**~~ — hecho | La mejor relación valor/esfuerzo: el endpoint existe y usa la credencial que el módulo ya tiene. Hoy la empresa se entera de que se quedó sin folios cuando falla una emisión |
+| 2 | ~~**Impresión con timbre**~~ — hecho | Es lo que recibe el receptor. Hoy sale el PDF genérico de Odoo: sin timbre, sin folio en formato SII y sin copia cedible |
+| 3 | ~~**Guía de despacho desde el albarán + Res. 154**~~ — hecho | Fecha dura 01-11-2026. Hoy obliga a fabricar una factura de venta, que además genera un asiento de venta para un traslado que no lo es |
+| 4 | ~~**Factura de compra (46) con retención**~~ — hecho | El servicio ya la soporta; el módulo la bloquea por aceptar sólo documentos de venta |
+| 5 | ~~**Libro de compras y ventas**~~ — hecho (el de guías, pendiente) | Obligación mensual. No existe en Odoo Community: es ganancia neta |
+| 6 | ~~**Boletas 39/41 + cuadratura**~~ — hecho el 22-09-2026 | Decisión D3 tomada primero. La cuadratura es, además, lo que declara el representante legal |
 | 7 | **Intercambio con proveedores** | Requiere antes la decisión D6: hoy nadie recibe el sobre del proveedor |
 | 8 | **Exportación 110/111/112** | Sólo si la empresa exporta; arrastra todos los datos de aduana |
 

@@ -222,6 +222,17 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
   automáticamente el estado de los envíos de boleta en vez de a pedido. El RCOF
   diario existe (`POST /boletas/folio-report`) pero es a pedido; dejó de ser
   obligatorio en 2022 (Res. Ex. 53).
+- **Procedimientos del emisor** (22-09-2026): lo declarado al SII en la
+  declaración de cumplimiento está escrito en `docs/procedimientos.md` —las
+  siete funciones críticas, qué hace el sistema y qué hace una persona, la
+  cuadratura mensual y las contingencias—. Es lo que el SII puede auditar.
+  Las dos cosas que ahí siguen siendo manuales: el intercambio con proveedores
+  (nadie recibe todavía el correo del proveedor) y la emisión de excepción con
+  Odoo caído.
+- **Alta del emisor desde Odoo** (22-09-2026): *DTE / SII → Certificado y CAF*
+  carga el .pfx y los CAF con la credencial de la compañía, sin clave de
+  administración y sin entrar al portal. Queda pendiente la clave tributaria
+  (`/me/sii-key`), que sólo hace falta para las BHE recibidas.
 - **Las tres ramas están empujadas pero sin mergear** a la principal:
   `feat/certificacion-sii` en el motor y en el servicio, `feat/guia-despacho`
   en el conector. Son fast-forward limpios.
