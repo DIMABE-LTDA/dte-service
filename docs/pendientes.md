@@ -233,6 +233,16 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
   carga el .pfx y los CAF con la credencial de la compañía, sin clave de
   administración y sin entrar al portal. Queda pendiente la clave tributaria
   (`/me/sii-key`), que sólo hace falta para las BHE recibidas.
+- **Intercambio con proveedores** (22-09-2026, motor v0.4.31): el DTE del
+  proveedor entra por la casilla de intercambio, se registra en Odoo con su
+  plazo de ocho días y se responde desde ahí —acuse, aceptar o reclamar con su
+  motivo, y recibo de mercaderías—. Además del correo al proveedor, cada
+  respuesta **se registra en el SII** (`POST /exchange/claim`, WS
+  `WSREGISTRORECLAMODTE`): eso es lo que corre el plazo de la Ley 19.983, y es
+  lo que faltaba. Si el SII no contesta, la respuesta al proveedor se mantiene
+  y el registro queda pendiente con reintento horario.
+  - **Falta:** crear la factura de proveedor en Odoo desde el documento
+    recibido, y la cesión de facturas (AEC/RPETC), que es trabajo aparte.
 - **Las tres ramas están empujadas pero sin mergear** a la principal:
   `feat/certificacion-sii` en el motor y en el servicio, `feat/guia-despacho`
   en el conector. Son fast-forward limpios.

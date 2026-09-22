@@ -109,36 +109,51 @@ que se mira.
 
 ---
 
-## 5. Intercambio con el receptor (Ley 19.983)
+## 5. Intercambio con el proveedor (Ley 19.983)
 
-Esta función es hoy **manual y por correo**; el facturador arma los XML, pero
-no tiene casilla de correo propia.
+**Quién:** quien lleva la contabilidad. **Cuándo:** dentro de los **8 días
+corridos** desde que el documento se recibe. Pasado el plazo, la factura se
+entiende irrevocablemente aceptada —con o sin mercadería— y se hace cedible:
+el proveedor puede venderla a un factoring y ya no se discute.
 
 **Lo que enviamos.** El PDF con su timbre se manda al cliente desde el propio
 asiento de Odoo («Enviar e imprimir»). Si el cliente pide el XML, se descarga
 del asiento y se le manda.
 
 **Lo que recibimos.** Los proveedores mandan sus DTE a la casilla de
-intercambio registrada en el SII. Quien lleva la contabilidad:
+intercambio registrada en el SII. Esa casilla se configura en Odoo como
+servidor de correo entrante apuntando al modelo de DTE recibidos, y cada
+documento aparece en *DTE / SII → DTE recibidos* con su plazo a la vista. Un
+sobre puede traer documentos de otro receptor: esos se distinguen y no se
+aceptan.
 
-1. Guarda el XML recibido.
-2. Responde dentro de **8 días corridos**, o el documento se entiende aceptado
-   (Ley 19.983, art. 3). Las tres respuestas se generan en el facturador a
-   partir del XML recibido:
-   - **Acuse de recibo del envío** (`POST /exchange/ack`): que el archivo llegó
-     y está bien formado.
-   - **Resultado comercial** (`POST /exchange/result`): aceptar o reclamar el
-     contenido.
-   - **Recibo de mercaderías o servicios** (`POST /exchange/receipts`): el que
-     hace cedible la factura.
-3. Manda el XML de respuesta a la casilla del proveedor y lo archiva junto al
-   documento recibido.
+Desde el propio documento, en orden:
 
-El reclamo también se puede registrar en el portal del SII («Registro de
-Compras y Ventas»), y es lo que hay que hacer si el plazo aprieta.
+1. **Acusar recibo del envío** — que el archivo llegó y está bien formado.
+2. **Aceptar** o **Reclamar** el contenido. El reclamo pide su motivo: es lo
+   que va a leer el proveedor para corregir.
+3. **Recibo de mercaderías** — el que hace cedible la factura. Se da cuando la
+   mercadería llegó de verdad; darlo antes es firmar por algo que no se
+   recibió.
 
-**Pendiente:** automatizar la recepción por correo y la respuesta desde Odoo.
-Mientras no exista, rige este procedimiento manual.
+Cada uno hace dos cosas, y las dos importan:
+
+- manda al proveedor el XML firmado que exige la ley, y lo deja archivado;
+- **registra el evento en el SII** (ACD aceptar, RCD reclamar, ERM recibo). Lo
+  que corre el plazo es este registro: el SII no se entera de los correos que
+  se manden entre las dos empresas.
+
+Si el SII no contesta, la respuesta al proveedor **no se deshace** —el correo
+ya salió—: el registro queda pendiente, se reintenta solo cada hora y se puede
+forzar con el botón «Registrar en el SII». Conviene comprobarlo, porque un
+reclamo que no llegó al SII es un reclamo que no existe. «Ver historial en el
+SII» dice qué tiene registrado el Servicio sobre ese documento.
+
+**Aviso del plazo:** una tarea diaria abre una actividad cuando quedan dos
+días o menos.
+
+**Pendiente:** crear la factura de proveedor en Odoo desde el documento
+recibido; hoy se registra aparte.
 
 ---
 
@@ -238,7 +253,7 @@ resolución. Para poder acogerse a esto hay que tener el talonario timbrado
 | Foliación | asigna y registra el desenlace | revisa y anula lo que corresponde |
 | Respaldo | archiva el XML firmado | guarda certificado y CAF |
 | Envío al SII | envía y consulta el estado | atiende rechazos y reparos |
-| Intercambio | arma los XML de respuesta | recibe, responde y archiva |
+| Intercambio | recibe, responde y registra en el SII | decide aceptar o reclamar |
 | Cuadratura | entrega los datos | cuadra y declara |
 | Contingencias | reintenta y no duplica | decide y deja constancia |
 
