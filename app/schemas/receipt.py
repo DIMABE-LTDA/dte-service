@@ -46,6 +46,9 @@ class ReceiptIn(BaseModel):
     prices_include_vat: bool = True
     # IndServicio: 3 = boleta de ventas y servicios (el caso normal).
     service_indicator: Literal[1, 2, 3, 4] = 3
+    #: Folio ya reservado con ``POST /dte/folios/reserve``. Sirve para que el
+    #: ERP numere la boleta con el folio que irá timbrado, antes de emitirla.
+    folio: int | None = Field(default=None, ge=1)
 
 
 class ReceiptBatchRequest(BaseModel):

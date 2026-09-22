@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from dte_chile.certificate import Certificate
 from dte_chile.sii_client import Environment, SIIClient
@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.concurrency import run_blocking
+from app.core.config import get_settings
 from app.core.logging import request_id_var
 from app.db.models import Customer
 from app.db.session import get_db
@@ -33,7 +34,7 @@ from app.schemas.dte import (
     SettlementIssueRequest,
     SubmissionResultOut,
 )
-from app.services import dte_service, folio_service, idempotency
+from app.services import dte_service, folio_service, idempotency, pdf_service
 
 #: Clave que el ERP deriva de su propio documento (p. ej. `odoo:<bd>:<id>`).
 #: Sin ella se emite como antes: cada petición, un documento.
@@ -319,4 +320,47 @@ async def reserve_folio(
         environment=customer.environment.value
         if hasattr(customer.environment, "value")
         else str(customer.environment),
+    )
+
+
+@router.get(
+    "/{doc_type}/{folio}/print",
+    responses={200: {"content": {"application/pdf": {}, "text/html": {}}}},
+)
+def print_stored_document(
+    doc_type: int,
+    folio: int,
+    copies: Literal["both", "tax", "transferable"] = "both",
+    format: Literal["pdf", "html"] = "pdf",
+    customer: Customer = Depends(require_dte),
+    db: Session = Depends(get_db),
+) -> Response:
+    """La representación impresa de un documento ya emitido.
+
+    En PDF por omisión: es lo que el ERP adjunta y lo que se manda al receptor.
+    El impreso lleva el timbre del XML firmado, el recuadro con el folio y la
+    unidad del SII, y la copia cedible cuando el documento la tiene.
+    """
+    try:
+        html = dte_service.print_stored(
+            db,
+            customer,
+            doc_type,
+            folio,
+            copies,
+            verification_url=get_settings().receipt_verification_url,
+        )
+    except LookupError as ex:
+        raise HTTPException(status_code=404, detail=str(ex)) from ex
+
+    if format == "html":
+        return Response(content=html, media_type="text/html; charset=utf-8")
+    try:
+        pdf = pdf_service.html_to_pdf(html)
+    except pdf_service.PdfUnavailableError as ex:
+        raise HTTPException(status_code=503, detail=str(ex)) from ex
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="dte_{doc_type}_{folio}.pdf"'},
     )

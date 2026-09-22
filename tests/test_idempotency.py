@@ -224,3 +224,24 @@ def test_emitir_en_lote_tambien_es_idempotente(client, emisor, db):
     segunda = client.post("/dte/issue-batch", json=lote, headers=_clave("lote-1"))
     assert segunda.json() == primera.json()
     assert db.query(FolioAssignment).count() == 2
+
+
+def test_el_impreso_sale_del_documento_archivado(client, emisor, db):
+    """El ERP no tiene que devolver el sobre para reimprimir."""
+    r = client.post("/dte/issue", json=_documento(), headers=_clave())
+    folio = r.json()["folio"]
+
+    html = client.get(f"/dte/33/{folio}/print?format=html", headers=headers("erp"))
+    assert html.status_code == 200, html.text
+    assert "FACTURA ELECTRÓNICA" in html.text
+    assert f"N° {folio}" in html.text
+    # Las dos copias: la tributaria y la cedible.
+    assert html.text.count("<div class=\"doc\">") == 2
+
+    solo_tributario = client.get(
+        f"/dte/33/{folio}/print?format=html&copies=tax", headers=headers("erp")
+    )
+    assert solo_tributario.text.count("<div class=\"doc\">") == 1
+    assert "CEDIBLE" not in solo_tributario.text
+
+    assert client.get("/dte/33/9999/print", headers=headers("erp")).status_code == 404

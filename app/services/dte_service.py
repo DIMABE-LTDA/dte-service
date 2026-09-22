@@ -345,6 +345,34 @@ def print_documents(customer: Customer, req) -> dict:
     return {"documents": documents}
 
 
+def print_stored(
+    db, customer: Customer, doc_type: int, folio: int, copies="both", verification_url=""
+):
+    """El impreso de un documento ya emitido, desde el archivo del servicio.
+
+    Ahorra al ERP tener que devolver el sobre para reimprimir: el documento ya
+    está guardado aquí. El TED se toma tal cual del XML firmado; reconstruirlo
+    daría un timbre distinto del que se timbró.
+    """
+    from app.services import idempotency
+
+    xml = idempotency.stored_xml(db, customer, doc_type, folio)
+    parsed = parse_documents(xml)[0]
+    resolution = ResolutionInfo(
+        number=customer.resolution_number,
+        date=customer.resolution_date,
+        sii_office=customer.issuer_sii_office or "SANTIAGO",
+    )
+    if copies == "both":
+        return generate_copies(
+            parsed.dte, parsed.element, resolution, verification_url=verification_url
+        )
+    copy = TAX_COPY if copies == "tax" else TRANSFERABLE_COPY
+    return generate_html(
+        parsed.dte, parsed.element, resolution, copy=copy, verification_url=verification_url
+    )
+
+
 # --------------------------------------------------------------------------- #
 #  Liquidación factura (43)
 # --------------------------------------------------------------------------- #

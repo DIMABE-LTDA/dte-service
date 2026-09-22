@@ -110,10 +110,14 @@ def issue_batch(db: Session, customer: Customer, cert, req) -> dict:
     assigned: list[tuple[int, int]] = []
     cafs = []
     try:
-        for receipt in receipts:
-            folio, caf = folio_service.next_folio(
-                db, customer.id, int(receipt.type), request_id_var.get()
-            )
+        for receipt, entrada in zip(receipts, req.receipts, strict=True):
+            if entrada.folio:  # el ERP ya reservó el folio y numeró con él
+                folio = entrada.folio
+                caf = folio_service.caf_for_reserved(db, customer.id, int(receipt.type), folio)
+            else:
+                folio, caf = folio_service.next_folio(
+                    db, customer.id, int(receipt.type), request_id_var.get()
+                )
             receipt.folio = folio
             assigned.append((int(receipt.type), folio))
             cafs.append(caf)

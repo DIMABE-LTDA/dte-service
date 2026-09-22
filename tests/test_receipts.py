@@ -388,3 +388,32 @@ def test_other_customer_cannot_read_a_receipt(client, db, fake_receipt_engine):
     grant(db, other, SERVICE_DTE, apikey="other")
     r = client.get("/boletas/39/1/xml", headers=headers("cust-2", "other"))
     assert r.status_code == 404
+
+
+def test_una_boleta_se_puede_emitir_con_folio_reservado(client, db, fake_receipt_engine):
+    """El ERP numera la boleta con el folio antes de emitirla."""
+    from app.db.models import FolioAssignment
+    from app.services import folio_service
+
+    customer = _setup(db)
+    folio, _caf = folio_service.next_folio(db, customer.id, 39, "reserva")
+
+    cuerpo = _payload(receipts=[_receipt([{"name": "Pan", "quantity": 1, "unit_price": 1190}])])
+    cuerpo["receipts"][0]["folio"] = folio
+    r = client.post("/boletas/issue-batch", json=cuerpo, headers=headers())
+    assert r.status_code == 200, r.text
+    assert r.json()["receipts"][0]["folio"] == folio
+    # No se pidió otro folio: el reservado es el que se usó.
+    assert db.query(FolioAssignment).count() == 1
+
+
+def test_una_boleta_con_folio_ajeno_no_se_emite(client, db, fake_receipt_engine):
+    from app.services import folio_service
+
+    customer = _setup(db)
+    folio, _caf = folio_service.next_folio(db, customer.id, 39, "reserva")
+    folio_service.mark_assignment(db, customer.id, 39, folio, "issued")
+
+    cuerpo = _payload(receipts=[_receipt([{"name": "Pan", "quantity": 1, "unit_price": 1190}])])
+    cuerpo["receipts"][0]["folio"] = folio
+    assert client.post("/boletas/issue-batch", json=cuerpo, headers=headers()).status_code == 409
