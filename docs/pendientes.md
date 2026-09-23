@@ -253,6 +253,26 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
     SII: publicada, aceptada, no pagada, tipo cedible y monto dentro del total.
   - **Falta:** el asiento contable de la cesión (traspaso del cliente al
     factoring y gasto financiero), que hoy se registra aparte.
+- **Exportación desde Odoo** (23-09-2026, motor v0.4.33): los tres documentos
+  (110/111/112) se emiten desde la factura, con su pestaña de Aduana y los
+  códigos del Compendio que publica `GET /dte/customs` —el ERP no lleva copia
+  propia—. Las monedas guardan el nombre literal que exige `<TpoMoneda>`.
+  Lo que salió al probarlo, y que habría costado rechazos del SII:
+  - el comprador extranjero no tiene RUT: va el `55555555-5` y su
+    identificación real en `<Extranjero>`;
+  - `<OtraMoneda>` es obligatoria: se declara el tipo de cambio **del día de la
+    factura**, no el de hoy;
+  - el folio reservado no viajaba y se gastaban **dos folios** por documento;
+  - no se arrastraba la opción de validar XSD de la compañía.
+  - El archivo del facturador sólo reconocía `<Documento>`: **exportaciones y
+    liquidaciones no quedaban archivadas** y no se podían recuperar ni
+    reimprimir. Corregido para las tres raíces.
+- **Pendiente — la tabla de países de Aduana tiene huecos.** Salta de Argentina
+  (224) a Canadá (226), y faltan 234 y 237-240. No consta si son códigos sin
+  asignar o si se perdieron al transcribir el Anexo 51-9, y adivinarlos sería
+  un documento rechazado con folio gastado. Hay que contrastarla con el anexo
+  **antes de exportar a un país que no esté en la tabla**; en particular, si la
+  empresa exporta a Estados Unidos, eso se cierra primero.
 - **Las tres ramas están empujadas pero sin mergear** a la principal:
   `feat/certificacion-sii` en el motor y en el servicio, `feat/guia-despacho`
   en el conector. Son fast-forward limpios.

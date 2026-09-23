@@ -213,7 +213,7 @@ Por valor para la empresa, y con la fecha del 01-11 mandando en el orden.
 | 5 | ~~**Libro de compras y ventas**~~ — hecho (el de guías, pendiente) | Obligación mensual. No existe en Odoo Community: es ganancia neta |
 | 6 | ~~**Boletas 39/41 + cuadratura**~~ — hecho el 22-09-2026 | Decisión D3 tomada primero. La cuadratura es, además, lo que declara el representante legal |
 | 7 | **Intercambio con proveedores** | Requiere antes la decisión D6: hoy nadie recibe el sobre del proveedor |
-| 8 | **Exportación 110/111/112** | Sólo si la empresa exporta; arrastra todos los datos de aduana |
+| 8 | ~~**Exportación 110/111/112**~~ — hecho el 23-09-2026 | Certificada ante el SII y hasta ahora sólo emitible desde el portal del facturador |
 
 Cada una entra con su prueba e2e por la interfaz de Odoo.
 
