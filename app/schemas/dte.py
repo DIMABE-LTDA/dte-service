@@ -314,6 +314,9 @@ class CommissionIn(BaseModel):
 class SettlementIssueRequest(BaseModel):
     """Emisión de una Liquidación Factura Electrónica (tipo 43)."""
 
+    #: Folio reservado antes de numerar el documento en el ERP. Sin esto se
+    #: gastarían dos: el reservado y el que asignaría esta emisión.
+    folio: int | None = Field(None, ge=1)
     issue_date: dt.date
     issuer: IssuerIn  # el mandatario
     receiver: ReceiverIn  # el mandante

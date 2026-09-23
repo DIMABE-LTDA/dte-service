@@ -438,7 +438,11 @@ def issue_settlement(db: Session, customer: Customer, cert, req) -> dict:
         raise DomainError(str(ex)) from ex
 
     doc_type = int(settlement.type)
-    folio, caf = folio_service.next_folio(db, customer.id, doc_type, request_id_var.get())
+    if req.folio:  # el ERP ya reservó el folio y numeró su documento con él
+        folio = req.folio
+        caf = folio_service.caf_for_reserved(db, customer.id, doc_type, folio)
+    else:
+        folio, caf = folio_service.next_folio(db, customer.id, doc_type, request_id_var.get())
     settlement.folio = folio
     try:
         signed = sign_document(build_settlement(settlement, caf, ts), cert)
