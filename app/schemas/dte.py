@@ -416,6 +416,9 @@ class ExportIssueRequest(BaseModel):
     """Emisión de factura (110) o nota (111/112) de exportación."""
 
     type: Literal[110, 111, 112]
+    #: Folio reservado antes de numerar el documento en el ERP. Sin esto se
+    #: gastarían dos: el reservado y el que asignaría esta emisión.
+    folio: int | None = Field(None, ge=1)
     issue_date: dt.date
     issuer: IssuerIn
     receiver: ReceiverIn
@@ -464,3 +467,32 @@ class ExportBatchRequest(BaseModel):
     documents: list[ExportBatchItemIn] = Field(min_length=1, max_length=MAX_BATCH_DOCUMENTS)
     send: bool = True
     validate_xsd: bool = True
+
+
+class CustomsCodeOut(BaseModel):
+    """Una fila de una tabla de Aduana: el código que va en el XML y su nombre."""
+
+    code: int
+    name: str
+
+
+class CustomsTablesOut(BaseModel):
+    """Las tablas del Compendio de Aduana que necesita un documento de exportación.
+
+    Se publican desde aquí para que el ERP no tenga que llevar su propia copia:
+    una tabla desactualizada en el cliente se traduce en documentos rechazados.
+    """
+
+    countries: list[CustomsCodeOut]
+    ports: list[CustomsCodeOut]
+    transport_routes: list[CustomsCodeOut]
+    sale_clauses: list[CustomsCodeOut]
+    sale_modes: list[CustomsCodeOut]
+    payment_modes: list[CustomsCodeOut]
+    package_kinds: list[CustomsCodeOut]
+    measure_units: list[CustomsCodeOut]
+    #: Nombres literales que admite <TpoMoneda>; no llevan código.
+    currencies: list[str]
+    #: De código ISO al nombre del SII, sólo donde no admite duda. Lo que no
+    #: está aquí se declara a mano: adivinarlo hace rechazar el documento.
+    currency_by_iso: dict[str, str]

@@ -31,7 +31,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from dte_chile.parser import ParseError, parse_documents
+from dte_chile.parser import ParseError
 from lxml import etree
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -141,6 +141,29 @@ def _close_failed(db: Session, marca: EmissionRequest, ex: Exception) -> None:
     db.commit()
 
 
+#: Raíces que puede tener un documento dentro de un ``<DTE>``: la corriente y
+#: las dos con raíz propia en el XSD —exportación y liquidación-factura—.
+#: Archivar sólo ``<Documento>`` dejaba esos dos sin copia: no se podían
+#: recuperar ni reimprimir, que es justo para lo que está este archivo.
+_RAICES = frozenset({"Documento", "Exportaciones", "Liquidacion"})
+
+
+def _documentos_del_sobre(xml: bytes) -> list[tuple[int, int, Any]]:
+    """(tipo, folio, nodo <DTE>) de cada documento del sobre."""
+    raiz = etree.fromstring(xml)
+    salida: list[tuple[int, int, Any]] = []
+    for nodo in raiz.iter():
+        if etree.QName(nodo).localname not in _RAICES:
+            continue
+        tipo = nodo.findtext(".//{*}TipoDTE")
+        folio = nodo.findtext(".//{*}Folio")
+        if not tipo or not folio:
+            continue
+        dte = nodo.getparent()  # <DTE>, con la firma
+        salida.append((int(tipo), int(folio), dte if dte is not None else nodo))
+    return salida
+
+
 def _archive(db: Session, customer: Customer, result: Any) -> None:
     """Guarda cada documento del sobre emitido, para poder recuperarlo.
 
@@ -154,22 +177,18 @@ def _archive(db: Session, customer: Customer, result: Any) -> None:
     if not xml_base64:
         return
     try:
-        documentos = parse_documents(base64.b64decode(xml_base64))
+        documentos = _documentos_del_sobre(base64.b64decode(xml_base64))
     except (ParseError, ValueError, etree.XMLSyntaxError):
         return  # boletas y libros tienen su propio archivo
 
     track_id = _track_id(result.get("submission"))
-    for parsed in documentos:
-        doc = parsed.dte
-        nodo = parsed.element.getparent()  # <DTE>, con la firma
-        if nodo is None:
-            nodo = parsed.element
+    for doc_type, folio, nodo in documentos:
         existe = (
             db.query(IssuedDocument)
             .filter(
                 IssuedDocument.customer_id == customer.id,
-                IssuedDocument.doc_type == int(doc.type),
-                IssuedDocument.folio == doc.folio,
+                IssuedDocument.doc_type == doc_type,
+                IssuedDocument.folio == folio,
             )
             .first()
         )
@@ -178,8 +197,8 @@ def _archive(db: Session, customer: Customer, result: Any) -> None:
         db.add(
             IssuedDocument(
                 customer_id=customer.id,
-                doc_type=int(doc.type),
-                folio=doc.folio,
+                doc_type=doc_type,
+                folio=folio,
                 track_id=track_id,
                 xml_encrypted=crypto.encrypt(
                     etree.tostring(nodo, encoding="ISO-8859-1", xml_declaration=True)

@@ -18,6 +18,8 @@ from app.deps.auth import require_dte
 from app.deps.certificate import cert_dte
 from app.schemas.admin import FolioTypeReportOut
 from app.schemas.dte import (
+    CustomsCodeOut,
+    CustomsTablesOut,
     DteBatchDocumentOut,
     DteBatchRequest,
     DteBatchResponse,
@@ -178,6 +180,33 @@ async def issue_settlement(
         folio=result["folio"],
         xml_base64=result["xml_base64"],
         submission=_estado(submission),
+    )
+
+
+@router.get("/customs", response_model=CustomsTablesOut)
+def customs_tables(_customer: Customer = Depends(require_dte)) -> CustomsTablesOut:
+    """Las tablas de Aduana que pide un documento de exportación.
+
+    Van desde el facturador y no copiadas en el ERP: los códigos los fija el
+    Compendio de Aduana, y una tabla vieja en el cliente significa documentos
+    rechazados con folio ya gastado.
+    """
+    from dte_chile import customs_codes as tablas
+
+    def _filas(tabla: dict[str, int]) -> list[CustomsCodeOut]:
+        return [CustomsCodeOut(code=code, name=name) for name, code in tabla.items()]
+
+    return CustomsTablesOut(
+        countries=_filas(tablas.COUNTRIES),
+        ports=_filas(tablas.PORTS),
+        transport_routes=_filas(tablas.TRANSPORT_ROUTES),
+        sale_clauses=_filas(tablas.SALE_CLAUSES),
+        sale_modes=_filas(tablas.SALE_MODES),
+        payment_modes=_filas(tablas.PAYMENT_MODES),
+        package_kinds=_filas(tablas.PACKAGE_TYPES),
+        measure_units=_filas(tablas.MEASURE_UNITS),
+        currencies=sorted(tablas.EXPORT_CURRENCIES),
+        currency_by_iso=dict(tablas.CURRENCY_BY_ISO),
     )
 
 

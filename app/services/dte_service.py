@@ -515,7 +515,11 @@ def issue_export(db: Session, customer: Customer, cert, req) -> dict:
     except ValueError as ex:
         raise DomainError(str(ex)) from ex
 
-    folio, caf = folio_service.next_folio(db, customer.id, req.type, request_id_var.get())
+    if req.folio:  # el ERP ya reservó el folio y numeró su documento con él
+        folio = req.folio
+        caf = folio_service.caf_for_reserved(db, customer.id, req.type, folio)
+    else:
+        folio, caf = folio_service.next_folio(db, customer.id, req.type, request_id_var.get())
     document.folio = folio
     try:
         signed = sign_document(build_export(document, caf, ts), cert)
