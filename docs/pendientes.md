@@ -242,7 +242,17 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
   lo que faltaba. Si el SII no contesta, la respuesta al proveedor se mantiene
   y el registro queda pendiente con reintento horario.
   - **Falta:** crear la factura de proveedor en Odoo desde el documento
-    recibido, y la cesión de facturas (AEC/RPETC), que es trabajo aparte.
+    recibido.
+- **Cesión de facturas** (23-09-2026, motor v0.4.32): `POST /cession` arma el
+  AEC —documento cedido, contrato con la declaración jurada de la Ley 19.983 y
+  sobre, cada uno con su firma— y lo anota en el RPETC
+  (`/cgi_rtc/RTC/RTCAnotEnvio.cgi`); `POST /cession/status` consulta cómo
+  quedó. El documento cedido sale del archivo del facturador: el ERP sólo dice
+  qué folio cede, así que el AEC lleva exactamente lo que se emitió.
+  - En Odoo, botón «Ceder a factoring» en la factura, con las guardas del
+    SII: publicada, aceptada, no pagada, tipo cedible y monto dentro del total.
+  - **Falta:** el asiento contable de la cesión (traspaso del cliente al
+    factoring y gasto financiero), que hoy se registra aparte.
 - **Las tres ramas están empujadas pero sin mergear** a la principal:
   `feat/certificacion-sii` en el motor y en el servicio, `feat/guia-despacho`
   en el conector. Son fast-forward limpios.

@@ -157,6 +157,39 @@ recibido; hoy se registra aparte.
 
 ---
 
+## 5 bis. Cesión de facturas (factoring)
+
+**Quién:** quien decide el financiamiento, con el visto bueno de contabilidad.
+
+Ceder una factura es venderle a un tercero el derecho a cobrarla. Para que el
+deudor quede obligado a pagarle al factoring y no a nosotros, la cesión se
+anota en el **Registro Público Electrónico de Transferencia de Créditos** del
+SII. Lo que se manda es un AEC: la factura original con su timbre, el contrato
+de cesión y la declaración jurada del artículo 3 de la Ley 19.983.
+
+Desde la factura, botón **«Ceder a factoring»**. Antes de dejar ceder se
+comprueba lo que el SII —y el sentido común— exigen:
+
+- la factura está **publicada** y tiene folio del SII;
+- el SII ya la **aceptó** (aceptada o con reparos). Una factura en proceso o
+  rechazada no se cede: sería vender un crédito que puede no existir;
+- **no está pagada**: si ya se cobró, no hay crédito que ceder;
+- es de un tipo cedible (33, 34, 43, 46);
+- el monto cedido no pasa del total del documento;
+- el factoring tiene RUT y correo, porque el SII le avisa por ahí.
+
+La declaración jurada dice que el **recibo de las mercaderías** está a
+disposición del cesionario. Por eso importa haberlo dado (§5): sin recibo, la
+factura no es cedible y la declaración sería falsa.
+
+El AEC queda adjunto a la factura, y «Estado de la cesión» pregunta al SII en
+qué quedó: **EOK** es anotada.
+
+**Lo que no hace el sistema:** el asiento contable de la cesión —el traspaso
+del cliente al factoring y el gasto financiero— se registra aparte.
+
+---
+
 ## 6. Cuadratura de envíos
 
 **Quién:** quien lleva la contabilidad. **Cuándo:** una vez al mes, antes de
@@ -256,6 +289,7 @@ resolución. Para poder acogerse a esto hay que tener el talonario timbrado
 | Intercambio | recibe, responde y registra en el SII | decide aceptar o reclamar |
 | Cuadratura | entrega los datos | cuadra y declara |
 | Contingencias | reintenta y no duplica | decide y deja constancia |
+| Cesión | arma el AEC y lo anota en el SII | decide qué cede y a quién |
 
 ---
 
