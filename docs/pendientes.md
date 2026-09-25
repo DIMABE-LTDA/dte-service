@@ -241,8 +241,19 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
   `WSREGISTRORECLAMODTE`): eso es lo que corre el plazo de la Ley 19.983, y es
   lo que faltaba. Si el SII no contesta, la respuesta al proveedor se mantiene
   y el registro queda pendiente con reintento horario.
-  - **Falta:** crear la factura de proveedor en Odoo desde el documento
-    recibido.
+  - ~~Crear la factura de proveedor desde el documento recibido~~ — **hecho
+    el 24-09-2026** (sin commitear). `/exchange/inspect` entrega ahora el
+    detalle, los montos por impuesto y las referencias, leídos sin recalcular
+    (un documento ajeno puede traer precios con decimales). En Odoo la
+    factura se crea sola y **se publica sólo si calza con su OC**; si no calza
+    o no trae OC, queda en borrador con la alerta y cada diferencia. La nota
+    de crédito salda la factura que corrige. El cruce vive en un módulo
+    puente (`l10n_cl_dte_service_purchase`) que se instala solo con Compras.
+    Detalle en el `MANUAL.md` del conector, §4.1.
+  - **Falta, del mismo trabajo:** la nota de crédito no descuenta lo
+    facturado en la OC (una devolución no reabre la cantidad por facturar), y
+    el descuento o recargo global del documento siempre deja la factura para
+    revisión, porque la OC no lo trae.
 - **Cesión de facturas** (23-09-2026, motor v0.4.32): `POST /cession` arma el
   AEC —documento cedido, contrato con la declaración jurada de la Ley 19.983 y
   sobre, cada uno con su firma— y lo anota en el RPETC
@@ -251,8 +262,13 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
   qué folio cede, así que el AEC lleva exactamente lo que se emitió.
   - En Odoo, botón «Ceder a factoring» en la factura, con las guardas del
     SII: publicada, aceptada, no pagada, tipo cedible y monto dentro del total.
-  - **Falta:** el asiento contable de la cesión (traspaso del cliente al
-    factoring y gasto financiero), que hoy se registra aparte.
+  - ~~El asiento contable de la cesión~~ — **hecho el 25-09-2026** (sin
+    commitear). Al ceder, la cuenta por cobrar pasa del cliente al factoring;
+    la «Liquidación del factoring» compensa su diferencia de precio y su
+    comisión contra la cuenta por pagar, porque el gasto y el IVA van en la
+    factura que emite el factoring; el anticipo y el excedente se concilian
+    en el banco. Si el SII rechaza la cesión, se revierte. Detalle en el
+    `MANUAL.md` del conector, §5.1.
 - **Exportación desde Odoo** (23-09-2026, motor v0.4.33): los tres documentos
   (110/111/112) se emiten desde la factura, con su pestaña de Aduana y los
   códigos del Compendio que publica `GET /dte/customs` —el ERP no lleva copia
