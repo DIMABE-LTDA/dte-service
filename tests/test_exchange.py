@@ -77,6 +77,29 @@ def test_inspect_dice_que_trae_el_sobre(client, db):
     assert [d["addressed_to_me"] for d in datos["documents"]] == [True, False]
 
 
+def test_inspect_entrega_el_detalle_para_registrar_la_compra(client, db):
+    """Con la cabecera sola el ERP no puede armar la factura de proveedor.
+
+    Necesita los montos por impuesto, las líneas con el código del proveedor
+    y las referencias: la OC con que se cruza, o la factura que corrige una nota.
+    """
+    customer = make_customer(db, rut="77262159-0")
+    grant(db, customer, SERVICE_EXCHANGE)
+    sobre = pathlib.Path("tests/fixtures/sii/set_intercambio_77262159-0.xml").read_bytes()
+    payload = {"envelope_base64": base64.b64encode(sobre).decode()}
+
+    r = client.post("/exchange/inspect", json=payload, headers=headers())
+    assert r.status_code == 200, r.text
+    doc = r.json()["documents"][0]
+    assert doc["net_amount"] + doc["exempt_amount"] + doc["vat_amount"] == doc["total_amount"]
+    assert doc["vat_rate"] == 19
+    assert doc["issuer_name"]
+    linea = doc["lines"][0]
+    assert linea["name"] and linea["amount"] > 0
+    assert set(linea) >= {"codes", "quantity", "unit", "unit_price", "exempt_indicator"}
+    assert isinstance(doc["references"], list)
+
+
 def test_inspect_rechaza_un_sobre_ilegible(client, db):
     _setup(db)
     payload = {"envelope_base64": base64.b64encode(b"esto no es XML").decode()}

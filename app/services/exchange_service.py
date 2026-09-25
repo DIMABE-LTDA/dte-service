@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+from dataclasses import asdict
 from zoneinfo import ZoneInfo
 
 from dte_chile.certificate import Certificate
@@ -46,12 +47,13 @@ def inspect(envelope_base64: str, receiver_rut: str) -> dict:
         "receiver_rut": env.receiver_rut,
         "documents": [
             {
-                "doc_type": d.doc_type,
-                "folio": d.folio,
-                "issue_date": d.issue_date,
-                "issuer_rut": d.issuer_rut,
-                "receiver_rut": d.receiver_rut,
-                "total_amount": d.total_amount,
+                **asdict(d),
+                # Los pares (tipo, valor) salen con nombre: un ERP no tiene por
+                # qué saber en qué orden venían.
+                "lines": [
+                    {**asdict(linea), "codes": [{"type": t, "value": v} for t, v in linea.codes]}
+                    for linea in d.lines
+                ],
                 "addressed_to_me": addressed_to(d, receiver_rut),
             }
             for d in env.documents
