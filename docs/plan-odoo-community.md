@@ -5,9 +5,14 @@ documentos tributarios desde **Odoo Community** contra este servicio, y en qué
 orden. Cubre dos repositorios:
 
 - `dte-service` (este) — el facturador.
-- `l10n_cl_dte_service` (`C:\desarrollo\l10n_cl_dte_service`) — el **módulo
-  core** del conector, que en Community es el único responsable de la emisión
-  electrónica: la capa EDI de Odoo no existe fuera de Enterprise.
+- `l10n_cl_dte_service` — el **módulo core** del conector, que en Community es
+  el único responsable de la emisión electrónica: la capa EDI de Odoo no
+  existe fuera de Enterprise. Desde el **28-09-2026** vive en el repositorio
+  unificado `core_community` (DIMABE-LTDA/core_community, rama `19.0`,
+  `C:\desarrollo\python\core_community`), junto con la base propia, la
+  localización de RRHH y la integración con Buk. Su documentación está en
+  `docs/dte/` y su entorno de pruebas en `tools/dte/`. El repositorio
+  anterior, `l10n_cl_dte_service`, ya no se desarrolla.
 
 Escrito el **21-09-2026** a partir de dos auditorías del módulo (cobertura
 funcional y robustez) y una del flujo de certificación. Lo que aquí se afirma
@@ -32,9 +37,11 @@ desde un test unitario de ninguno de los dos lados.
 
 ### El banco de pruebas — **montado el 21-09-2026**
 
-Vive en `l10n_cl_dte_service/e2e` (ver su README). Se levanta con
+Vive en `core_community/tools/dte/e2e` (ver su README; hasta el 28-09-2026
+estaba en `l10n_cl_dte_service/e2e`). Se levanta con
 `node scripts/entorno.js up` y se corre con `npm test`. Odoo queda en el puerto
 8070 para no chocar con la instancia de desarrollo, y el facturador en el 8001.
+El 28-09-2026 la suite completa pasó 66 de 66 en un entorno recién creado.
 
 Cuatro pruebas hoy: la compañía lee su configuración del facturador; una factura
 confirmada emite su DTE, consume **un** folio y queda archivada; el documento no
@@ -162,7 +169,8 @@ comprueba que el reintento no gasta otro folio y recupera el XML.
 
 ## 4. Etapa 2 — Módulo: que lo que ya existe sea correcto
 
-Trabajo en `l10n_cl_dte_service`. Nada nuevo: arreglar lo que hoy engaña.
+Trabajo en `l10n_cl_dte_service` (hoy dentro de `core_community`). Nada
+nuevo: arreglar lo que hoy engaña.
 
 1. **El folio es el número del documento** (D1). Hoy el módulo intenta copiarlo
    sólo si el número está vacío, y al llegar ahí nunca lo está: el folio no se

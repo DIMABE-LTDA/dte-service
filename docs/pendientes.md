@@ -249,7 +249,8 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
     o no trae OC, queda en borrador con la alerta y cada diferencia. La nota
     de crédito salda la factura que corrige. El cruce vive en un módulo
     puente (`l10n_cl_dte_service_purchase`) que se instala solo con Compras.
-    Detalle en el `MANUAL.md` del conector, §4.1.
+    Detalle en el manual del conector (`core_community/docs/dte/MANUAL.md`),
+    §4.1.
   - **Falta, del mismo trabajo:** la nota de crédito no descuenta lo
     facturado en la OC (una devolución no reabre la cantidad por facturar), y
     el descuento o recargo global del documento siempre deja la factura para
