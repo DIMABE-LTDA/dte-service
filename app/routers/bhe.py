@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from app.core.concurrency import run_blocking
 from app.db.models import Customer
 from app.deps.auth import require_bhe
-from app.deps.sii_credential import sii_pwd_bhe
+from app.deps.sii_credential import check_sii_portal_quota, sii_pwd_bhe
 from app.schemas.bhe import BheReceivedOut, BheReceivedRequest, BheReceivedResponse
 from app.services import bhe_service
 
@@ -24,6 +24,7 @@ async def received(
     customer: Customer = Depends(require_bhe),
     password: str = Depends(sii_pwd_bhe),
 ) -> BheReceivedResponse:
+    check_sii_portal_quota(customer.id)
     # El RUT receptor es el del propio cliente (resuelto por el tenant).
     year, month = int(req.period[:4]), int(req.period[4:])
     docs = await run_blocking(bhe_service.list_received, customer.rut, password, year, month)

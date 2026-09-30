@@ -82,10 +82,12 @@ def _clean_db():
 @pytest.fixture(autouse=True)
 def _reset_rate_limiters():
     """Los limitadores son estado global del proceso: aislarlos entre tests."""
+    from app.deps.sii_credential import _portal_limiter
     from app.routers.auth import _login_limiter
     from app.security.auth import _admin_failures
     from app.security.tenant import _customer_quota, _tenant_failures
 
+    _portal_limiter.reset()
     _login_limiter.reset()
     _admin_failures.reset()
     _tenant_failures.reset()

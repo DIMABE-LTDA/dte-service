@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Customer, User
 from app.db.session import get_db
+from app.deps.sii_credential import check_sii_portal_quota
 from app.schemas.admin import (
     CafInfo,
     CafOut,
@@ -35,7 +36,14 @@ from app.schemas.admin import (
     SiiKeyStatus,
     SiiKeyUpload,
 )
-from app.schemas.bhe import BheReceivedOut, BheReceivedRequest, BheReceivedResponse
+from app.schemas.bhe import (
+    BheReceivedOut,
+    BheReceivedRequest,
+    BheReceivedResponse,
+    BteIssuedOut,
+    BteIssuedRequest,
+    BteIssuedResponse,
+)
 from app.schemas.rcv import RcvDocumentOut, RcvDocumentsRequest, RcvDocumentsResponse
 from app.security.auth import admin_access, admin_read_access
 from app.security.service_codes import ALL_SERVICES
@@ -439,6 +447,7 @@ def customer_bhe(
     """BHE de operador: boletas de honorarios recibidas de cualquier cliente usando
     su clave tributaria guardada (para Odoo con X-Admin-Key o un operador con JWT)."""
     customer = _get_customer(db, customer_id)
+    check_sii_portal_quota(customer.id)
     year, month = int(req.period[:4]), int(req.period[4:])
     docs = bhe_service.list_received_for_customer(db, customer, year, month)
     return BheReceivedResponse(
@@ -446,4 +455,25 @@ def customer_bhe(
         period=req.period,
         count=len(docs),
         documents=[BheReceivedOut.model_validate(d) for d in docs],
+    )
+
+
+@router.post("/customers/{customer_id}/bte", response_model=BteIssuedResponse)
+def customer_bte(
+    customer_id: int,
+    req: BteIssuedRequest,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> BteIssuedResponse:
+    """BTE de operador: boletas de terceros que emitió cualquier cliente, usando su
+    clave tributaria guardada (para Odoo con X-Admin-Key o un operador con JWT)."""
+    customer = _get_customer(db, customer_id)
+    check_sii_portal_quota(customer.id)
+    year, month = int(req.period[:4]), int(req.period[4:])
+    docs = bhe_service.list_issued_bte_for_customer(db, customer, year, month)
+    return BteIssuedResponse(
+        issuer_rut=customer.rut,
+        period=req.period,
+        count=len(docs),
+        documents=[BteIssuedOut.model_validate(d) for d in docs],
     )

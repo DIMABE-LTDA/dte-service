@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # Consulta pública de boletas: holgado para el comprador, estrecho para
     # quien quiera tantear montos por fuerza bruta.
     public_lookup_per_minute: int = 20
+    # Consultas al portal web del SII (BHE recibidas, BTE emitidas) por cliente.
+    # Cada una es un login y un scraping con su clave tributaria: sin tope, un
+    # cliente —o un cron mal configurado en Odoo— golpea el portal hasta que el
+    # SII bloquee la clave, y con ella todas las consultas del cliente.
+    sii_portal_queries_per_minute: int = 6
     # Sitio que se imprime en la boleta para que el consumidor la consulte.
     receipt_verification_url: str = ""
     tenant_auth_failures_per_5min: int = 30
