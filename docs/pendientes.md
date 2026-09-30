@@ -3,8 +3,9 @@
 Lo que queda por hacer fuera de la certificación ante el SII, que tiene su
 propio archivo en [`certificacion-sii.md`](certificacion-sii.md).
 
-**Actualizar al avanzar.** Última revisión: **2026-09-15**, corrigiendo el §2, que
-daba por no desplegado algo que lleva meses en producción.
+**Actualizar al avanzar.** Última revisión: **2026-09-30**: el §3 daba por
+abiertos dos puntos del conector ya resueltos, y se cerraron la tabla de
+países de Aduana, el ILA y las BTE emitidas.
 
 ---
 
@@ -160,23 +161,19 @@ Quedó ofrecido y **sin hacer** un script que cargue empresa, certificado, los
 
 ## 3. Conector de Odoo
 
-Verificado por un agente el 2026-09-07 contra la instancia de pruebas
-(`odoo-community-test-odoo-1`, puerto 8169, base `cl_test`). El módulo está
-instalado (19.0.1.4.0) y los 13 campos de configuración están expuestos en el
-formulario de compañía. El manejo de errores es sólido: configuración
-incompleta o servicio caído producen un `UserError` legible, no un traceback, y
-un fallo de emisión al postear no revierte el posteo.
+Vive en `core_community` (DIMABE-LTDA/core_community, rama 19.0) junto con la
+base y RRHH; sus pruebas e2e están en `tools/dte/e2e` y su README manda.
 
-**Bug de gravedad media, sin corregir:** el botón *Probar conexión* no prueba
-las credenciales que se usan para emitir. Siempre llama a `/rcv/documents` con
-las credenciales genéricas de RCV (`dte_service_client.py:150-167`), nunca los
-pares certificación/producción que usa la emisión (`_dte_env_credentials`,
-`dte_service_client.py:97-119`). Una empresa que sólo emita y no use RCV verá
-el botón fallar siempre, aunque su configuración de emisión esté correcta.
-Debería probar el par del ambiente del diario.
-
-**También pendiente:** la guía de despacho (tipo 52) está modelada con
-transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
+- ~~*Probar conexión* no probaba las credenciales de emisión~~ — resuelto:
+  llama a `/me` con el par del ambiente elegido.
+- ~~La guía de despacho nunca se probó de punta a punta~~ — resuelto:
+  `guia.spec.ts` la emite desde el albarán con los datos de la Res. 154.
+- **BHE recibidas y BTE emitidas** (2026-09-30): se registran como factura de
+  proveedor con la retención que informa el SII, vía `/bhe/received` y
+  `/bte/issued`. La consulta real al portal no se ha probado: el cliente de
+  pruebas no tiene clave tributaria y la constructora no tiene boletas.
+- **Pendiente — BHE emitidas propias** (sociedad de profesionales): se conoce
+  la página del SII, no los nombres de sus columnas. Falta una boleta real.
 
 ---
 
@@ -284,15 +281,14 @@ transporte y chofer pero **nunca se probó de punta a punta** desde Odoo.
   - El archivo del facturador sólo reconocía `<Documento>`: **exportaciones y
     liquidaciones no quedaban archivadas** y no se podían recuperar ni
     reimprimir. Corregido para las tres raíces.
-- **Pendiente — la tabla de países de Aduana tiene huecos.** Salta de Argentina
-  (224) a Canadá (226), y faltan 234 y 237-240. No consta si son códigos sin
-  asignar o si se perdieron al transcribir el Anexo 51-9, y adivinarlos sería
-  un documento rechazado con folio gastado. Hay que contrastarla con el anexo
-  **antes de exportar a un país que no esté en la tabla**; en particular, si la
-  empresa exporta a Estados Unidos, eso se cierra primero.
-- **Las tres ramas están empujadas pero sin mergear** a la principal:
-  `feat/certificacion-sii` en el motor y en el servicio, `feat/guia-despacho`
-  en el conector. Son fast-forward limpios.
+- ~~**La tabla de países de Aduana tiene huecos**~~ — **resuelto el
+  2026-09-30** (motor v0.4.37). La primera transcripción perdió las filas del
+  Anexo 51-9 que traen «Abreviatura»: faltaban 24 países, Estados Unidos (225)
+  entre ellos. Se contrastó con el anexo publicado; 237-239 no existen.
+- **ILA y demás impuestos adicionales** (2026-09-30, motor v0.4.36): facturas
+  33 y notas 56/61 con `additional_taxes` e `items[].additional_tax_code`; el
+  libro los informa en `<OtrosImp>`. El plan de Odoo trae el ILA de 18 % con
+  el código 26 (cervezas en el SII); el conector lo envía como 271.
 
 ---
 
