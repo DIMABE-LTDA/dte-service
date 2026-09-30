@@ -7,7 +7,14 @@ import datetime as dt
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
-from dte_chile.book import BookCover, BookLine, NonRecoverableVat, build_book, serialize
+from dte_chile.book import (
+    BookCover,
+    BookLine,
+    NonRecoverableVat,
+    OtherTax,
+    build_book,
+    serialize,
+)
 from dte_chile.certificate import Certificate
 from dte_chile.document_types import TransferType
 from dte_chile.guide_book import (
@@ -69,6 +76,7 @@ def _book_line(line) -> BookLine:
     """
     data = line.model_dump()
     non_recoverable = data.pop("non_recoverable_vat")
+    other_taxes = [OtherTax(**entry) for entry in data.pop("other_taxes")]
     currency = data.pop("currency", None)
     rate = data.pop("exchange_rate", None)
 
@@ -95,6 +103,7 @@ def _book_line(line) -> BookLine:
     return BookLine(
         **data,
         non_recoverable_vat=[NonRecoverableVat(**entry) for entry in non_recoverable],
+        other_taxes=other_taxes,
     )
 
 

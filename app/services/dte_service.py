@@ -26,6 +26,7 @@ from dte_chile.export_invoice import (
 )
 from dte_chile.models import (
     DTE,
+    AdditionalTax,
     Driver,
     GlobalDiscount,
     Issuer,
@@ -104,6 +105,7 @@ def _domain_dte(doc) -> DTE:
         references=[_reference(r) for r in doc.references],
         global_discounts=[GlobalDiscount(**d.model_dump()) for d in doc.global_discounts],
         retentions=[Retention(**r.model_dump()) for r in doc.retentions],
+        additional_taxes=[AdditionalTax(**t.model_dump()) for t in doc.additional_taxes],
         dispatch_type=DispatchType(doc.dispatch_type) if doc.dispatch_type else None,
         transfer_type=TransferType(doc.transfer_type) if doc.transfer_type else None,
         transport=_transport(doc),

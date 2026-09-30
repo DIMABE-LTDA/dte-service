@@ -42,6 +42,9 @@ class ItemIn(BaseModel):
     # Descuento de la línea. Con solo el % basta: el monto se deriva del bruto.
     discount_pct: float = Field(0, ge=0, le=100)
     discount_amount: int | None = Field(None, ge=0)
+    # Impuesto adicional que grava la línea (ILA: 24, 25, 26, 27 o 271). Tiene
+    # que venir declarado en ``additional_taxes`` del documento.
+    additional_tax_code: int | None = None
 
 
 class GlobalDiscountIn(BaseModel):
@@ -93,6 +96,18 @@ class RetentionIn(BaseModel):
     rate: float | None = Field(None, ge=0, le=100)
 
 
+class AdditionalTaxIn(BaseModel):
+    """Impuesto adicional que se suma al total (ILA de bebidas y licores).
+
+    La base es la suma de las líneas con su ``additional_tax_code``. Sin
+    ``amount`` el servicio lo calcula con la tasa.
+    """
+
+    code: int  # TipoImp
+    rate: float = Field(ge=0, le=100)  # TasaImp
+    amount: int | None = Field(None, ge=0)  # MontoImp
+
+
 class ReferenceIn(BaseModel):
     # Código numérico del documento (33, 61, 801...) o el literal "SET": el
     # instructivo del SII exige que la PRIMERA referencia de cada documento del
@@ -114,6 +129,7 @@ class DteIssueRequest(BaseModel):
     references: list[ReferenceIn] = []
     global_discounts: list[GlobalDiscountIn] = []
     retentions: list[RetentionIn] = []
+    additional_taxes: list[AdditionalTaxIn] = []
     # Traslado de bienes: obligatorio en la guía (52), opcional en la factura
     # que ampara el traslado.
     dispatch_type: Literal[1, 2, 3] | None = None  # TipoDespacho
@@ -229,6 +245,7 @@ class DteBatchItemIn(BaseModel):
     references: list[BatchReferenceIn] = []
     global_discounts: list[GlobalDiscountIn] = []
     retentions: list[RetentionIn] = []
+    additional_taxes: list[AdditionalTaxIn] = []
     dispatch_type: Literal[1, 2, 3] | None = None
     transfer_type: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9] | None = None
     transport: TransportIn | None = None

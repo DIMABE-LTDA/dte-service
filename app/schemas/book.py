@@ -11,6 +11,14 @@ from pydantic import BaseModel, Field, model_validator
 from app.schemas.dte import SubmissionResultOut
 
 
+class OtherTaxIn(BaseModel):
+    """Impuesto adicional del documento (<OtrosImp>), p.ej. el ILA."""
+
+    code: int
+    amount: int = Field(ge=0)
+    rate: float | None = Field(None, ge=0, le=100)
+
+
 class NonRecoverableVatIn(BaseModel):
     """IVA sin derecho a crédito (<IVANoRec>), con su motivo.
 
@@ -55,6 +63,8 @@ class BookLineIn(BaseModel):
     commission_net: Decimal = Decimal(0)
     commission_exempt: Decimal = Decimal(0)
     commission_vat: Decimal = Decimal(0)
+    # Impuestos adicionales (ILA...), en pesos: no se usan en exportaciones.
+    other_taxes: list[OtherTaxIn] = []
 
     # --- Moneda extranjera (exportaciones) ---
     # Etiqueta del documento, tal como va en su <TpoMoneda>: "DOLAR USA", etc.
@@ -79,6 +89,11 @@ class BookLineIn(BaseModel):
             self.commission_vat,
             *(e.amount for e in self.non_recoverable_vat),
         )
+        if self.currency and self.other_taxes:
+            raise ValueError(
+                f"la línea {self.doc_type}/{self.folio} está en moneda extranjera y trae"
+                " impuestos adicionales: el ILA sólo se declara en documentos en pesos"
+            )
         if self.currency and self.exchange_rate is None:
             raise ValueError(
                 f"la línea {self.doc_type}/{self.folio} declara moneda"
