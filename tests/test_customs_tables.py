@@ -21,6 +21,8 @@ def test_las_tablas_de_aduana_salen_del_facturador(client, db):
     assert {"code": 1, "name": "A FIRME"} in tablas["sale_modes"]
     assert any(p["name"] == "AEREO" for p in tablas["transport_routes"])
     assert len(tablas["countries"]) > 100
+    # Estados Unidos faltaba en la tabla (motor < v0.4.37): no se podía exportar allá.
+    assert {"code": 225, "name": "ESTADOS UNIDOS DE AMERICA"} in tablas["countries"]
     assert len(tablas["ports"]) > 100
 
 
