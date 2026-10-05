@@ -2,13 +2,17 @@
 
 Servicio **FastAPI multi-tenant** que expone el motor de facturación electrónica
 `dte_chile` (SII Chile) por HTTP: RCV (conciliación con Odoo), emisión de DTE,
-libro IECV y acuses de intercambio. Cada cliente tiene su **certificado**, su
-**API key** y sus **servicios** habilitados.
+libro IECV y acuses de intercambio. Cada cliente tiene su **certificado**, sus
+**claves API** (una por consumidor, con los servicios que tiene permitidos) y
+sus **servicios** contratados.
 
 ## Arquitectura
 
 - **Multi-tenant:** el request trae headers `apiKey` + `customerCode`; cada endpoint
   exige un `service_code`. Se resuelve el cliente y se inyecta su `Certificate`.
+  La `apiKey` tiene dos formas que conviven (ver «Claves API por cliente» más
+  abajo): la nueva (`key_id.secret`, una clave con varios servicios permitidos)
+  y la vieja (una apiKey por servicio, deprecada pero vigente).
 - **Certificados/CAF cifrados** en BD (Fernet, `DTE_FERNET_KEYS`).
 - **Folios en BD** (`SELECT ... FOR UPDATE`) → asignación segura entre workers/hosts.
 - **Ambiente SII por cliente** (Maullín/Palena).
@@ -81,12 +85,15 @@ git con el secreto **`ENGINE_TOKEN`** (PAT fine-grained / deploy key con lectura
 | Consumo de folios (RCOF) | `POST /boletas/folio-report` | `apiKey` + `customerCode` (DTE) |
 | Intercambio | `POST /exchange/{ack,result,receipts}` | `apiKey` + `customerCode` (EXCHANGE) |
 | Admin (datos maestros) | `POST /admin/customers[...]` | `X-Admin-Key` |
+| Admin: claves API del cliente | `GET/POST /admin/customers/{id}/api-keys`, `PATCH .../api-keys/{kid}/services`, `DELETE .../api-keys/{kid}` | `X-Admin-Key` |
 | Portal: auth | `POST /auth/login`, `GET /auth/me` | público / `Bearer` |
 | Portal: usuarios | `POST /users`, `GET /users`, `PATCH /users/{id}/active` | `Bearer` (superadmin) |
 | Portal: auditoría | `GET /audit/requests` (+`?format=csv`), `GET /audit/changes` | `Bearer` |
 
 Flujo de alta (admin): crear cliente → subir certificado → subir CAF (crea el
-puntero de folios) → habilitar servicios (devuelve la apikey una vez).
+puntero de folios) → habilitar servicios (contratar, `POST .../services`) →
+crear una clave API con los servicios que va a usar ese consumidor
+(`POST .../api-keys`, devuelve la clave completa una vez).
 
 ## Portal: autenticación, roles y auditoría
 
@@ -107,6 +114,51 @@ Los portales usan **JWT** (`POST /auth/login` → `access_token`; enviar
   servicio, endpoint, IP, resultado, latencia) sin secretos. Consultable en
   `GET /audit/requests` (el `client` solo ve lo suyo) y exportable a CSV.
 - **Audit de cambios** → `AdminAudit` (quién modificó qué), en `GET /audit/changes`.
+
+### Claves API por cliente (`apiKey` + `customerCode`)
+
+**Una clave por consumidor, con los servicios que tiene permitidos** — reemplaza el
+esquema anterior de una `apiKey` por servicio. Formato `<key_id>.<secret>` (mismo
+patrón que las claves de máquina de abajo): `key_id` es un prefijo público e
+indexado, `secret` se guarda hasheado (argon2) y nunca se ve de nuevo.
+
+- Los servicios de una clave son siempre un **subconjunto de los contratados**
+  por el cliente (`POST /admin/customers/{id}/services`, que sigue siendo la
+  habilitación/contrato).
+- **Credencial inválida o revocada → 401.** **Credencial válida pero sin ese
+  servicio → 403** (mensaje distinto; no cuenta como intento fallido del
+  limitador por IP).
+- `last_used_at` se actualiza con granularidad de un minuto (no en cada
+  request), y la auditoría (`RequestLog.meta.api_key_name`) registra el
+  **nombre** de la clave que hizo cada llamada.
+
+```bash
+# Crear (devuelve la clave completa key_id.secret UNA sola vez):
+curl -X POST http://localhost:8000/admin/customers/<id>/api-keys \
+  -H "X-Admin-Key: <clave>" -H "Content-Type: application/json" \
+  -d '{"name":"Odoo producción","service_codes":["<SERVICE_DTE>","<SERVICE_RCV>"]}'
+# Listar (sin secretos) / cambiar servicios / revocar:
+curl http://localhost:8000/admin/customers/<id>/api-keys -H "X-Admin-Key: <clave>"
+curl -X PATCH http://localhost:8000/admin/customers/<id>/api-keys/<kid>/services \
+  -H "X-Admin-Key: <clave>" -H "Content-Type: application/json" \
+  -d '{"service_codes":["<SERVICE_DTE>"]}'
+curl -X DELETE http://localhost:8000/admin/customers/<id>/api-keys/<kid> -H "X-Admin-Key: <clave>"
+```
+
+**Compatibilidad (camino viejo, deprecado):** una `apiKey` que NO tiene el
+formato `key_id.secret` se sigue validando contra el `CustomerService.apikey_hash`
+de ese (cliente, servicio) — `POST /admin/customers/{id}/services` sigue
+rotándola/generándola. Las claves ya emitidas así **siguen funcionando** sin que
+nadie tenga que reconfigurar nada; no se deben emitir más por ese camino.
+
+**Contrato para un consumidor (p.ej. el conector de Odoo):**
+
+| | |
+|---|---|
+| Headers | `customerCode: <key>` + `apiKey: <key_id>.<secret>` |
+| 401 | credencial inexistente, mal formada, de otro cliente, revocada o vencida |
+| 403 | credencial válida, pero el servicio del endpoint no está entre los permitidos de la clave |
+| 429 | demasiados intentos fallidos desde la IP, o cuota por minuto del cliente excedida |
 
 ### Consultar el RCV (compras/ventas) de un cliente
 

@@ -1,5 +1,7 @@
 import type {
   AdminAudit,
+  ApiKey,
+  ApiKeyCreated,
   BheResponse,
   CafInfo,
   CertificateInfo,
@@ -251,6 +253,16 @@ export const api = {
     req<ServiceGrantResult>(`/admin/customers/${id}/services`, body({ service_code, apikey })),
   revokeService: (id: number, code: string) =>
     req(`/admin/customers/${id}/services/${code}`, { method: "DELETE" }),
+  apiKeys: (id: number) => req<ApiKey[]>(`/admin/customers/${id}/api-keys`),
+  createApiKey: (id: number, name: string, service_codes: string[]) =>
+    req<ApiKeyCreated>(`/admin/customers/${id}/api-keys`, body({ name, service_codes })),
+  setApiKeyServices: (id: number, apiKeyId: number, service_codes: string[]) =>
+    req<ApiKey>(`/admin/customers/${id}/api-keys/${apiKeyId}/services`, {
+      method: "PATCH",
+      body: JSON.stringify({ service_codes }),
+    }),
+  revokeApiKey: (id: number, apiKeyId: number) =>
+    req<ApiKey>(`/admin/customers/${id}/api-keys/${apiKeyId}`, { method: "DELETE" }),
   uploadCert: (id: number, file_base64: string, password: string) =>
     req(`/admin/customers/${id}/certificate`, body({ file_base64, password })),
   uploadCaf: (id: number, xml_base64: string) =>

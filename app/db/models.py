@@ -95,6 +95,9 @@ class Customer(Base):
     services: Mapped[list[CustomerService]] = relationship(
         back_populates="customer", cascade="all, delete-orphan"
     )
+    api_keys: Mapped[list[CustomerApiKey]] = relationship(
+        back_populates="customer", cascade="all, delete-orphan"
+    )
     sii_credential: Mapped[CustomerSiiCredential | None] = relationship(
         back_populates="customer", cascade="all, delete-orphan", uselist=False
     )
@@ -169,6 +172,51 @@ class CustomerService(Base):
 
     customer: Mapped[Customer] = relationship(back_populates="services")
     service: Mapped[Service] = relationship()
+
+
+class CustomerApiKey(Base):
+    """Clave API por cliente, con los servicios que tiene permitidos.
+
+    Reemplaza el esquema «una apiKey por servicio» (``CustomerService.apikey_hash``,
+    que sigue funcionando pero queda deprecado): una sola clave puede autenticar
+    varios servicios a la vez. Formato ``<key_id>.<secret>`` (mismo patrón que
+    ``MachineKey``): ``key_id`` es un prefijo público e indexado que permite
+    ubicar la fila y verificar un único hash argon2, sin recorrer todas las claves.
+
+    Los servicios de una clave son siempre un subconjunto de los que el cliente
+    tiene **contratados** (``CustomerService``, por habilitación) — ver
+    ``app/services/api_key_service.py``.
+    """
+
+    __tablename__ = "customer_api_key"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))  # etiqueta legible (p.ej. "Odoo producción")
+    key_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)  # prefijo público
+    secret_hash: Mapped[str] = mapped_column(String)  # argon2 del secreto
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    last_used_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    # Vencimiento opcional (p.ej. credenciales temporales de un integrador externo).
+    expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    # Soft delete unificado: NULL = activa; con fecha = revocada.
+    deleted_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+    customer: Mapped[Customer] = relationship(back_populates="api_keys")
+    services: Mapped[list[Service]] = relationship(
+        secondary="customer_api_key_service", order_by="Service.name"
+    )
+
+
+class CustomerApiKeyService(Base):
+    """m2m: servicios permitidos de una ``CustomerApiKey`` (tabla de asociación)."""
+
+    __tablename__ = "customer_api_key_service"
+    __table_args__ = (UniqueConstraint("api_key_id", "service_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    api_key_id: Mapped[int] = mapped_column(ForeignKey("customer_api_key.id", ondelete="CASCADE"))
+    service_id: Mapped[int] = mapped_column(ForeignKey("service.id", ondelete="CASCADE"))
 
 
 class Caf(Base):

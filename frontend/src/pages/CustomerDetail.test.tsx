@@ -16,6 +16,10 @@ vi.mock("../api", () => ({
     siiKeyStatus: vi.fn(),
     revokeService: vi.fn(),
     deleteSiiKey: vi.fn(),
+    apiKeys: vi.fn(),
+    createApiKey: vi.fn(),
+    setApiKeyServices: vi.fn(),
+    revokeApiKey: vi.fn(),
   },
 }));
 vi.mock("../auth", async (orig) => {
@@ -61,6 +65,7 @@ beforeEach(() => {
   (api.siiKeyStatus as Mock).mockResolvedValue({ configured: true });
   (api.revokeService as Mock).mockResolvedValue({});
   (api.deleteSiiKey as Mock).mockResolvedValue({});
+  (api.apiKeys as Mock).mockResolvedValue([]);
 });
 
 describe("CustomerDetail · acciones irreversibles", () => {
