@@ -3,9 +3,13 @@
 Lo que queda por hacer fuera de la certificación ante el SII, que tiene su
 propio archivo en [`certificacion-sii.md`](certificacion-sii.md).
 
-**Actualizar al avanzar.** Última revisión: **2026-09-30**: el §3 daba por
-abiertos dos puntos del conector ya resueltos, y se cerraron la tabla de
-países de Aduana, el ILA y las BTE emitidas.
+**Actualizar al avanzar.** Última revisión: **2026-10-05**: autenticación de
+clientes rediseñada a una `apiKey` por consumidor con los servicios que tiene
+permitidos (antes, una por servicio) — ver «Claves API por cliente» en el
+README. El esquema viejo sigue vigente (deprecado) para no cortar a nadie.
+Revisión anterior, **2026-09-30**: el §3 daba por abiertos dos puntos del
+conector ya resueltos, y se cerraron la tabla de países de Aduana, el ILA y
+las BTE emitidas.
 
 ---
 

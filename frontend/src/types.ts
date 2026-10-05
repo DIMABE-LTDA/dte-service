@@ -67,6 +67,24 @@ export interface ServiceGrantResult {
   apikey: string | null; // presente solo cuando el servidor la generó
 }
 
+// Clave API por cliente (una clave, con los servicios que tiene permitidos).
+// Reemplaza la apiKey por servicio de `GrantedService`/`grant` — ese camino
+// sigue funcionando pero queda deprecado.
+export interface ApiKey {
+  id: number;
+  name: string;
+  key_id: string; // prefijo público (no es secreto)
+  service_codes: string[];
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  deleted_at: string | null; // null = activa; con fecha = revocada
+}
+
+export interface ApiKeyCreated extends ApiKey {
+  api_key: string; // "key_id.secret" completo; se devuelve UNA sola vez
+}
+
 export interface CertificateInfo {
   id: number;
   due_date: string;

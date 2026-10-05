@@ -1,9 +1,20 @@
 """Autenticación multi-tenant por headers + resolución del cliente.
 
-Mirror del patrón .NET: el request trae ``apiKey`` y ``customerCode`` y cada
-endpoint exige un ``service_code``. Se valida que el cliente exista, tenga ese
-servicio habilitado y la apikey calce (hash). La auditoría la escribe el
-middleware de access-log; este dep solo fija el principal en ``request.state``.
+El request trae ``customerCode`` y ``apiKey``, y cada endpoint exige un
+``service_code``. Hay dos formas de ``apiKey`` que conviven:
+
+- **Nueva (recomendada):** ``<key_id>.<secret>`` → ``CustomerApiKey``, una clave
+  por consumidor con los servicios que tiene permitidos (subconjunto de los
+  contratados por el cliente, en ``CustomerService``). Credencial inválida → 401;
+  credencial válida pero sin ese servicio → **403** (mensaje distinto, no cuenta
+  como intento fallido).
+- **Vieja (deprecada):** cualquier otro valor → se busca la fila
+  ``CustomerService`` de (cliente, servicio) y se verifica su ``apikey_hash``
+  (mirror del patrón .NET: una apiKey por servicio). Sigue funcionando para no
+  cortar a nadie, pero no se deben emitir más claves así.
+
+La auditoría la escribe el middleware de access-log; este dep solo fija el
+principal y, para la clave nueva, el nombre de la clave en ``request.state``.
 """
 
 from __future__ import annotations
@@ -19,6 +30,7 @@ from app.db.session import get_db
 from app.security.apikeys import dummy_verify, verify_apikey
 from app.security.ratelimit import make_limiter
 from app.security.roles import Role
+from app.services import api_key_service
 from app.services.certification_service import certification_set_var
 
 # Solo cuenta FALLOS de autenticación por IP: una IP que acumula fallos queda
@@ -52,26 +64,56 @@ def tenant_for(service_code: str) -> Callable[..., Customer]:
             raise HTTPException(
                 status_code=429, detail="demasiados intentos fallidos; reintenta más tarde"
             )
-        cs = (
-            db.query(CustomerService)
-            .join(CustomerService.service)
-            .join(CustomerService.customer)
-            .filter(
-                Customer.key == customer_code,
-                Service.code == service_code,
-                Customer.deleted_at.is_(None),  # un cliente archivado no autentica
-            )
+
+        customer = (
+            db.query(Customer)
+            .filter(Customer.key == customer_code, Customer.deleted_at.is_(None))
             .first()
         )
-        if cs is None:
+        if customer is None:
             dummy_verify()  # tiempo constante: customerCode inexistente no responde antes
-        if cs is None or not verify_apikey(api_key, cs.apikey_hash):
             _tenant_failures.record(ip)
             raise HTTPException(status_code=401, detail="credenciales inválidas")
 
-        # La cuota se cobra DESPUÉS de autenticar: quien no acierta la credencial
-        # no debe poder gastarle la cuota a un cliente legítimo desde fuera.
-        if _customer_quota is not None and _customer_quota.hit(str(cs.customer_id)):
+        key_name: str | None = None
+        contract = (
+            db.query(CustomerService)
+            .join(CustomerService.service)
+            .filter(CustomerService.customer_id == customer.id, Service.code == service_code)
+            .first()
+        )
+        # Camino nuevo: una clave con los servicios que tiene permitidos. Una
+        # apiKey vieja que traiga un punto (las cargadas a mano desde .NET) no
+        # calza aquí y sigue por el camino viejo.
+        api_key_row = (
+            api_key_service.authenticate(db, customer, api_key) if "." in api_key else None
+        )
+        if api_key_row is not None:
+            # El servicio tiene que estar permitido en la clave Y seguir
+            # contratado: quitarle un servicio al cliente no toca sus claves.
+            allowed = {s.code for s in api_key_row.services}
+            if contract is None or service_code not in allowed:
+                # Credencial VÁLIDA, sin ese permiso: no es un intento fallido.
+                raise HTTPException(
+                    status_code=403,
+                    detail=f'la clave "{api_key_row.name}" no tiene autorizado este servicio',
+                )
+            api_key_service.touch_last_used(db, api_key_row)
+            key_name = api_key_row.name
+        else:
+            # Camino viejo (deprecado): una apiKey por servicio.
+            if contract is None:
+                dummy_verify()
+                _tenant_failures.record(ip)
+                raise HTTPException(status_code=401, detail="credenciales inválidas")
+            if not verify_apikey(api_key, contract.apikey_hash):
+                _tenant_failures.record(ip)
+                raise HTTPException(status_code=401, detail="credenciales inválidas")
+
+        # La cuota se cobra DESPUÉS de autenticar (identidad Y permiso): quien no
+        # acierta la credencial, o acierta pero no tiene el servicio, no debe
+        # poder gastarle la cuota a un cliente legítimo desde fuera.
+        if _customer_quota is not None and _customer_quota.hit(str(customer.id)):
             raise HTTPException(
                 status_code=429,
                 detail="cuota por minuto excedida para este cliente; reintenta en un momento",
@@ -82,7 +124,9 @@ def tenant_for(service_code: str) -> Callable[..., Customer]:
         # asocia después, para que la captura no dependa de recordar ponerla.
         certification_set_var.set((certification_set or "").strip() or None)
 
-        request.state.principal = ("customer", cs.customer_id, str(Role.CLIENT))
-        return cs.customer
+        if key_name is not None:
+            request.state.audit_meta = {"api_key_name": key_name}
+        request.state.principal = ("customer", customer.id, str(Role.CLIENT))
+        return customer
 
     return _dep

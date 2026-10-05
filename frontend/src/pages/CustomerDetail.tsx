@@ -8,7 +8,14 @@ import IssuerProfileCard from "../components/IssuerProfileCard";
 import Modal from "../components/Modal";
 import { useApi } from "../hooks/useApi";
 import { useToast } from "../toast";
-import type { BheResponse, CafInfo, CertificateInfo, GrantedService, RcvResponse } from "../types";
+import type {
+  ApiKey,
+  BheResponse,
+  CafInfo,
+  CertificateInfo,
+  GrantedService,
+  RcvResponse,
+} from "../types";
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -23,7 +30,7 @@ const money = (n: number) => "$" + n.toLocaleString("es-CL");
 // El backend usa período AAAAMM; el selector <input type="month"> da "AAAA-MM".
 const toPeriod = (month: string) => month.replace("-", "");
 
-type ModalKind = "grant" | "cert" | "caf" | "sii" | "rcv" | "bhe" | null;
+type ModalKind = "grant" | "apikey" | "cert" | "caf" | "sii" | "rcv" | "bhe" | null;
 
 export default function CustomerDetail() {
   const { id } = useParams();
@@ -32,15 +39,16 @@ export default function CustomerDetail() {
   const writable = canWrite(user?.role);
 
   const { data, loading, error, reload } = useApi(async () => {
-    const [customer, granted, certs, cafs, services, siiKey] = await Promise.all([
+    const [customer, granted, certs, cafs, services, siiKey, apiKeys] = await Promise.all([
       api.customer(cid),
       api.customerServices(cid),
       api.customerCerts(cid),
       api.customerCafs(cid),
       api.services(),
       api.siiKeyStatus(cid),
+      api.apiKeys(cid),
     ]);
-    return { customer, granted, certs, cafs, services, siiKey };
+    return { customer, granted, certs, cafs, services, siiKey, apiKeys };
   }, [cid]);
 
   const [modal, setModal] = useState<ModalKind>(null);
@@ -50,6 +58,10 @@ export default function CustomerDetail() {
   const [grantedKey, setGrantedKey] = useState<string | null>(null);
   const [grantSvc, setGrantSvc] = useState("");
   const [grantKey, setGrantKey] = useState("");
+  const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyServices, setNewKeyServices] = useState<string[]>([]);
+  const [createdApiKey, setCreatedApiKey] = useState<string | null>(null);
+  const [confirmRevokeKey, setConfirmRevokeKey] = useState<ApiKey | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
   const [certPass, setCertPass] = useState("");
   const [cafFile, setCafFile] = useState<File | null>(null);
@@ -80,8 +92,10 @@ export default function CustomerDetail() {
   // La apiKey se ve UNA vez y el aviso se pinta al principio de la página: si
   // el operador estaba abajo, se lo perdía sin enterarse.
   useEffect(() => {
-    if (grantedKey) keyNotice.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [grantedKey]);
+    if (grantedKey || createdApiKey) {
+      keyNotice.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [grantedKey, createdApiKey]);
 
   function openModal(kind: Exclude<ModalKind, null>) {
     setActionError("");
@@ -94,6 +108,17 @@ export default function CustomerDetail() {
     setGrantKey("");
     setGrantedKey(null);
     openModal("grant");
+  }
+  function openApiKey() {
+    setNewKeyName("");
+    setNewKeyServices([]);
+    setCreatedApiKey(null);
+    openModal("apikey");
+  }
+  function toggleNewKeyService(code: string) {
+    setNewKeyServices((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
   }
   function openCert() {
     setCertFile(null);
@@ -131,6 +156,36 @@ export default function CustomerDetail() {
         return reload();
       })
       .catch((err) => setModalError((err as Error).message))
+      .finally(() => setBusy(false));
+  }
+  function createApiKey(e: FormEvent) {
+    e.preventDefault();
+    setModalError("");
+    setCreatedApiKey(null);
+    setBusy(true);
+    api
+      .createApiKey(cid, newKeyName, newKeyServices)
+      .then((res) => {
+        toast.ok("Clave creada.");
+        setCreatedApiKey(res.api_key);
+        setModal(null);
+        return reload();
+      })
+      .catch((err) => setModalError((err as Error).message))
+      .finally(() => setBusy(false));
+  }
+  function revokeApiKey() {
+    if (!confirmRevokeKey) return;
+    setActionError("");
+    setBusy(true);
+    api
+      .revokeApiKey(cid, confirmRevokeKey.id)
+      .then(() => {
+        toast.ok(`Clave "${confirmRevokeKey.name}" revocada.`);
+        setConfirmRevokeKey(null);
+        return reload();
+      })
+      .catch((err) => avisar(err))
       .finally(() => setBusy(false));
   }
   function deleteCert() {
@@ -264,7 +319,7 @@ export default function CustomerDetail() {
     if (error) return <p className="error">{error}</p>;
     return null;
   }
-  const { customer, granted, certs, cafs, services, siiKey } = data;
+  const { customer, granted, certs, cafs, services, siiKey, apiKeys } = data;
 
   // Lo que la ficha tiene que responder antes que nada: ¿este cliente puede
   // emitir, y si no, qué le falta? Antes había que leer las cinco tarjetas y
@@ -390,6 +445,26 @@ export default function CustomerDetail() {
           </div>
         </div>
       )}
+      {createdApiKey && (
+        <div className="notice ok" ref={keyNotice}>
+          Clave creada. Copia la <strong>apiKey</strong> ahora — no se vuelve a mostrar:
+          <div className="secret">
+            <span className="code">{createdApiKey}</span>
+            <button
+              className="secondary sm"
+              type="button"
+              onClick={() => navigator.clipboard?.writeText(createdApiKey)}
+            >
+              <Icon name="copy" />
+              Copiar
+            </button>
+            <button className="btn-link" type="button" onClick={() => setCreatedApiKey(null)}>
+              <Icon name="x" />
+              Ya la copié
+            </button>
+          </div>
+        </div>
+      )}
 
       <IssuerProfileCard customer={customer} writable={writable} onSaved={reload} />
 
@@ -481,11 +556,16 @@ export default function CustomerDetail() {
               </button>
             )}
           </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Lo que el cliente tiene <strong>contratado</strong>. Una clave API (abajo) sólo puede
+            incluir servicios de esta lista.
+          </p>
           <table>
             <thead>
               <tr>
                 <th>Servicio</th>
                 <th>Código</th>
+                <th />
                 {writable && <th />}
               </tr>
             </thead>
@@ -494,6 +574,17 @@ export default function CustomerDetail() {
                 <tr key={s.service_code}>
                   <td>{s.name}</td>
                   <td className="muted">{s.service_code}</td>
+                  <td>
+                    {/* Toda apikey_hash de CustomerService sigue siendo válida por el
+                        camino viejo (deprecado): se marca para que se sepa que convive
+                        con las claves nuevas de abajo. */}
+                    <span
+                      className="badge neutral"
+                      title="También autentica con la apiKey vieja de este servicio (deprecada)"
+                    >
+                      heredada
+                    </span>
+                  </td>
                   {writable && (
                     <td>
                       <button
@@ -510,7 +601,7 @@ export default function CustomerDetail() {
               ))}
               {granted.length === 0 && (
                 <tr>
-                  <td colSpan={writable ? 3 : 2} className="muted">
+                  <td colSpan={writable ? 4 : 3} className="muted">
                     Sin servicios habilitados.
                   </td>
                 </tr>
@@ -564,6 +655,81 @@ export default function CustomerDetail() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Credenciales: una apiKey por consumidor, con los servicios que tiene
+          permitidos. Reemplaza la apiKey por servicio de arriba. */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Credenciales</h2>
+          <span className="spacer" />
+          {writable && (
+            <button onClick={openApiKey} disabled={granted.length === 0}>
+              <Icon name="plus" />
+              Crear clave
+            </button>
+          )}
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Una apiKey por consumidor (p.ej. «Odoo producción»), con los servicios que tiene
+          permitidos. El formato es <span className="code">key_id.secret</span>; sólo se muestra
+          completa al crearla.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Servicios</th>
+              <th>Creada</th>
+              <th>Último uso</th>
+              <th>Estado</th>
+              {writable && <th />}
+            </tr>
+          </thead>
+          <tbody>
+            {apiKeys.map((k) => (
+              <tr key={k.id}>
+                <td>
+                  {k.name} <span className="muted code">{k.key_id}</span>
+                </td>
+                <td className="muted">{k.service_codes.join(", ")}</td>
+                <td>{new Date(k.created_at).toLocaleString("es-CL")}</td>
+                <td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString("es-CL") : "—"}</td>
+                <td>
+                  <span className={`badge ${k.deleted_at ? "warn" : "ok"}`}>
+                    {k.deleted_at ? "revocada" : "activa"}
+                  </span>
+                </td>
+                {writable && (
+                  <td>
+                    {!k.deleted_at && (
+                      <button
+                        className="btn-link danger"
+                        type="button"
+                        onClick={() => setConfirmRevokeKey(k)}
+                      >
+                        <Icon name="revoke" />
+                        Revocar
+                      </button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+            {apiKeys.length === 0 && (
+              <tr>
+                <td colSpan={writable ? 6 : 5} className="muted">
+                  Sin claves creadas.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {granted.length === 0 && (
+          <p className="muted" style={{ marginBottom: 0 }}>
+            Para crear una clave, primero hay que habilitar al menos un servicio contratado.
+          </p>
+        )}
       </div>
 
       {/* CAF / folios — a todo el ancho: es la única tabla larga. */}
@@ -664,6 +830,78 @@ export default function CustomerDetail() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {modal === "apikey" && (
+        <Modal
+          title="Crear clave API"
+          onClose={close}
+          footer={
+            <>
+              <button className="secondary" type="button" onClick={close} disabled={busy}>
+                <Icon name="x" />
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                form="apikey-form"
+                disabled={busy || !newKeyName.trim() || newKeyServices.length === 0}
+              >
+                <Icon name="check" />
+                {busy ? "Creando…" : "Crear"}
+              </button>
+            </>
+          }
+        >
+          <form id="apikey-form" className="form-grid" onSubmit={createApiKey}>
+            {modalError && <p className="error">{modalError}</p>}
+            <div className="field">
+              <label>Nombre</label>
+              <input
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="p.ej. Odoo producción"
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Servicios (sólo los habilitados del cliente)</label>
+              {granted.map((s) => (
+                <label
+                  key={s.service_code}
+                  style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={newKeyServices.includes(s.service_code)}
+                    onChange={() => toggleNewKeyService(s.service_code)}
+                  />
+                  {s.name}
+                </label>
+              ))}
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {confirmRevokeKey && (
+        <ConfirmModal
+          title="Revocar clave"
+          danger
+          busy={busy}
+          confirmLabel="Revocar"
+          confirmIcon="revoke"
+          onClose={() => setConfirmRevokeKey(null)}
+          onConfirm={revokeApiKey}
+          message={
+            <>
+              ¿Revocar la clave <strong>{confirmRevokeKey.name}</strong>? Su sistema empezará a
+              recibir <strong>401</strong> de inmediato en todos los servicios que tenía permitidos,
+              y no se puede deshacer: hay que crear una clave nueva y reconfigurar el sistema del
+              cliente.
+            </>
+          }
+        />
       )}
 
       {modal === "cert" && (

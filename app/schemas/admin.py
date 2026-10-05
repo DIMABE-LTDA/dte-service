@@ -144,6 +144,33 @@ class GrantedServiceOut(BaseModel):
     name: str
 
 
+class ApiKeyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    service_codes: list[str] = Field(min_length=1)
+    expires_at: dt.datetime | None = None
+
+
+class ApiKeyServicesUpdate(BaseModel):
+    service_codes: list[str] = Field(min_length=1)
+
+
+class ApiKeyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    key_id: str  # prefijo público (no es secreto)
+    service_codes: list[str]
+    created_at: dt.datetime
+    last_used_at: dt.datetime | None = None
+    expires_at: dt.datetime | None = None
+    deleted_at: dt.datetime | None = None  # NULL = activa; con fecha = revocada
+
+
+class ApiKeyCreated(ApiKeyOut):
+    api_key: str  # ``key_id.secret`` completo; se devuelve UNA sola vez
+
+
 class CertificateInfo(BaseModel):
     id: int
     due_date: dt.date

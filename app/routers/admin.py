@@ -14,10 +14,14 @@ import datetime as dt
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from app.db.models import Customer, User
+from app.db.models import Customer, CustomerApiKey, User
 from app.db.session import get_db
 from app.deps.sii_credential import check_sii_portal_quota
 from app.schemas.admin import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyOut,
+    ApiKeyServicesUpdate,
     CafInfo,
     CafOut,
     CafUpload,
@@ -48,6 +52,7 @@ from app.schemas.rcv import RcvDocumentOut, RcvDocumentsRequest, RcvDocumentsRes
 from app.security.auth import admin_access, admin_read_access
 from app.security.service_codes import ALL_SERVICES
 from app.services import (
+    api_key_service,
     audit_service,
     bhe_service,
     certificate_service,
@@ -415,6 +420,99 @@ def revoke_service(
         db, _actor_id(actor), "service.revoke", "customer", str(customer.id), service_code
     )
     return ServiceGrantOut(service_code=service_code, granted=False)
+
+
+def _api_key_out(row: CustomerApiKey) -> ApiKeyOut:
+    return ApiKeyOut(
+        id=row.id,
+        name=row.name,
+        key_id=row.key_id,
+        service_codes=sorted(s.code for s in row.services),
+        created_at=row.created_at,
+        last_used_at=row.last_used_at,
+        expires_at=row.expires_at,
+        deleted_at=row.deleted_at,
+    )
+
+
+@router.get("/customers/{customer_id}/api-keys", response_model=list[ApiKeyOut])
+def list_api_keys(
+    customer_id: int,
+    include_deleted: bool = Query(default=False),
+    actor: User | None = Depends(admin_read_access),
+    db: Session = Depends(get_db),
+) -> list[ApiKeyOut]:
+    customer = _get_customer(db, customer_id)
+    rows = api_key_service.list_keys_for(db, customer, include_deleted=include_deleted)
+    return [_api_key_out(r) for r in rows]
+
+
+@router.post("/customers/{customer_id}/api-keys", response_model=ApiKeyCreated)
+def create_api_key(
+    customer_id: int,
+    data: ApiKeyCreate,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> ApiKeyCreated:
+    customer = _get_customer(db, customer_id)
+    row, raw_key = api_key_service.create_key(
+        db, customer, data.name, data.service_codes, expires_at=data.expires_at, commit=False
+    )
+    audit_service.record_change(
+        db,
+        _actor_id(actor),
+        "api_key.create",
+        "customer",
+        str(customer.id),
+        f"{row.name} ({', '.join(data.service_codes)})",
+    )
+    out = _api_key_out(row)
+    return ApiKeyCreated(**out.model_dump(), api_key=raw_key)
+
+
+def _get_api_key(db: Session, customer: Customer, api_key_id: int) -> CustomerApiKey:
+    row = api_key_service.get_key(db, customer, api_key_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="clave no encontrada")
+    return row
+
+
+@router.patch("/customers/{customer_id}/api-keys/{api_key_id}/services", response_model=ApiKeyOut)
+def update_api_key_services(
+    customer_id: int,
+    api_key_id: int,
+    data: ApiKeyServicesUpdate,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> ApiKeyOut:
+    customer = _get_customer(db, customer_id)
+    row = _get_api_key(db, customer, api_key_id)
+    api_key_service.set_services(db, customer, row, data.service_codes, commit=False)
+    audit_service.record_change(
+        db,
+        _actor_id(actor),
+        "api_key.update_services",
+        "customer",
+        str(customer.id),
+        f"{row.name} -> {', '.join(data.service_codes)}",
+    )
+    return _api_key_out(row)
+
+
+@router.delete("/customers/{customer_id}/api-keys/{api_key_id}", response_model=ApiKeyOut)
+def revoke_api_key(
+    customer_id: int,
+    api_key_id: int,
+    actor: User | None = Depends(admin_access),
+    db: Session = Depends(get_db),
+) -> ApiKeyOut:
+    customer = _get_customer(db, customer_id)
+    row = _get_api_key(db, customer, api_key_id)
+    api_key_service.revoke_key(db, row, commit=False)
+    audit_service.record_change(
+        db, _actor_id(actor), "api_key.revoke", "customer", str(customer.id), row.name
+    )
+    return _api_key_out(row)
 
 
 @router.post("/customers/{customer_id}/rcv", response_model=RcvDocumentsResponse)
