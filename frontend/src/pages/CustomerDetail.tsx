@@ -578,7 +578,10 @@ export default function CustomerDetail() {
                     {/* Toda apikey_hash de CustomerService sigue siendo válida por el
                         camino viejo (deprecado): se marca para que se sepa que convive
                         con las claves nuevas de abajo. */}
-                    <span className="badge neutral" title="También autentica con la apiKey vieja de este servicio (deprecada)">
+                    <span
+                      className="badge neutral"
+                      title="También autentica con la apiKey vieja de este servicio (deprecada)"
+                    >
                       heredada
                     </span>
                   </td>

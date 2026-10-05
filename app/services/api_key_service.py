@@ -75,15 +75,15 @@ def create_key(
 
     La clave en claro (``key_id.secret``) se ve UNA vez; en BD solo queda el hash.
     """
-    nombre = name.strip()
-    if not nombre:
+    clean_name = name.strip()
+    if not clean_name:
         raise DomainError("el nombre de la clave no puede estar vacío")
     services = _resolve_services(db, customer, service_codes)
     key_id = secrets.token_hex(8)
     secret = secrets.token_urlsafe(32)
     row = CustomerApiKey(
         customer_id=customer.id,
-        name=nombre,
+        name=clean_name,
         key_id=key_id,
         secret_hash=hash_apikey(secret),
         expires_at=expires_at,

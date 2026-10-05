@@ -76,38 +76,37 @@ def tenant_for(service_code: str) -> Callable[..., Customer]:
             raise HTTPException(status_code=401, detail="credenciales inválidas")
 
         key_name: str | None = None
-        if "." in api_key:
-            # --- Camino nuevo: una clave con los servicios que tiene permitidos ---
-            cak = api_key_service.authenticate(db, customer, api_key)
-            if cak is None:
-                dummy_verify()
-                _tenant_failures.record(ip)
-                raise HTTPException(status_code=401, detail="credenciales inválidas")
-            allowed = {s.code for s in cak.services}
-            if service_code not in allowed:
+        contract = (
+            db.query(CustomerService)
+            .join(CustomerService.service)
+            .filter(CustomerService.customer_id == customer.id, Service.code == service_code)
+            .first()
+        )
+        # Camino nuevo: una clave con los servicios que tiene permitidos. Una
+        # apiKey vieja que traiga un punto (las cargadas a mano desde .NET) no
+        # calza aquí y sigue por el camino viejo.
+        api_key_row = (
+            api_key_service.authenticate(db, customer, api_key) if "." in api_key else None
+        )
+        if api_key_row is not None:
+            # El servicio tiene que estar permitido en la clave Y seguir
+            # contratado: quitarle un servicio al cliente no toca sus claves.
+            allowed = {s.code for s in api_key_row.services}
+            if contract is None or service_code not in allowed:
                 # Credencial VÁLIDA, sin ese permiso: no es un intento fallido.
                 raise HTTPException(
                     status_code=403,
-                    detail=f'la clave "{cak.name}" no tiene autorizado este servicio',
+                    detail=f'la clave "{api_key_row.name}" no tiene autorizado este servicio',
                 )
-            api_key_service.touch_last_used(db, cak)
-            key_name = cak.name
+            api_key_service.touch_last_used(db, api_key_row)
+            key_name = api_key_row.name
         else:
-            # --- Camino viejo (deprecado): una apiKey por servicio ---
-            cs = (
-                db.query(CustomerService)
-                .join(CustomerService.service)
-                .filter(
-                    CustomerService.customer_id == customer.id,
-                    Service.code == service_code,
-                )
-                .first()
-            )
-            if cs is None:
+            # Camino viejo (deprecado): una apiKey por servicio.
+            if contract is None:
                 dummy_verify()
                 _tenant_failures.record(ip)
                 raise HTTPException(status_code=401, detail="credenciales inválidas")
-            if not verify_apikey(api_key, cs.apikey_hash):
+            if not verify_apikey(api_key, contract.apikey_hash):
                 _tenant_failures.record(ip)
                 raise HTTPException(status_code=401, detail="credenciales inválidas")
 

@@ -211,3 +211,25 @@ def test_last_used_at_is_set_after_use(client, db):
 
     rows_after = client.get(f"/admin/customers/{c.id}/api-keys", headers=h).json()
     assert rows_after[0]["last_used_at"] is not None
+
+
+def test_new_key_loses_service_when_contract_is_revoked(client, db):
+    # Quitarle el servicio al cliente no toca las claves, pero la clave ya no
+    # debe entrar a lo que el cliente dejó de tener contratado.
+    c = _customer_with_services(db)
+    h = _operator(client, db)
+    key = _create_key(client, h, c.id, service_codes=[SERVICE_DTE])
+
+    r_del = client.delete(f"/admin/customers/{c.id}/services/{SERVICE_DTE}", headers=h)
+    assert r_del.status_code == 200, r_del.text
+    r = client.get("/dte/folios", headers=headers(c.key, key["api_key"]))
+    assert r.status_code == 403
+
+
+def test_legacy_key_with_a_dot_still_works(client, db):
+    # Las apiKey viejas se podían fijar a mano (migradas desde .NET); si traen
+    # un punto no son del formato nuevo y tienen que seguir autenticando.
+    c = make_customer(db, key="cust-dot")
+    grant(db, c, SERVICE_DTE, "legacy.with.dots")
+    r = client.get("/dte/folios", headers=headers(c.key, "legacy.with.dots"))
+    assert r.status_code == 200, r.text
