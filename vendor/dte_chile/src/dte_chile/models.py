@@ -160,13 +160,6 @@ class Reference:
     # receipt._references).
     doc_type: int | str | None
     folio: str  # FolioRef
-    # IndGlobal=1: la referencia abarca un conjunto de documentos del mismo
-    # tipo, no uno puntual. El SII exige entonces FolioRef="0". No existe en
-    # el XSD de la boleta.
-    is_global: bool = False
-    # RUTOtr: RUT de otro contribuyente que emitió el documento referenciado.
-    # No existe en el XSD de la boleta.
-    other_rut: str | None = None
     # FchRef. Opcional a propósito: el XSD de la BOLETA no define este campo,
     # así que una referencia de boleta no tiene fecha que informar.
     date: _dt.date | None = None
@@ -174,6 +167,16 @@ class Reference:
     # corrige montos). En boleta es alfanumérico: el set pide «SET».
     code: ReferenceCode | str | None = None
     reason: str = ""  # RazonRef
+    # Al final para no correr los argumentos posicionales de quien ya construye
+    # Reference(tipo, folio, fecha, código, razón); en el XML van antes de FolioRef
+    # y FchRef, en el orden del XSD (ver xml_builder._references).
+    # IndGlobal=1: la referencia abarca un conjunto de documentos del mismo
+    # tipo, no uno puntual. El SII exige entonces FolioRef="0". No existe en
+    # el XSD de la boleta.
+    is_global: bool = False
+    # RUTOtr: RUT de otro contribuyente que emitió el documento referenciado.
+    # No existe en el XSD de la boleta.
+    other_rut: str | None = None
 
 
 # Código SII del "IVA retenido total" (tabla 4 del Formato DTE). Es el que usa
