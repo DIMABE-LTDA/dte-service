@@ -325,6 +325,86 @@ def test_internal_transfer_requires_receiver_equal_to_issuer(client, db, fake_dt
 
 
 # --------------------------------------------------------------------------- #
+#  Referencias: TpoDocRef alfanumérico (HES/801...), IndGlobal, RUTOtr
+# --------------------------------------------------------------------------- #
+def test_reference_accepts_numeric_and_alphanumeric_doc_types(client, db, fake_dte_engine):
+    """Odoo manda HES (hoja de entrada de servicios) junto a la OC (801)."""
+    _setup(db)
+    references = [
+        {"doc_type": "HES", "folio": "FOLIO-HES-1", "date": "2026-06-09", "reason": "HES"},
+        {"doc_type": 801, "folio": "12345", "date": "2026-06-09", "reason": "OC 12345"},
+    ]
+    r = client.post(
+        "/dte/issue", json=_payload(send=False, references=references), headers=headers()
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_reference_rejects_a_four_character_doc_type(client, db, fake_dte_engine):
+    _setup(db)
+    references = [{"doc_type": "HESX", "folio": "1", "date": "2026-06-09"}]
+    r = client.post(
+        "/dte/issue", json=_payload(send=False, references=references), headers=headers()
+    )
+    assert r.status_code == 422, r.text
+
+
+def test_reference_rejects_a_folio_over_eighteen_characters(client, db, fake_dte_engine):
+    _setup(db)
+    references = [{"doc_type": 801, "folio": "1" * 19, "date": "2026-06-09"}]
+    r = client.post(
+        "/dte/issue", json=_payload(send=False, references=references), headers=headers()
+    )
+    assert r.status_code == 422, r.text
+
+
+def test_reference_rejects_more_than_forty_references(client, db, fake_dte_engine):
+    _setup(db)
+    references = [{"doc_type": 801, "folio": str(n), "date": "2026-06-09"} for n in range(1, 42)]
+    r = client.post(
+        "/dte/issue", json=_payload(send=False, references=references), headers=headers()
+    )
+    assert r.status_code == 422, r.text
+
+
+def test_reference_is_global_requires_folio_zero(client, db, fake_dte_engine):
+    """IndGlobal=1 referencia un conjunto de documentos: el SII exige FolioRef=0."""
+    _setup(db)
+    references = [
+        {"doc_type": 52, "folio": "7", "is_global": True, "date": "2026-06-09"},
+    ]
+    r = client.post(
+        "/dte/issue", json=_payload(send=False, references=references), headers=headers()
+    )
+    assert r.status_code == 422, r.text
+
+    references[0]["folio"] = "0"
+    r = client.post(
+        "/dte/issue", json=_payload(send=False, references=references), headers=headers()
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_reference_normalizes_other_rut(client, db, fake_dte_engine, monkeypatch):
+    """RUTOtr: el RUT de otro contribuyente que emitió el documento referenciado."""
+    _setup(db)
+    captured = {}
+    from dte_chile.xml_builder import build_document as _real_build_document
+
+    def _spy(dte, caf, ts):
+        captured["references"] = list(dte.references)
+        return _real_build_document(dte, caf, ts)
+
+    monkeypatch.setattr(dte_service, "build_document", _spy)
+    references = [{"doc_type": 801, "folio": "1", "other_rut": "76086428-5", "date": "2026-06-09"}]
+    r = client.post(
+        "/dte/issue", json=_payload(send=False, references=references), headers=headers()
+    )
+    assert r.status_code == 200, r.text
+    assert captured["references"][0].other_rut == "76086428-5"
+
+
+# --------------------------------------------------------------------------- #
 #  Liquidación factura (43)
 # --------------------------------------------------------------------------- #
 def _settlement_payload(**over):

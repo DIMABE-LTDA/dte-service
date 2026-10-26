@@ -6,7 +6,9 @@ import datetime as dt
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.schemas.validators import normalize_rut
 
 
 class IssuerIn(BaseModel):
@@ -108,16 +110,63 @@ class AdditionalTaxIn(BaseModel):
     amount: int | None = Field(None, ge=0)  # MontoImp
 
 
+# Máximo de referencias por documento (XSD DTE_v10: <Referencia maxOccurs="40">).
+MAX_REFERENCES = 40
+
+
 class ReferenceIn(BaseModel):
-    # Código numérico del documento (33, 61, 801...) o el literal "SET": el
+    # Código del documento: numérico (33, 61, 801...), el literal "SET" (el
     # instructivo del SII exige que la PRIMERA referencia de cada documento del
-    # set de pruebas sea TpoDocRef=SET con RazonRef "CASO {atención}-{n}". Sin
-    # ella el documento no queda asociado a ningún caso del set.
-    doc_type: int | Literal["SET"]
+    # set de pruebas sea TpoDocRef=SET con RazonRef "CASO {atención}-{n}"; sin
+    # ella el documento no queda asociado a ningún caso del set) o un código
+    # alfanumérico de hasta 3 caracteres como los que usa Odoo para HES, HEM,
+    # MIG, etc.
+    doc_type: int | str
     folio: str
+    # IndGlobal=1: la referencia abarca un conjunto de documentos del mismo
+    # tipo. El SII exige entonces FolioRef="0".
+    is_global: bool = False
+    # RUTOtr: RUT del contribuyente que emitió el documento referenciado,
+    # cuando no es el propio emisor.
+    other_rut: str | None = None
     date: dt.date
     code: int | None = None
     reason: str = ""
+
+    @field_validator("doc_type")
+    @classmethod
+    def _doc_type(cls, v: int | str | None) -> int | str | None:
+        if v is None or isinstance(v, int):
+            return v
+        v = v.strip().upper()
+        if not v or len(v) > 3 or not v.isalnum():
+            raise ValueError(
+                "TpoDocRef debe ser un código numérico o alfanumérico de 1 a 3 "
+                "caracteres (por ejemplo «801», «HES» o «SET»)."
+            )
+        return v
+
+    @field_validator("folio")
+    @classmethod
+    def _folio(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not v or len(v) > 18:
+            raise ValueError("FolioRef debe tener entre 1 y 18 caracteres.")
+        return v
+
+    @field_validator("other_rut")
+    @classmethod
+    def _other_rut(cls, v: str | None) -> str | None:
+        return normalize_rut(v) if v else v
+
+    @model_validator(mode="after")
+    def _global_folio(self) -> ReferenceIn:
+        # IndGlobal=1 referencia un conjunto de documentos, no uno: el SII
+        # exige FolioRef="0" (nunca el folio de un documento puntual).
+        if self.is_global and self.folio is not None and self.folio != "0":
+            raise ValueError('Con is_global=true, folio debe ser "0".')
+        return self
 
 
 class DteIssueRequest(BaseModel):
@@ -126,7 +175,7 @@ class DteIssueRequest(BaseModel):
     issuer: IssuerIn
     receiver: ReceiverIn
     items: list[ItemIn] = Field(min_length=1)
-    references: list[ReferenceIn] = []
+    references: list[ReferenceIn] = Field(default=[], max_length=MAX_REFERENCES)
     global_discounts: list[GlobalDiscountIn] = []
     retentions: list[RetentionIn] = []
     additional_taxes: list[AdditionalTaxIn] = []
@@ -214,7 +263,7 @@ class BatchReferenceIn(ReferenceIn):
 
     batch_index: int | None = Field(None, ge=1)
     # Al usar batch_index estos tres se derivan del documento apuntado.
-    doc_type: int | Literal["SET"] | None = None  # type: ignore[assignment]
+    doc_type: int | str | None = None  # type: ignore[assignment]
     folio: str | None = None  # type: ignore[assignment]
     date: dt.date | None = None  # type: ignore[assignment]
 
@@ -242,7 +291,7 @@ class DteBatchItemIn(BaseModel):
     issuer: IssuerIn
     receiver: ReceiverIn
     items: list[ItemIn] = Field(min_length=1)
-    references: list[BatchReferenceIn] = []
+    references: list[BatchReferenceIn] = Field(default=[], max_length=MAX_REFERENCES)
     global_discounts: list[GlobalDiscountIn] = []
     retentions: list[RetentionIn] = []
     additional_taxes: list[AdditionalTaxIn] = []
@@ -339,7 +388,7 @@ class SettlementIssueRequest(BaseModel):
     receiver: ReceiverIn  # el mandante
     lines: list[SettlementLineIn] = Field(min_length=1)
     commissions: list[CommissionIn] = []
-    references: list[ReferenceIn] = []
+    references: list[ReferenceIn] = Field(default=[], max_length=MAX_REFERENCES)
     send: bool = True
     validate_xsd: bool = True
 
@@ -352,7 +401,7 @@ class SettlementBatchItemIn(BaseModel):
     receiver: ReceiverIn
     lines: list[SettlementLineIn] = Field(min_length=1)
     commissions: list[CommissionIn] = []
-    references: list[BatchReferenceIn] = []
+    references: list[BatchReferenceIn] = Field(default=[], max_length=MAX_REFERENCES)
 
 
 class SettlementBatchRequest(BaseModel):
@@ -446,7 +495,7 @@ class ExportIssueRequest(BaseModel):
     currency: str = Field(min_length=1, examples=["DOLAR USA", "LIBRA EST"])
     items: list[ExportItemIn] = Field(min_length=1)
     global_charges: list[GlobalDiscountIn] = []
-    references: list[ReferenceIn] = []
+    references: list[ReferenceIn] = Field(default=[], max_length=MAX_REFERENCES)
     customs: CustomsIn | None = None
     other_currency: OtherCurrencyIn | None = None
     payment_mode: int | None = None  # FmaPagExp
@@ -468,7 +517,7 @@ class ExportBatchItemIn(BaseModel):
     currency: str = Field(min_length=1, examples=["DOLAR USA", "LIBRA EST"])
     items: list[ExportItemIn] = Field(min_length=1)
     global_charges: list[GlobalDiscountIn] = []
-    references: list[BatchReferenceIn] = []
+    references: list[BatchReferenceIn] = Field(default=[], max_length=MAX_REFERENCES)
     customs: CustomsIn | None = None
     other_currency: OtherCurrencyIn | None = None
     payment_mode: int | None = None

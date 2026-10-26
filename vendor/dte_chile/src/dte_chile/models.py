@@ -154,11 +154,19 @@ class GlobalDiscount:
 class Reference:
     """Referencia a otro documento (obligatoria en notas 56/61)."""
 
-    # TpoDocRef: el código del documento (33, 61...), o "SET" en la factura de
-    # certificación. Vacío en la referencia de caso de una boleta, que va en
-    # CodRef (ver receipt._references).
+    # TpoDocRef: el código del documento (33, 61, 801...), un código
+    # alfanumérico (HES, HEM, MIG...) o "SET" en la factura de certificación.
+    # Vacío en la referencia de caso de una boleta, que va en CodRef (ver
+    # receipt._references).
     doc_type: int | str | None
     folio: str  # FolioRef
+    # IndGlobal=1: la referencia abarca un conjunto de documentos del mismo
+    # tipo, no uno puntual. El SII exige entonces FolioRef="0". No existe en
+    # el XSD de la boleta.
+    is_global: bool = False
+    # RUTOtr: RUT de otro contribuyente que emitió el documento referenciado.
+    # No existe en el XSD de la boleta.
+    other_rut: str | None = None
     # FchRef. Opcional a propósito: el XSD de la BOLETA no define este campo,
     # así que una referencia de boleta no tiene fecha que informar.
     date: _dt.date | None = None

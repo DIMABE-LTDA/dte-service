@@ -152,6 +152,21 @@ def _credit_note():
     )
 
 
+def _invoice_with_hes_reference():
+    """Factura que referencia una HES (hoja de entrada de servicios) de Odoo."""
+    return DTE(
+        type=DTEType.AFFECTED_INVOICE,
+        folio=5,
+        issue_date=ISSUE_DATE,
+        issuer=_issuer(),
+        receiver=_receiver(),
+        items=[Item("SERVICIO", quantity=1, unit_price=10000)],
+        references=[
+            Reference(doc_type="HES", folio="HES-998", date=ISSUE_DATE, reason="SERVICIO ABC"),
+        ],
+    )
+
+
 def _internal_guide():
     return DTE(
         type=DTEType.DISPATCH_NOTE,
@@ -240,6 +255,16 @@ def test_print_every_document_of_a_batch_envelope(client, db, signing_cert, real
     # La nota de crédito no es cedible; la factura sí.
     assert [d["cedible"] for d in body["documents"]] == [True, False]
     assert "Factura electrónica N° 4" in _html(body, 1)  # la referencia de la nota
+
+
+def test_printed_reference_shows_an_alphanumeric_doc_type(client, db, signing_cert, real_caf):
+    """Una referencia HES (no numérica) debe imprimirse tal cual, con su folio."""
+    _setup(db)
+    payload = {"xml_base64": _envelope_b64([_invoice_with_hes_reference()], signing_cert, real_caf)}
+    html = _html(client.post("/dte/print", json=payload, headers=headers()).json())
+
+    assert "Ref: HES N° HES-998" in html
+    assert "SERVICIO ABC" in html
 
 
 def test_internal_transfer_guide_has_no_transferable_copy(client, db, signing_cert, real_caf):

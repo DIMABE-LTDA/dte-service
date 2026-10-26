@@ -71,6 +71,8 @@ def _reference(ref) -> Reference:
     return Reference(
         doc_type=ref.doc_type,
         folio=ref.folio,
+        is_global=ref.is_global,
+        other_rut=ref.other_rut,
         date=ref.date,
         code=ReferenceCode(ref.code) if ref.code is not None else None,
         reason=ref.reason,
